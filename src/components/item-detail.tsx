@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   History,
+  ImagePlus,
   Loader2,
   PackagePlus,
   PencilLine,
@@ -21,9 +22,9 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import type { DbCategory, DbPriceEvent, Grade } from "@/db/schema";
+import type { DbCategory, DbPriceEvent, Grade, ItemPhoto } from "@/db/schema";
 import type { EnrichedItem } from "@/lib/queries";
-import { agingMarkdown, computeFloor } from "@/lib/valuation";
+import { agingMarkdown, computeFloor, GRADE_META, GRADE_ORDER } from "@/lib/valuation";
 import { SOLD_CHANNELS } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { Field, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
@@ -204,6 +205,7 @@ function EditItemModal({
     categoryId: item.categoryId == null ? "" : String(item.categoryId),
   });
   const [checklist, setChecklist] = useState(item.checklist ?? []);
+  const [afterPhotos, setAfterPhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => photo.slot.startsWith("after-")));
   const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>("cm");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -217,13 +219,20 @@ function EditItemModal({
     { label: "Benchmark", value: item.benchmarkPrice },
     { label: "Value high", value: item.valueHigh },
   ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
+  const beforePhotos = (item.photos ?? []).filter((photo) => !photo.slot.startsWith("after-"));
+  const addAfterMedia = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result) }]);
+    reader.readAsDataURL(file);
+  };
   const submit = async () => {
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "edit", ...form, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
+      body: JSON.stringify({ action: "edit", ...form, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...beforePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -243,7 +252,7 @@ function EditItemModal({
           {([["name", "Item name"], ["brand", "Brand"], ["model", "Model"], ["color", "Color"], ["material", "Material"], ["location", "Location"]] as const).map(([key, label]) => <label key={key} className={key === "name" ? "sm:col-span-2" : ""}><span className="label">{label}</span><input className="input" value={form[key]} onChange={(event) => update(key, event.target.value)} /></label>)}
           <label><span className="label">Dimensions</span><div className="flex gap-2"><input className="input" style={{ minWidth: 0, flex: "1 1 auto" }} value={form.dimensions} onChange={(event) => update("dimensions", event.target.value)} onBlur={() => update("dimensions", normalizeDimensions(form.dimensions, dimensionUnit))} placeholder="25 62 40" /><select className="input" style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }} value={dimensionUnit} onChange={(event) => setDimensionUnit(event.target.value as DimensionUnit)} aria-label="Dimension unit"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inch</option><option value="m">meters</option></select></div></label>
           <label><span className="label">Category</span><select className="input" value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}><option value="">Uncategorized</option>{categories.filter((category) => category.parentId != null).sort((a, b) => a.name.localeCompare(b.name)).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-          <label><span className="label">Grade</span><select className="input" value={form.grade} onChange={(event) => update("grade", event.target.value)}><option value="">Not graded</option>{(["A", "B", "C", "D"] as Grade[]).map((grade) => <option key={grade} value={grade}>Grade {grade}</option>)}</select></label>
+          <div className="sm:col-span-2"><span className="label">Condition grade</span><div className="grid grid-cols-4 gap-2">{GRADE_ORDER.map((grade) => { const active = form.grade === grade; const meta = GRADE_META[grade]; return <button key={grade} type="button" onClick={() => update("grade", active ? "" : grade)} className={cn("rounded-xl border px-2 py-2 text-left transition", active ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/30" : "border-[var(--line)] bg-white hover:border-amber-300")}><span className={cn("chip", meta.chip)}>{grade}</span><span className="mt-1 block truncate text-[10px] font-semibold text-stone-600">{meta.tagline}</span></button>; })}</div><p className="mt-1.5 text-[11px] text-stone-400">Select a grade to update the inspection record, or click the selected grade again to clear it.</p></div>
           <label><span className="label">Listed price — ₱</span><input className="input" type="number" min={0} value={form.listedPrice} onChange={(event) => update("listedPrice", event.target.value)} placeholder="Not listed" /></label>
           <label><span className="label">Acquisition cost — ₱</span><input className="input" type="number" min={0} value={form.acquisitionCost} onChange={(event) => update("acquisitionCost", event.target.value)} /></label>
           <label><span className="label">Refurb cost — ₱</span><input className="input" type="number" min={0} value={form.refurbCost} onChange={(event) => update("refurbCost", event.target.value)} /></label>
@@ -269,6 +278,28 @@ function EditItemModal({
                       <button key={status} type="button" onClick={() => setChecklist((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status } : item))} className={cn("px-2.5 py-1.5 text-[11px] font-semibold capitalize", entry.status === status ? status === "pass" ? "bg-emerald-600 text-white" : status === "flag" ? "bg-amber-500 text-white" : "bg-rose-600 text-white" : "text-stone-400 hover:bg-stone-50")}>{status}</button>
                     ))}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-5 border-t border-stone-100 pt-4">
+          <div className="flex items-center justify-between gap-3"><div><div className="label mb-0">After photos and videos</div><p className="mt-1 text-[11px] text-stone-400">Add the finished or refurbished condition without replacing the before photos.</p></div><label className="btn-soft h-9 cursor-pointer text-[12px]"><ImagePlus className="h-4 w-4" /><span>Add media</span><input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => { addAfterMedia(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label></div>
+          {afterPhotos.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">No after media added yet.</div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {afterPhotos.map((photo) => (
+                <div key={photo.slot} className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-stone-50">
+                  {photo.url.startsWith("data:video/") ? (
+                    <video src={photo.url} controls className="aspect-square w-full object-cover" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photo.url} alt={photo.label} className="aspect-square w-full object-cover" />
+                  )}
+                  <button type="button" onClick={() => setAfterPhotos((current) => current.filter((item) => item.slot !== photo.slot))} className="absolute right-1.5 top-1.5 rounded-full bg-stone-950/65 p-1 text-white" aria-label={`Remove ${photo.label}`}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
             </div>

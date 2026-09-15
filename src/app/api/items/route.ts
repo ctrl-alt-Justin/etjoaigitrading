@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { type ChecklistEntry, type Grade, type ItemPhoto } from "@/db/schema";
 import { computeFloor, valuate, type Valuation } from "@/lib/valuation";
@@ -137,6 +138,8 @@ export async function POST(req: Request) {
     console.error("item event insert failed", eventError);
     return NextResponse.json({ error: "ITEM_EVENT_INSERT_FAILED", message: eventError.message }, { status: 500 });
   }
+
+  revalidateTag("inventory-data", "max");
 
   return NextResponse.json({ ok: true, id: row.id, sku }, { status: 201 });
 }

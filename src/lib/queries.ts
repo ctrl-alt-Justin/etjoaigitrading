@@ -3,6 +3,8 @@
  * Pages query through here; client components receive plain serialized data.
  */
 import { supabase } from "@/lib/supabase";
+import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { camelizeRows, camelizeRow } from "@/db/records";
 import {
   type DbCategory,
@@ -38,7 +40,8 @@ export async function getLatestShareForItem(itemId: number): Promise<DbItemShare
   return data[0] ? camelizeRow<DbItemShare>(data[0]) : null;
 }
 
-export async function getAllData() {
+const getCachedAllData = unstable_cache(
+  async () => {
   const [itemRows, catRows, attrRows, supRows, eventRows] = await Promise.all([
     supabase.from("items").select("*"),
     supabase.from("categories").select("*"),
@@ -56,7 +59,13 @@ export async function getAllData() {
     suppliers: camelizeRows<DbSupplier>(supRows.data),
     events: camelizeRows<DbPriceEvent>(eventRows.data),
   };
-}
+  },
+  ["inventory-all-data"],
+  { revalidate: 10, tags: ["inventory-data"] }
+);
+
+/** Shared layout and page queries reuse one request and a short-lived server cache. */
+export const getAllData = cache(() => getCachedAllData());
 
 /* ------------------------------------------------------------------ */
 /* Category tree helpers                                               */

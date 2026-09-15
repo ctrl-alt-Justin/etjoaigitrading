@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { camelizeRow } from "@/db/records";
 import type { DbSupplier } from "@/db/schema";
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
       .select()
       .single();
     if (error) throw error;
+    revalidateTag("inventory-data", "max");
     return NextResponse.json(camelizeRow<DbSupplier>(data), { status: 201 });
   } catch {
     return NextResponse.json({ error: "A supplier with this name already exists" }, { status: 409 });

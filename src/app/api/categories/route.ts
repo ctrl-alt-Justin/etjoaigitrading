@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { camelizeRow } from "@/db/records";
 import type { DbCategory } from "@/db/schema";
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     .select()
     .single();
   if (error) throw error;
+  revalidateTag("inventory-data", "max");
   return NextResponse.json(camelizeRow<DbCategory>(data), { status: 201 });
 }
 
@@ -54,6 +56,7 @@ export async function PATCH(req: Request) {
   const { data, error } = await supabase.from("categories").update(patch).eq("id", body.id).select().maybeSingle();
   if (error) throw error;
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  revalidateTag("inventory-data", "max");
   return NextResponse.json(camelizeRow<DbCategory>(data));
 }
 
@@ -77,5 +80,6 @@ export async function DELETE(req: Request) {
 
   const { error } = await supabase.from("categories").delete().eq("id", body.id);
   if (error) throw error;
+  revalidateTag("inventory-data", "max");
   return NextResponse.json({ ok: true });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { camelizeRow } from "@/db/records";
 import type { DbCategoryAttribute } from "@/db/schema";
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     .select()
     .single();
   if (error) throw error;
+  revalidateTag("inventory-data", "max");
   return NextResponse.json(camelizeRow<DbCategoryAttribute>(data), { status: 201 });
 }
 
@@ -50,5 +52,6 @@ export async function DELETE(req: Request) {
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
   const { error } = await supabase.from("category_attributes").delete().eq("id", body.id);
   if (error) throw error;
+  revalidateTag("inventory-data", "max");
   return NextResponse.json({ ok: true });
 }

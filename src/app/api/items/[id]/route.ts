@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { camelizeRow, camelizeRows } from "@/db/records";
 import type { DbItem, DbPriceEvent } from "@/db/schema";
@@ -98,6 +99,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       listed_at: body.status === "listed" ? new Date().toISOString() : item.listedAt,
     }).eq("id", id);
     if (error) throw error;
+    revalidateTag("inventory-data", "max");
     return NextResponse.json({ ok: true });
   }
 
@@ -113,6 +115,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "listed", price, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
     case "price": {
@@ -125,6 +128,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind, price, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
     case "sold": {
@@ -134,6 +138,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "sold", price, note: body.channel || null, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
     case "reserve": {
@@ -174,6 +179,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (eventError) throw eventError;
   const { error } = await supabase.from("items").delete().eq("id", id);
   if (error) throw error;
+  revalidateTag("inventory-data", "max");
   return NextResponse.json({ ok: true });
 }
 
