@@ -171,7 +171,7 @@ export function enrichItems(
   const supById = new Map(sups.map((s) => [s.id, s.name]));
   return rows.map((it) => {
     const root = rootOf(it.categoryId, byId);
-    const leaf = byId.get(it.categoryId);
+    const leaf = it.categoryId != null ? byId.get(it.categoryId) : undefined;
     const eff = (it.acquisitionCost ?? 0) + (it.refurbCost ?? 0);
     const listedAt = it.listedAt ? new Date(it.listedAt) : null;
     const intakeAt = new Date(it.intakeAt);
@@ -207,7 +207,7 @@ export function enrichItems(
   });
 }
 
-export const ACTIVE_STATUSES = ["intake", "in_stock", "listed", "reserved"] as const;
+export const ACTIVE_STATUSES = ["draft", "intake", "in_stock", "listed", "reserved"] as const;
 export const isActive = (s: string) => (ACTIVE_STATUSES as readonly string[]).includes(s);
 
 /* ------------------------------------------------------------------ */
@@ -351,7 +351,7 @@ export function computeDashboard(
 
   const agingDefs = [
     { label: "0–29 days", min: 0, max: 29, tone: "#0e9f6e" },
-    { label: "30–59 days", min: 30, max: 59, tone: "#d97706" },
+    { label: "30–59 days", min: 30, max: 59, tone: "#1D5D8B" },
     { label: "60–89 days", min: 60, max: 89, tone: "#ea580c" },
     { label: "90+ days", min: 90, max: 9999, tone: "#e11d48" },
   ];
@@ -474,7 +474,7 @@ export function benchmarkRows(enriched: EnrichedItem[]): BenchmarkRow[] {
 /** Historical sold reference for a comparable item, scored by similarity. */
 export function historicalFor(
   enriched: EnrichedItem[],
-  opts: { categoryId: number; rootSlug: string; brand?: string | null; grade?: string | null },
+  opts: { categoryId: number | null; rootSlug: string; brand?: string | null; grade?: string | null },
   limit = 5
 ) {
   const sameRoot = enriched.filter(

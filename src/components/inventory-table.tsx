@@ -9,7 +9,8 @@ import { AgingChip, EmptyState, GradeChip, MarginPill, StatusChip, Thumb } from 
 import { cn, fmtInt, fmtMoney, relTime } from "@/lib/format";
 
 const STATUS_TABS: { key: string; label: string; match: (i: EnrichedItem) => boolean }[] = [
-  { key: "active", label: "Active", match: (i) => ["intake", "in_stock", "listed", "reserved"].includes(i.status) },
+  { key: "active", label: "Active", match: (i) => ["draft", "intake", "in_stock", "listed", "reserved"].includes(i.status) },
+  { key: "draft", label: "Drafts", match: (i) => i.status === "draft" },
   { key: "intake", label: "Intake", match: (i) => i.status === "intake" },
   { key: "in_stock", label: "In stock", match: (i) => i.status === "in_stock" },
   { key: "listed", label: "Listed", match: (i) => i.status === "listed" },

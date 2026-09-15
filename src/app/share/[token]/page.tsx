@@ -31,7 +31,7 @@ function Unavailable({ reason }: { reason: string }) {
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-stone-500">{reason}</p>
         <div className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400">
-          Etjoaigi Trading · Makati
+          Etjoaigi Trading · Muntinlupa
         </div>
       </div>
     </div>
@@ -191,7 +191,7 @@ export default async function SharePage({ params }: PageProps) {
 
         <footer className="mt-16 flex items-center justify-center gap-2 border-t border-stone-200/70 pt-6 text-[11.5px] text-stone-400">
           <Building2 className="h-3.5 w-3.5" />
-          Etjoaigi Trading · Makati — pre-owned office furniture, graded and fairly priced.
+          Etjoaigi Trading · Muntinlupa — pre-owned office furniture, graded and fairly priced.
         </footer>
       </main>
     </div>

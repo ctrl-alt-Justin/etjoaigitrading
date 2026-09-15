@@ -16,6 +16,7 @@ export function GradeChip({ grade, className }: { grade?: Grade | null; classNam
 }
 
 const STATUS_META: Record<string, { label: string; chip: string; dot: string }> = {
+  draft: { label: "Information required", chip: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
   intake: { label: "Intake", chip: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500" },
   in_stock: { label: "In stock", chip: "bg-sky-50 text-sky-700 border-sky-200", dot: "bg-sky-500" },
   listed: { label: "Listed", chip: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
@@ -75,6 +76,9 @@ export function Thumb({
 }) {
   if (url) {
     const resolvedUrl = normalizeRefPhoto(url);
+    if (resolvedUrl.startsWith("data:video/") || /\.(mp4|webm|mov)(\?|$)/i.test(resolvedUrl)) {
+      return <video src={resolvedUrl} className={cn("object-cover", className)} muted playsInline />;
+    }
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={resolvedUrl} alt={alt} className={cn("object-cover", className)} loading="lazy" />;
   }

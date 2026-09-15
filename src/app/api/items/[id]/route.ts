@@ -8,6 +8,27 @@ import { fmtMoney } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 type Action =
+  | {
+      action: "edit";
+      name?: string;
+      brand?: string | null;
+      model?: string | null;
+      color?: string | null;
+      material?: string | null;
+      dimensions?: string | null;
+      grade?: "A" | "B" | "C" | "D" | null;
+      conditionNotes?: string | null;
+      checklist?: DbItem["checklist"];
+      photos?: DbItem["photos"];
+      attributes?: DbItem["attributes"];
+      supplierId?: number | null;
+      status?: "draft" | "in_stock" | "listed";
+      acquisitionCost?: number;
+      refurbCost?: number;
+      listedPrice?: number | null;
+      location?: string | null;
+      categoryId?: number | null;
+    }
   | { action: "list"; price: number }
   | { action: "price"; price: number }
   | { action: "sold"; price: number; channel?: string }
@@ -40,10 +61,52 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const fail = (status: number, payload: Record<string, unknown>) =>
     NextResponse.json(payload, { status });
 
+  if (body.action === "edit") {
+    const acquisitionCost = Number(body.acquisitionCost ?? item.acquisitionCost);
+    const refurbCost = Number(body.refurbCost ?? item.refurbCost);
+    if (!Number.isFinite(acquisitionCost) || acquisitionCost < 0 || !Number.isFinite(refurbCost) || refurbCost < 0)
+      return fail(400, { error: "Costs must be valid non-negative numbers" });
+    const nextFloor = computeFloor(acquisitionCost, refurbCost);
+    const listedPrice = body.listedPrice == null ? null : Number(body.listedPrice);
+    if (listedPrice != null && (!Number.isFinite(listedPrice) || listedPrice <= 0))
+      return fail(400, { error: "Listed price must be a positive number or empty" });
+    if (listedPrice != null && listedPrice < nextFloor)
+      return fail(409, { error: "BELOW_FLOOR", message: `Listed price is below the enforced floor of ${fmtMoney(nextFloor)}`, floor: nextFloor });
+    if (body.name !== undefined && !body.name.trim()) return fail(400, { error: "Item name is required" });
+    if (body.categoryId != null && (!Number.isInteger(body.categoryId) || body.categoryId <= 0)) return fail(400, { error: "Category is invalid" });
+    const { error } = await supabase.from("items").update({
+      name: body.name?.trim() ?? item.name,
+      brand: body.brand?.trim() || null,
+      model: body.model?.trim() || null,
+      color: body.color?.trim() || null,
+      material: body.material?.trim() || null,
+      dimensions: body.dimensions?.trim() || null,
+      grade: body.grade ?? null,
+      condition_notes: body.conditionNotes?.trim() || null,
+      checklist: body.checklist ?? [],
+      photos: body.photos ?? item.photos ?? [],
+      attributes: body.attributes ?? item.attributes ?? {},
+      supplier_id: body.supplierId ?? item.supplierId,
+      acquisition_cost: acquisitionCost,
+      refurb_cost: refurbCost,
+      listed_price: listedPrice,
+      floor_price: nextFloor,
+      location: body.location?.trim() || null,
+      category_id: body.categoryId ?? item.categoryId,
+      updated_at: now.toISOString(),
+      status: body.status ?? item.status,
+      listed_at: body.status === "listed" ? new Date().toISOString() : item.listedAt,
+    }).eq("id", id);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  }
+
   switch (body.action) {
     case "list": {
       const price = Number(body.price);
       if (!Number.isFinite(price) || price <= 0) return fail(400, { error: "Price required" });
+      const hasCompleteInfo = item.categoryId != null && item.name.trim().length > 1 && item.name !== "Information required" && item.dimensions?.trim().length && item.acquisitionCost > 0 && item.grade != null && (item.checklist?.length ?? 0) > 0 && (item.photos?.length ?? 0) > 0;
+      if (!hasCompleteInfo) return fail(409, { error: "INFORMATION_REQUIRED", message: "Complete the category, identity, cost, grade, checklist, and photos before listing this item." });
       if (price < floor)
         return fail(409, { error: "BELOW_FLOOR", message: `Price floor enforced at ${fmtMoney(floor)}`, floor });
       const { error } = await supabase.from("items").update({ status: "listed", listed_price: price, listed_at: item.listedAt ?? now.toISOString(), updated_at: now.toISOString() }).eq("id", id);

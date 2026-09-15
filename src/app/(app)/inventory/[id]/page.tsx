@@ -32,5 +32,5 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
 
   const share = await getLatestShareForItem(id);
 
-  return <ItemDetail item={item} events={itemEvents} history={history} share={share} />;
+  return <ItemDetail item={item} categories={categories} events={itemEvents} history={history} share={share} />;
 }

@@ -20,16 +20,16 @@ export type ShellCounts = {
   alerts: number;
 };
 
-export function Logo({ light = false }: { light?: boolean }) {
+export function Logo({ light = false, subtitle = "Trading" }: { light?: boolean; subtitle?: string }) {
   return (
     <div className="flex items-center gap-2.5">
       <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0" aria-hidden>
-        <rect x="1" y="1" width="30" height="30" rx="9" fill="#D97706" />
-        <path d="M11.5 8h6a5 5 0 0 1 5 5v2.5h-11z" fill="#FEF3C7" />
-        <rect x="9" y="17" width="15" height="3" rx="1.5" fill="#FEF3C7" />
+        <rect x="1" y="1" width="30" height="30" rx="9" fill="#1D5D8B" />
+        <path d="M11.5 8h6a5 5 0 0 1 5 5v2.5h-11z" fill="#FCFDF8" />
+        <rect x="9" y="17" width="15" height="3" rx="1.5" fill="#FCFDF8" />
         <path
           d="M12.2 20.5 10.8 26M21.8 20.5 23.2 26"
-          stroke="#FEF3C7"
+          stroke="#FCFDF8"
           strokeWidth="2.3"
           strokeLinecap="round"
         />
@@ -41,15 +41,15 @@ export function Logo({ light = false }: { light?: boolean }) {
             light ? "text-amber-50" : "text-stone-900"
           )}
         >
-          Etjoaigi
+          ETJOAIGI
         </div>
         <div
           className={cn(
             "mt-1 text-[9.5px] font-bold uppercase tracking-[0.22em]",
-            light ? "text-stone-500" : "text-stone-400"
+            light ? "text-white" : "text-stone-400"
           )}
         >
-          Trading
+          {subtitle}
         </div>
       </div>
     </div>
@@ -95,7 +95,7 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col bg-[#171310] lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col bg-[#123D5B] lg:flex">
         <div className="px-5 pb-6 pt-6">
           <Link href="/">
             <Logo light />
@@ -184,7 +184,7 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
             )}
           </div>
           <div className="mt-4 px-1 text-[10.5px] leading-relaxed text-stone-600">
-            Etjoaigi Trading · Makati
+            Etjoaigi Trading · Muntinlupa
             <br />
             Ops build 2.4 · production
           </div>
@@ -192,7 +192,7 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="fixed inset-x-0 top-0 z-40 border-b border-stone-200 bg-[#F6F3EC]/95 backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 top-0 z-40 border-b border-[#DCE8EF] bg-[#FCFDF8]/95 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between px-4 py-2.5">
           <Link href="/">
             <Logo />

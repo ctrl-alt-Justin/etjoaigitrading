@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Fuse from "fuse.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -23,7 +24,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { DbCategory, DbCategoryAttribute, Grade } from "@/db/schema";
+import type { DbCategory, DbCategoryAttribute, DbItem, Grade } from "@/db/schema";
 import {
   GRADE_META,
   GRADE_ORDER,
@@ -32,7 +33,7 @@ import {
   valuate,
 } from "@/lib/valuation";
 import { PHOTO_SLOTS, WAREHOUSE_LOCATIONS, checklistFor, refPhotoFor } from "@/lib/taxonomy-data";
-import { cn, fmtMoney, relTime } from "@/lib/format";
+import { cn, fmtMoney, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { GradeChip, Thumb } from "./ui";
 
 export type SoldRef = {
@@ -48,7 +49,7 @@ export type SoldRef = {
 
 export type SupplierLite = { id: number; name: string; channel: string };
 
-const STEPS = ["Category", "Identity", "Inspection", "Photos", "Pricing & publish"];
+const STEPS = ["Photos", "Category", "Identity", "Inspection", "Pricing & publish"];
 
 const COLORS = [
   "Black", "Graphite", "White", "Grey", "Walnut", "Oak", "Birch", "Cherry",
@@ -127,6 +128,7 @@ export function IntakeWizard({
   soldRefs,
   brands,
   brandModels,
+  initialItem = null,
 }: {
   categories: DbCategory[];
   attributes: DbCategoryAttribute[];
@@ -134,7 +136,9 @@ export function IntakeWizard({
   soldRefs: SoldRef[];
   brands: string[];
   brandModels: Record<string, string[]>;
+  initialItem?: DbItem | null;
 }) {
+  const router = useRouter();
   /* ---- data structure helpers ---- */
   const byId = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const childrenOf = useMemo(() => {
@@ -183,39 +187,41 @@ export function IntakeWizard({
   };
 
   /* ---- wizard state ---- */
+  const initialRootId = initialItem?.categoryId != null ? rootOf(initialItem.categoryId)?.id ?? null : null;
   const [step, setStep] = useState(0);
-  const [rootId, setRootId] = useState<number | null>(null);
-  const [leafId, setLeafId] = useState<number | null>(null);
+  const [rootId, setRootId] = useState<number | null>(initialRootId);
+  const [leafId, setLeafId] = useState<number | null>(initialItem?.categoryId ?? null);
   const [catQuery, setCatQuery] = useState("");
 
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [attrVals, setAttrVals] = useState<Record<string, string>>({});
-  const [color, setColor] = useState("");
-  const [material, setMaterial] = useState("");
-  const [dimensions, setDimensions] = useState("");
+  const [brand, setBrand] = useState(initialItem?.brand ?? "");
+  const [model, setModel] = useState(initialItem?.model ?? "");
+  const [name, setName] = useState(initialItem?.name === "Information required" ? "" : initialItem?.name ?? "");
+  const [nameTouched, setNameTouched] = useState(!!initialItem?.name && initialItem.name !== "Information required");
+  const [attrVals, setAttrVals] = useState<Record<string, string>>(initialItem?.attributes ?? {});
+  const [color, setColor] = useState(initialItem?.color ?? "");
+  const [material, setMaterial] = useState(initialItem?.material ?? "");
+  const [dimensions, setDimensions] = useState(initialItem?.dimensions ?? "");
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>("cm");
   const [sups, setSups] = useState<SupplierLite[]>(suppliers);
-  const [supplierId, setSupplierId] = useState<number | "">("");
+  const [supplierId, setSupplierId] = useState<number | "">(initialItem?.supplierId ?? "");
   const [newSup, setNewSup] = useState<{ open: boolean; name: string; channel: string; contact: string; busy: boolean }>({ open: false, name: "", channel: "Direct", contact: "", busy: false });
-  const [location, setLocation] = useState(WAREHOUSE_LOCATIONS[0]);
-  const [acq, setAcq] = useState("");
-  const [refurb, setRefurb] = useState("");
+  const [location, setLocation] = useState(initialItem?.location ?? WAREHOUSE_LOCATIONS[0]);
+  const [acq, setAcq] = useState(initialItem?.acquisitionCost ? String(initialItem.acquisitionCost) : "");
+  const [refurb, setRefurb] = useState(initialItem?.refurbCost ? String(initialItem.refurbCost) : "");
 
-  const [grade, setGrade] = useState<Grade | null>(null);
-  const [checks, setChecks] = useState<Record<number, "pass" | "flag" | "fail">>({});
-  const [notes, setNotes] = useState("");
+  const [grade, setGrade] = useState<Grade | null>(initialItem?.grade ?? null);
+  const [checks, setChecks] = useState<Record<number, "pass" | "flag" | "fail">>(() => Object.fromEntries((initialItem?.checklist ?? []).map((entry, index) => [index, entry.status])));
+  const [notes, setNotes] = useState(initialItem?.conditionNotes ?? "");
 
-  const [photos, setPhotos] = useState<Record<string, string | null>>({});
+  const [photos, setPhotos] = useState<Record<string, string | null>>(() => Object.fromEntries((initialItem?.photos ?? []).map((photo) => [photo.slot, photo.url])));
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const [listMode, setListMode] = useState<"intake" | "stock" | "listed">("stock");
-  const [price, setPrice] = useState("");
+  const [listMode, setListMode] = useState<"intake" | "stock" | "listed">(initialItem?.status === "listed" ? "listed" : "stock");
+  const [price, setPrice] = useState(initialItem?.listedPrice == null ? "" : String(initialItem.listedPrice));
   const [priceTouched, setPriceTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ id: number; sku: string } | null>(null);
+  const [result, setResult] = useState<{ id: number; sku: string; status: "draft" | "in_stock" | "listed" } | null>(null);
 
   /* ---- derived ---- */
   const leaf = leafId != null ? byId.get(leafId) ?? null : null;
@@ -279,13 +285,8 @@ export function IntakeWizard({
   const requiredPhotos = PHOTO_SLOTS.filter((s) => s.required);
   const photosOk = requiredPhotos.every((s) => photos[s.slot]);
   const mustAttrsOk = catAttrs.filter((a) => a.required).every((a) => (attrVals[a.name] ?? "").trim() !== "");
-  const canContinue = [
-    leafId != null,
-    name.trim().length > 1 && acqNum > 0 && mustAttrsOk,
-    grade != null && answered === checkList.length,
-    photosOk,
-    listMode !== "listed" ? true : priceNum >= floor && priceNum > 0,
-  ][step];
+  const listingReady = leafId != null && name.trim().length > 1 && dimensions.trim().length > 0 && acqNum > 0 && mustAttrsOk && grade != null && answered === checkList.length && photosOk && priceNum >= floor && priceNum > 0;
+  const canContinue = true;
 
   const syncName = (b: string, m: string) => {
     if (!nameTouched) setName([b, m].filter(Boolean).join(" "));
@@ -320,10 +321,12 @@ export function IntakeWizard({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/items", {
-        method: "POST",
+      const editing = initialItem != null;
+      const res = await fetch(editing ? `/api/items/${initialItem.id}` : "/api/items", {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(editing ? { action: "edit" } : {}),
           name: name.trim(),
           brand: brand.trim() || null,
           model: model.trim() || null,
@@ -331,7 +334,7 @@ export function IntakeWizard({
           attributes: attrVals,
           color: color.trim() || null,
           material: material.trim() || null,
-          dimensions: dimensions.trim() || null,
+          dimensions: normalizeDimensions(dimensions, dimensionUnit) || null,
           grade,
           checklist: checkList.map((label, ix) => ({ key: `c${ix}`, label, status: checks[ix] })),
           photos: PHOTO_SLOTS.filter((s) => photos[s.slot]).map((s) => ({
@@ -342,8 +345,8 @@ export function IntakeWizard({
           conditionNotes: notes.trim() || null,
           acquisitionCost: acqNum,
           refurbCost: refurbNum,
-          listedPrice: listMode === "listed" ? priceNum : listMode === "stock" ? priceNum || null : null,
-          status: listMode === "listed" ? "listed" : listMode === "stock" ? "in_stock" : "intake",
+          listedPrice: listMode === "listed" && listingReady ? priceNum : listMode === "stock" && listingReady ? priceNum || null : null,
+          status: listMode === "listed" && listingReady ? "listed" : listMode === "stock" && listingReady ? "in_stock" : "draft",
           supplierId: supplierId === "" ? null : supplierId,
           location,
         }),
@@ -353,9 +356,16 @@ export function IntakeWizard({
         setError(`Price floor enforced — the ask must be at least ${fmtMoney(data.floor)} for this unit.`);
         setStep(4);
       } else if (!res.ok) {
-        setError(data.error ?? "Could not save the item. Please try again.");
+        setError(data.error === "DATABASE_MIGRATION_REQUIRED"
+          ? "The database needs the draft-item migration. Run supabase/draft-items.sql in Supabase SQL Editor, then try again."
+          : data.message ?? data.error ?? "Could not save the item. Please try again.");
       } else {
-        setResult({ id: data.id, sku: data.sku });
+        if (editing) {
+          router.push(`/inventory/${initialItem.id}`);
+          router.refresh();
+        } else {
+          setResult({ id: data.id, sku: data.sku, status: listMode === "listed" && listingReady ? "listed" : listMode === "stock" && listingReady ? "in_stock" : "draft" });
+        }
       }
     } catch {
       setError("Network error while saving. Please try again.");
@@ -369,7 +379,7 @@ export function IntakeWizard({
     setRootId(null);
     setLeafId(null);
     setBrand(""); setModel(""); setName(""); setNameTouched(false);
-    setAttrVals({}); setColor(""); setMaterial(""); setDimensions("");
+    setAttrVals({}); setColor(""); setMaterial(""); setDimensions(""); setDimensionUnit("cm");
     setSupplierId(""); setAcq(""); setRefurb(""); setGrade(null);
     setChecks({}); setNotes(""); setPhotos({}); setListMode("stock");
     setPrice(""); setPriceTouched(false); setResult(null); setError(null);
@@ -388,10 +398,10 @@ export function IntakeWizard({
           <BadgeCheck className="h-7 w-7" />
         </div>
         <h2 className="mt-5 font-display text-[26px] font-semibold tracking-tight text-stone-900">
-          Logged into the book
+          {result.status === "draft" ? "Saved as a draft" : "Logged into the book"}
         </h2>
         <p className="mt-1.5 text-sm text-stone-500">
-          <span className="font-semibold text-stone-800">{name}</span> is now tracked as{" "}
+          <span className="font-semibold text-stone-800">{name || "Information required"}</span> is now tracked as{" "}
           <code className="rounded-md bg-stone-100 px-2 py-0.5 text-[13px] font-bold text-stone-800">{result.sku}</code>
         </p>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
@@ -454,8 +464,8 @@ export function IntakeWizard({
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            {/* ---------------- STEP 0 · CATEGORY ---------------- */}
-            {step === 0 && (
+            {/* ---------------- STEP 1 · CATEGORY ---------------- */}
+            {step === 1 && (
               <div className="card p-5">
                 <h3 className="font-display text-xl font-semibold text-stone-900">What is it?</h3>
                 <p className="mb-4 mt-1 text-[13px] text-stone-500">
@@ -549,8 +559,8 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 1 · IDENTITY ---------------- */}
-            {step === 1 && (
+            {/* ---------------- STEP 2 · IDENTITY ---------------- */}
+            {step === 2 && (
               <div className="space-y-4">
                 <div className="card p-5">
                   <h3 className="font-display text-xl font-semibold text-stone-900">Identity & acquisition</h3>
@@ -595,8 +605,17 @@ export function IntakeWizard({
                       <input className="input" value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Mesh, veneer, steel…" />
                     </div>
                     <div>
-                      <label className="label">Dimensions <span className="font-normal normal-case tracking-normal text-stone-300">(optional)</span></label>
-                      <input className="input" value={dimensions} onChange={(e) => setDimensions(e.target.value)} placeholder="W 160 × D 80 × H 74 cm" />
+                      <label className="label">Dimensions <span className="text-rose-500">*</span></label>
+                      <div className="flex gap-2">
+                        <input className="input" style={{ minWidth: 0, flex: "1 1 auto" }} value={dimensions} onChange={(e) => setDimensions(e.target.value)} onBlur={() => setDimensions((value) => normalizeDimensions(value, dimensionUnit))} placeholder="25 62 40" />
+                        <select className="input" style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }} value={dimensionUnit} onChange={(e) => setDimensionUnit(e.target.value as DimensionUnit)} aria-label="Dimension unit">
+                          <option value="mm">mm</option>
+                          <option value="cm">cm</option>
+                          <option value="in">inch</option>
+                          <option value="m">meters</option>
+                        </select>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-stone-400">Enter length, width, height in that order.</p>
                     </div>
                     <div>
                       <label className="label">Storage location</label>
@@ -689,8 +708,8 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 2 · INSPECTION ---------------- */}
-            {step === 2 && (
+            {/* ---------------- STEP 3 · INSPECTION ---------------- */}
+            {step === 3 && (
               <div className="space-y-4">
                 <div className="card p-5">
                   <h3 className="font-display text-xl font-semibold text-stone-900">Condition grade</h3>
@@ -779,12 +798,12 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 3 · PHOTOS ---------------- */}
-            {step === 3 && (
+            {/* ---------------- STEP 0 · PHOTOS ---------------- */}
+            {step === 0 && (
               <div className="card p-5">
                 <h3 className="font-display text-xl font-semibold text-stone-900">Photo capture</h3>
                 <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                  Required angles for a sellable listing. Upload from the device, or use the studio reference shot for this category.
+                  Start with what you have. Add photos or a short video now, then complete the record and listing details later.
                 </p>
                 <div className="grid gap-3.5 sm:grid-cols-2">
                   {PHOTO_SLOTS.map((s) => {
@@ -793,8 +812,12 @@ export function IntakeWizard({
                       <div key={s.slot} className={cn("overflow-hidden rounded-2xl border", url ? "border-[var(--line)]" : "border-dashed border-stone-300")}>
                         {url ? (
                           <div className="relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
+                            {url.startsWith("data:video/") ? (
+                              <video src={url} controls className="aspect-[4/3] w-full object-cover" />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
+                            )}
                             <button
                               onClick={() => setPhotos((p) => ({ ...p, [s.slot]: null }))}
                               className="absolute right-2.5 top-2.5 rounded-full bg-stone-950/60 p-1.5 text-white backdrop-blur transition hover:bg-stone-950/80"
@@ -832,7 +855,7 @@ export function IntakeWizard({
                         <input
                           ref={(el) => { fileRefs.current[s.slot] = el; }}
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           className="hidden"
                           onChange={(e) => onFile(s.slot, e.target.files?.[0])}
                         />
@@ -964,7 +987,7 @@ export function IntakeWizard({
                     <h3 className="font-display text-xl font-semibold text-stone-900">Publish</h3>
                     <div className="mt-3 space-y-2">
                       {([
-                        { k: "listed", t: "List for sale now", d: "Goes live on the book at the ask price above." },
+                        { k: "listed", t: "List for sale now", d: listingReady ? "Goes live on the book at the ask price above." : "Information is still required — this will be saved as a draft instead." },
                         { k: "stock", t: "Save to stock", d: "Priced and ready — list later from the item page." },
                         { k: "intake", t: "Keep in intake queue", d: "Park it; pricing can be finished by the desk later." },
                       ] as const).map((o) => (
@@ -985,6 +1008,13 @@ export function IntakeWizard({
                       ))}
                     </div>
 
+                    {listMode === "listed" && !listingReady && (
+                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] text-amber-900">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        Complete the category, identity, dimensions, acquisition cost, grade, checklist, required photos, and asking price to publish. This submission will be marked <span className="font-bold">Information required</span>.
+                      </div>
+                    )}
+
                     <div className="mt-4 flex items-center gap-3 rounded-xl bg-stone-50 p-3">
                       <Thumb url={photos.front} alt="" className="h-12 w-16 rounded-lg border border-stone-200" />
                       <div className="min-w-0 text-[12.5px]">
@@ -1002,11 +1032,11 @@ export function IntakeWizard({
 
                     <button
                       onClick={submit}
-                      disabled={saving || (listMode === "listed" && (priceNum < floor || priceNum <= 0))}
+                      disabled={saving}
                       className="btn-accent mt-4 w-full"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      {saving ? "Logging unit…" : "Log into inventory"}
+                      {saving ? "Logging unit…" : listMode === "listed" && !listingReady ? "Save as draft" : "Log into inventory"}
                     </button>
                   </div>
                 </div>

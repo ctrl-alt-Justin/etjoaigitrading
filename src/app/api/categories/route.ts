@@ -56,3 +56,26 @@ export async function PATCH(req: Request) {
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(camelizeRow<DbCategory>(data));
 }
+
+export async function DELETE(req: Request) {
+  let body: { id?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const [{ data: children, error: childrenError }, { data: attachedItems, error: itemsError }] = await Promise.all([
+    supabase.from("categories").select("id").eq("parent_id", body.id).limit(1),
+    supabase.from("items").select("id").eq("category_id", body.id).limit(1),
+  ]);
+  if (childrenError) throw childrenError;
+  if (itemsError) throw itemsError;
+  if (children.length) return NextResponse.json({ error: "Category has subcategories", message: "Delete or move its subcategories first." }, { status: 409 });
+  if (attachedItems.length) return NextResponse.json({ error: "Category has inventory", message: "Move or remove its inventory items first." }, { status: 409 });
+
+  const { error } = await supabase.from("categories").delete().eq("id", body.id);
+  if (error) throw error;
+  return NextResponse.json({ ok: true });
+}

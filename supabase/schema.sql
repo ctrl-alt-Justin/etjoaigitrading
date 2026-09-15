@@ -35,7 +35,7 @@ create table if not exists public.items (
   name varchar(220) not null,
   brand varchar(140),
   model varchar(140),
-  category_id bigint not null references public.categories(id),
+  category_id bigint references public.categories(id),
   attributes jsonb,
   color varchar(90),
   material varchar(140),

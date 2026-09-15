@@ -1,6 +1,7 @@
 export type Grade = "A" | "B" | "C" | "D";
 export type ItemStatus =
   | "intake"
+  | "draft"
   | "in_stock"
   | "listed"
   | "reserved"
@@ -57,7 +58,7 @@ export type DbItem = {
   name: string;
   brand: string | null;
   model: string | null;
-  categoryId: number;
+  categoryId: number | null;
   attributes: Record<string, string> | null;
   color: string | null;
   material: string | null;

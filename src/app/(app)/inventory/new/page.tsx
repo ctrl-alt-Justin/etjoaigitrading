@@ -2,6 +2,7 @@ import { enrichItems, getAllData } from "@/lib/queries";
 import { IntakeWizard, type SoldRef, type SupplierLite } from "@/components/intake-wizard";
 import { SeedGate } from "@/components/seed-gate";
 import { Reveal } from "@/components/reveal";
+import type { DbItem } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,10 @@ const KNOWN_BRANDS = [
   "HON", "IKEA", "Nucraft", "Fully", "Teknion",
 ];
 
-export default async function NewIntakePage() {
+export default async function NewIntakePage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
   const { items, categories, attributes, suppliers } = await getAllData();
+  const { edit } = await searchParams;
+  const editItem = edit ? items.find((item) => item.id === Number(edit)) ?? null : null;
 
   if (categories.length === 0) return <SeedGate />;
 
@@ -28,11 +31,11 @@ export default async function NewIntakePage() {
   }
 
   const soldRefs: SoldRef[] = enriched
-    .filter((i) => i.status === "sold" && i.soldPrice)
+    .filter((i) => i.status === "sold" && i.soldPrice && i.categoryId != null)
     .map((i) => ({
       id: i.id,
       name: i.name,
-      categoryId: i.categoryId,
+      categoryId: i.categoryId!,
       rootSlug: i.rootSlug,
       brand: i.brand,
       grade: i.grade,
@@ -50,11 +53,10 @@ export default async function NewIntakePage() {
             Intake desk
           </div>
           <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-stone-900">
-            Log a new unit
+            {editItem ? "Complete item information" : "Log a new unit"}
           </h1>
           <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
-            Structured intake replaces mental checklists: fixed taxonomy, graded inspection,
-            required photo angles, and an ask calculated from the valuation engine — the same process for everyone.
+            {editItem ? "Finish the required information below before this item can be listed for sale." : "Structured intake replaces mental checklists: fixed taxonomy, graded inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone."}
           </p>
         </div>
       </Reveal>
@@ -66,6 +68,7 @@ export default async function NewIntakePage() {
           soldRefs={soldRefs}
           brands={brands}
           brandModels={brandModels}
+          initialItem={editItem as DbItem | null}
         />
       </Reveal>
     </div>

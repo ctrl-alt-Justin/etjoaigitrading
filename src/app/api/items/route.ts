@@ -17,7 +17,7 @@ type CreatePayload = {
   name?: string;
   brand?: string;
   model?: string;
-  categoryId?: number;
+  categoryId?: number | null;
   attributes?: Record<string, string>;
   color?: string;
   material?: string;
@@ -29,7 +29,7 @@ type CreatePayload = {
   acquisitionCost?: number;
   refurbCost?: number;
   listedPrice?: number | null;
-  status?: "intake" | "in_stock" | "listed";
+  status?: "draft" | "intake" | "in_stock" | "listed";
   supplierId?: number | null;
   location?: string;
 };
@@ -42,17 +42,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const name = (body.name ?? "").trim();
+  const status = body.status ?? "in_stock";
+  const isDraft = status === "draft";
+  const name = (body.name ?? "").trim() || (isDraft ? "Information required" : "");
   if (!name) return NextResponse.json({ error: "Item name is required" }, { status: 400 });
-  if (!body.categoryId) return NextResponse.json({ error: "Category is required" }, { status: 400 });
+  if (!body.categoryId && !isDraft) return NextResponse.json({ error: "Category is required" }, { status: 400 });
 
   const acquisitionCost = num(body.acquisitionCost) ?? 0;
-  if (acquisitionCost <= 0)
+  if (acquisitionCost <= 0 && !isDraft)
     return NextResponse.json({ error: "Acquisition cost must be greater than zero" }, { status: 400 });
   const refurbCost = num(body.refurbCost) ?? 0;
   const floor = computeFloor(acquisitionCost, refurbCost);
 
-  const status = body.status ?? "in_stock";
   let listedPrice = num(body.listedPrice);
   if (status === "listed") {
     if (!listedPrice)
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
       name,
       brand: body.brand?.trim() || null,
       model: body.model?.trim() || null,
-      category_id: body.categoryId,
+      category_id: body.categoryId ?? null,
       attributes: body.attributes ?? {},
       color: body.color?.trim() || null,
       material: body.material?.trim() || null,
@@ -105,11 +106,25 @@ export async function POST(req: Request) {
     })
     .select("id")
     .single();
-  if (insertError) throw insertError;
+  if (insertError) {
+    console.error("item insert failed", insertError);
+    return NextResponse.json(
+      {
+        error: insertError.code === "23502" && insertError.message.includes("category_id")
+          ? "DATABASE_MIGRATION_REQUIRED"
+          : "ITEM_INSERT_FAILED",
+        message: insertError.message,
+      },
+      { status: 500 }
+    );
+  }
 
   const sku = `RF-${String(row.id).padStart(4, "0")}`;
   const { error: skuError } = await supabase.from("items").update({ sku }).eq("id", row.id);
-  if (skuError) throw skuError;
+  if (skuError) {
+    console.error("item sku update failed", skuError);
+    return NextResponse.json({ error: "ITEM_SKU_UPDATE_FAILED", message: skuError.message }, { status: 500 });
+  }
 
   const events = [
     { item_id: row.id, kind: "intake", price: acquisitionCost, note: "Intake recorded", created_at: now.toISOString() },
@@ -118,7 +133,10 @@ export async function POST(req: Request) {
       : []),
   ];
   const { error: eventError } = await supabase.from("price_events").insert(events);
-  if (eventError) throw eventError;
+  if (eventError) {
+    console.error("item event insert failed", eventError);
+    return NextResponse.json({ error: "ITEM_EVENT_INSERT_FAILED", message: eventError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, id: row.id, sku }, { status: 201 });
 }

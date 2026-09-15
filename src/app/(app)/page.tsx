@@ -48,7 +48,7 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
-              Operations · Etjoaigi Trading
+              Operations · ETJOAIGI Trading
             </div>
             <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight text-stone-900">
               The trading floor, at a glance
@@ -318,7 +318,7 @@ function PageHead() {
   return (
     <div>
       <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
-        Operations · Etjoaigi Trading
+        Operations · ETJOAIGI Trading
       </div>
       <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight text-stone-900">
         The trading floor, at a glance

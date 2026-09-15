@@ -129,6 +129,26 @@ export function TaxonomyManager({
     router.refresh();
   };
 
+  const deleteCategory = async () => {
+    if (!selected) return;
+    const confirmation = window.prompt(`Type DELETE to permanently remove “${selected.name}”. This cannot be undone.`);
+    if (confirmation !== "DELETE") return;
+    setBusy("deletecat");
+    const res = await fetch("/api/categories", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selected.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) {
+      window.alert(data.message ?? data.error ?? "Could not delete category");
+      return;
+    }
+    setSelectedId(null);
+    router.refresh();
+  };
+
   const pathOf = (c: DbCategory | null) => {
     if (!c) return "";
     const parts = [c.name];
@@ -234,9 +254,14 @@ export function TaxonomyManager({
       {selected ? (
         <div className="space-y-4">
           <div className="card p-5">
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-stone-400">
-              <FolderTree className="h-3.5 w-3.5" />
-              {pathOf(selected)}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-stone-400">
+                <FolderTree className="h-3.5 w-3.5" />
+                {pathOf(selected)}
+              </div>
+              <button onClick={deleteCategory} disabled={busy === "deletecat"} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-rose-500 transition hover:bg-rose-50 disabled:opacity-50" title="Delete category">
+                {busy === "deletecat" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+              </button>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>

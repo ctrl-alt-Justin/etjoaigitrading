@@ -83,3 +83,15 @@ export function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
+
+export type DimensionUnit = "mm" | "cm" | "in" | "m";
+
+/** Converts a plain three-number entry into a consistent length x width x height label. */
+export function normalizeDimensions(value: string, unit: DimensionUnit) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/[a-zA-Z]/.test(trimmed)) return trimmed;
+  const numbers = trimmed.match(/\d+(?:\.\d+)?/g);
+  if (!numbers || numbers.length !== 3) return trimmed;
+  return `L ${numbers[0]} × W ${numbers[1]} × H ${numbers[2]} ${unit}`;
+}

@@ -21,11 +21,11 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import type { DbPriceEvent } from "@/db/schema";
+import type { DbCategory, DbPriceEvent, Grade } from "@/db/schema";
 import type { EnrichedItem } from "@/lib/queries";
-import { agingMarkdown } from "@/lib/valuation";
+import { agingMarkdown, computeFloor } from "@/lib/valuation";
 import { SOLD_CHANNELS } from "@/lib/taxonomy-data";
-import { cn, fmtMoney, fmtDateFull, relTime } from "@/lib/format";
+import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { Field, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
 import { ShareModal, type ShareInfo } from "./share-modal";
 
@@ -175,6 +175,112 @@ function MoneyModal({
   );
 }
 
+function EditItemModal({
+  item,
+  categories,
+  open,
+  onClose,
+  onSaved,
+}: {
+  item: EnrichedItem;
+  categories: DbCategory[];
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: item.name,
+    brand: item.brand ?? "",
+    model: item.model ?? "",
+    color: item.color ?? "",
+    material: item.material ?? "",
+    dimensions: item.dimensions ?? "",
+    grade: item.grade ?? "",
+    conditionNotes: item.conditionNotes ?? "",
+    acquisitionCost: String(item.acquisitionCost),
+    refurbCost: String(item.refurbCost),
+    listedPrice: item.listedPrice == null ? "" : String(item.listedPrice),
+    location: item.location ?? "",
+    categoryId: item.categoryId == null ? "" : String(item.categoryId),
+  });
+  const [checklist, setChecklist] = useState(item.checklist ?? []);
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>("cm");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) return null;
+
+  const update = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const editFloor = computeFloor(Number(form.acquisitionCost) || 0, Number(form.refurbCost) || 0);
+  const priceSuggestions = [
+    { label: "Floor", value: editFloor },
+    { label: "Value low", value: item.valueLow },
+    { label: "Benchmark", value: item.benchmarkPrice },
+    { label: "Value high", value: item.valueHigh },
+  ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "edit", ...form, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(data.message ?? data.error ?? "Could not save changes");
+      return;
+    }
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4"><div><h3 className="font-display text-xl font-semibold text-stone-900">Edit inventory entry</h3><p className="mt-1 text-[12.5px] text-stone-500">Update the record without changing its price history.</p></div><button onClick={onClose} className="btn-ghost px-3">Close</button></div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {([["name", "Item name"], ["brand", "Brand"], ["model", "Model"], ["color", "Color"], ["material", "Material"], ["location", "Location"]] as const).map(([key, label]) => <label key={key} className={key === "name" ? "sm:col-span-2" : ""}><span className="label">{label}</span><input className="input" value={form[key]} onChange={(event) => update(key, event.target.value)} /></label>)}
+          <label><span className="label">Dimensions</span><div className="flex gap-2"><input className="input" style={{ minWidth: 0, flex: "1 1 auto" }} value={form.dimensions} onChange={(event) => update("dimensions", event.target.value)} onBlur={() => update("dimensions", normalizeDimensions(form.dimensions, dimensionUnit))} placeholder="25 62 40" /><select className="input" style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }} value={dimensionUnit} onChange={(event) => setDimensionUnit(event.target.value as DimensionUnit)} aria-label="Dimension unit"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inch</option><option value="m">meters</option></select></div></label>
+          <label><span className="label">Category</span><select className="input" value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}><option value="">Uncategorized</option>{categories.filter((category) => category.parentId != null).sort((a, b) => a.name.localeCompare(b.name)).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label><span className="label">Grade</span><select className="input" value={form.grade} onChange={(event) => update("grade", event.target.value)}><option value="">Not graded</option>{(["A", "B", "C", "D"] as Grade[]).map((grade) => <option key={grade} value={grade}>Grade {grade}</option>)}</select></label>
+          <label><span className="label">Listed price — ₱</span><input className="input" type="number" min={0} value={form.listedPrice} onChange={(event) => update("listedPrice", event.target.value)} placeholder="Not listed" /></label>
+          <label><span className="label">Acquisition cost — ₱</span><input className="input" type="number" min={0} value={form.acquisitionCost} onChange={(event) => update("acquisitionCost", event.target.value)} /></label>
+          <label><span className="label">Refurb cost — ₱</span><input className="input" type="number" min={0} value={form.refurbCost} onChange={(event) => update("refurbCost", event.target.value)} /></label>
+          <label className="sm:col-span-2"><span className="label">Condition notes</span><textarea className="input" value={form.conditionNotes} onChange={(event) => update("conditionNotes", event.target.value)} /></label>
+        </div>
+        <div className="mt-4 rounded-xl bg-amber-50/60 p-3.5">
+          <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-900">Automatic listing suggestions</span><span className="text-xs font-semibold text-rose-600">Floor {fmtMoney(editFloor)}</span></div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {priceSuggestions.length === 0 ? <span className="text-xs text-stone-500">Add costs and complete the item valuation to see suggestions.</span> : priceSuggestions.map((suggestion) => <button key={suggestion.label} type="button" onClick={() => update("listedPrice", String(suggestion.value))} className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-900 transition hover:border-amber-400 hover:bg-amber-50">{suggestion.label} · {fmtMoney(suggestion.value)}</button>)}
+          </div>
+        </div>
+        <div className="mt-5 border-t border-stone-100 pt-4">
+          <div className="label">Inspection checklist</div>
+          {checklist.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">No inspection checklist was recorded for this item.</p>
+          ) : (
+            <div className="space-y-2">
+              {checklist.map((entry, index) => (
+                <div key={entry.key} className="flex flex-wrap items-center gap-2 rounded-xl border border-stone-100 bg-stone-50/60 px-3 py-2.5">
+                  <span className="min-w-0 flex-1 text-[13px] text-stone-700">{entry.label}</span>
+                  <div className="flex overflow-hidden rounded-lg border border-stone-200 bg-white">
+                    {(["pass", "flag", "fail"] as const).map((status) => (
+                      <button key={status} type="button" onClick={() => setChecklist((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status } : item))} className={cn("px-2.5 py-1.5 text-[11px] font-semibold capitalize", entry.status === status ? status === "pass" ? "bg-emerald-600 text-white" : status === "flag" ? "bg-amber-500 text-white" : "bg-rose-600 text-white" : "text-stone-400 hover:bg-stone-50")}>{status}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {error && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{error}</div>}
+        <div className="mt-5 flex justify-end gap-2"><button onClick={onClose} className="btn-ghost">Cancel</button><button onClick={submit} disabled={busy} className="btn-primary">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save changes</button></div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 const EVENT_META: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
@@ -187,11 +293,13 @@ const EVENT_META: Record<string, { icon: LucideIcon; label: string; tone: string
 
 export function ItemDetail({
   item,
+  categories,
   events,
   history,
   share,
 }: {
   item: EnrichedItem;
+  categories: DbCategory[];
   events: DbPriceEvent[];
   share: ShareInfo | null;
   history: {
@@ -209,6 +317,7 @@ export function ItemDetail({
   const [photo, setPhoto] = useState(0);
   const [modal, setModal] = useState<null | "list" | "sold" | "price">(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const photos = item.photos ?? [];
@@ -236,7 +345,8 @@ export function ItemDetail({
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete ${item.sku ?? "this item"} permanently? Price history goes with it.`)) return;
+    const confirmation = window.prompt(`Type DELETE to permanently remove ${item.sku ?? "this item"}. Price history goes with it.`);
+    if (confirmation !== "DELETE") return;
     setBusyAction("delete");
     await fetch(`/api/items/${item.id}`, { method: "DELETE" });
     router.push("/inventory");
@@ -269,6 +379,7 @@ export function ItemDetail({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => item.status === "draft" ? router.push(`/inventory/new?edit=${item.id}`) : setEditOpen(true)} className="btn-ghost"><PencilLine className="h-4 w-4" /> Edit</button>
             {item.status !== "sold" && item.status !== "archived" && (
               <button onClick={() => setShareOpen(true)} className="btn-ghost relative">
                 <Share2 className="h-4 w-4" /> Share
@@ -277,7 +388,7 @@ export function ItemDetail({
                 )}
               </button>
             )}
-            {["intake", "in_stock"].includes(item.status) && (
+            {["draft", "intake", "in_stock"].includes(item.status) && (
               <button onClick={() => setModal("list")} className="btn-accent">
                 <Tag className="h-4 w-4" /> List for sale
               </button>
@@ -321,6 +432,8 @@ export function ItemDetail({
           </div>
         </div>
       </div>
+
+      <EditItemModal item={item} categories={categories} open={editOpen} onClose={() => setEditOpen(false)} onSaved={() => router.refresh()} />
 
       <div className="grid gap-5 lg:grid-cols-[1.12fr_1fr]">
         {/* LEFT */}

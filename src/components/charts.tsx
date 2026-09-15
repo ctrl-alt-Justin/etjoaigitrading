@@ -50,7 +50,7 @@ function Box({
 }
 
 /* ---------------- KPI sparkline ---------------- */
-export function Spark({ data, color = "#D97706" }: { data: { label: string; value: number }[]; color?: string }) {
+export function Spark({ data, color = "#1D5D8B" }: { data: { label: string; value: number }[]; color?: string }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>

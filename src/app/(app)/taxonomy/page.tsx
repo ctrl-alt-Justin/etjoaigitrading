@@ -13,7 +13,7 @@ export default async function TaxonomyPage() {
   const enriched = enrichItems(items, categories, suppliers);
   const counts: Record<number, number> = {};
   for (const i of enriched) {
-    if (isActive(i.status)) counts[i.categoryId] = (counts[i.categoryId] ?? 0) + 1;
+    if (isActive(i.status) && i.categoryId != null) counts[i.categoryId] = (counts[i.categoryId] ?? 0) + 1;
   }
 
   return (
