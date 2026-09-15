@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f6f3ec;
+  --line: #e8e3d7;
+  --ink: #1b1812;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+}
+
+/* subtle paper grain */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+::selection {
+  background: #fde68a;
+  color: #1b1812;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6d0c2;
+  border-radius: 8px;
+  border: 2px solid var(--paper);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(217, 119, 6, 0.55);
+  outline-offset: 2px;
+}
+
+/* ------- component classes ------- */
+.card {
+  @apply rounded-2xl border border-[var(--line)] bg-white shadow-[0_1px_2px_rgba(27,24,18,0.05)];
+}
+
+.input {
+  @apply h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/10;
+}
+
+select.input {
+  @apply pr-8;
+}
+
+textarea.input {
+  @apply h-auto min-h-[84px] py-2.5;
+}
+
+.label {
+  @apply mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-stone-500;
+}
+
+.chip {
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold;
+}
+
+.btn-primary {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-accent {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-soft {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-stone-100 px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-ghost {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

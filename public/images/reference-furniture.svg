@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">Office furniture reference</title>
+  <desc id="desc">A minimal illustration of a desk and office chair.</desc>
+  <rect width="1200" height="900" fill="#e8e3d7"/>
+  <rect y="640" width="1200" height="260" fill="#c9bda9"/>
+  <path d="M250 330h700v48H250zM300 378h48v285h-48zM852 378h48v285h-48z" fill="#5d5549"/>
+  <rect x="365" y="398" width="470" height="28" rx="8" fill="#867967"/>
+  <path d="M560 475c0-54 43-98 97-98h28c54 0 97 44 97 98v118H560z" fill="#315b5a"/>
+  <path d="M590 590h170v34H590zM642 624h28v92h-28zM680 624h28v92h-28z" fill="#403b34"/>
+  <circle cx="656" cy="448" r="44" fill="#bd8b68"/>
+  <path d="M612 448c0-38 24-66 62-66 30 0 52 18 60 45-32-12-77-9-122 21z" fill="#403b34"/>
+  <path d="M250 720h700" stroke="#403b34" stroke-width="10" opacity=".2"/>
+</svg>
