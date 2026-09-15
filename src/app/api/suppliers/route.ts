@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { suppliers } from "@/db/schema";
+import { supabase } from "@/lib/supabase";
+import { camelizeRow } from "@/db/records";
+import type { DbSupplier } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +15,19 @@ export async function POST(req: Request) {
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "Supplier name is required" }, { status: 400 });
   try {
-    const [row] = await db
-      .insert(suppliers)
-      .values({
+    const { data, error } = await supabase
+      .from("suppliers")
+      .insert({
         name,
         channel: body.channel?.trim() || "Direct",
-        contactPerson: body.contactPerson?.trim() || null,
+        contact_person: body.contactPerson?.trim() || null,
         email: body.email?.trim() || null,
         phone: body.phone?.trim() || null,
       })
-      .returning();
-    return NextResponse.json(row, { status: 201 });
+      .select()
+      .single();
+    if (error) throw error;
+    return NextResponse.json(camelizeRow<DbSupplier>(data), { status: 201 });
   } catch {
     return NextResponse.json({ error: "A supplier with this name already exists" }, { status: 409 });
   }

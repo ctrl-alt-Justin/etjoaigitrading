@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
-import { db } from "@/db";
-import { items, priceEvents, type ChecklistEntry, type Grade, type ItemPhoto } from "@/db/schema";
+import { supabase } from "@/lib/supabase";
+import { type ChecklistEntry, type Grade, type ItemPhoto } from "@/db/schema";
 import { computeFloor, valuate, type Valuation } from "@/lib/valuation";
 import { fmtMoney } from "@/lib/format";
 import { buildCategoryIndexes, getAllData, nearestBaseValue } from "@/lib/queries";
@@ -75,13 +74,13 @@ export async function POST(req: Request) {
   const v: Valuation = valuate({ baseValue, brand: body.brand, grade });
 
   const now = new Date();
-  const [row] = await db
-    .insert(items)
-    .values({
+  const { data: row, error: insertError } = await supabase
+    .from("items")
+    .insert({
       name,
       brand: body.brand?.trim() || null,
       model: body.model?.trim() || null,
-      categoryId: body.categoryId,
+      category_id: body.categoryId,
       attributes: body.attributes ?? {},
       color: body.color?.trim() || null,
       material: body.material?.trim() || null,
@@ -89,32 +88,37 @@ export async function POST(req: Request) {
       grade,
       checklist: body.checklist ?? [],
       photos: body.photos ?? [],
-      conditionNotes: body.conditionNotes?.trim() || null,
-      acquisitionCost,
-      refurbCost,
-      listedPrice,
-      floorPrice: floor,
-      benchmarkPrice: v.benchmark,
-      valueLow: v.low,
-      valueHigh: v.high,
+      condition_notes: body.conditionNotes?.trim() || null,
+      acquisition_cost: acquisitionCost,
+      refurb_cost: refurbCost,
+      listed_price: listedPrice,
+      floor_price: floor,
+      benchmark_price: v.benchmark,
+      value_low: v.low,
+      value_high: v.high,
       status,
-      supplierId: num(body.supplierId),
+      supplier_id: num(body.supplierId),
       location: body.location?.trim() || null,
-      intakeAt: now,
-      listedAt: status === "listed" ? now : null,
-      updatedAt: now,
+      intake_at: now.toISOString(),
+      listed_at: status === "listed" ? now.toISOString() : null,
+      updated_at: now.toISOString(),
     })
-    .returning({ id: items.id });
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
 
   const sku = `RF-${String(row.id).padStart(4, "0")}`;
-  await db.execute(sql`UPDATE items SET sku = ${sku} WHERE id = ${row.id}`);
+  const { error: skuError } = await supabase.from("items").update({ sku }).eq("id", row.id);
+  if (skuError) throw skuError;
 
-  await db.insert(priceEvents).values([
-    { itemId: row.id, kind: "intake", price: acquisitionCost, note: "Intake recorded", createdAt: now },
+  const events = [
+    { item_id: row.id, kind: "intake", price: acquisitionCost, note: "Intake recorded", created_at: now.toISOString() },
     ...(status === "listed" && listedPrice
-      ? [{ itemId: row.id, kind: "listed" as const, price: listedPrice, createdAt: now }]
+      ? [{ item_id: row.id, kind: "listed" as const, price: listedPrice, created_at: now.toISOString() }]
       : []),
-  ]);
+  ];
+  const { error: eventError } = await supabase.from("price_events").insert(events);
+  if (eventError) throw eventError;
 
   return NextResponse.json({ ok: true, id: row.id, sku }, { status: 201 });
 }

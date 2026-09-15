@@ -2,15 +2,9 @@
  * Server-side data access + metric computation for the trading console.
  * Pages query through here; client components receive plain serialized data.
  */
-import { db } from "@/db";
-import { desc, eq } from "drizzle-orm";
+import { supabase } from "@/lib/supabase";
+import { camelizeRows, camelizeRow } from "@/db/records";
 import {
-  categories,
-  categoryAttributes,
-  itemShares,
-  items,
-  priceEvents,
-  suppliers,
   type DbCategory,
   type DbCategoryAttribute,
   type DbItem,
@@ -28,34 +22,39 @@ import {
 } from "@/lib/format";
 
 export async function getShareByToken(token: string): Promise<DbItemShare | null> {
-  const rows = await db.select().from(itemShares).where(eq(itemShares.token, token)).limit(1);
-  return rows[0] ?? null;
+  const { data, error } = await supabase.from("item_shares").select("*").eq("token", token).limit(1);
+  if (error) throw error;
+  return data[0] ? camelizeRow<DbItemShare>(data[0]) : null;
 }
 
 export async function getLatestShareForItem(itemId: number): Promise<DbItemShare | null> {
-  const rows = await db
-    .select()
-    .from(itemShares)
-    .where(eq(itemShares.itemId, itemId))
-    .orderBy(desc(itemShares.createdAt))
+  const { data, error } = await supabase
+    .from("item_shares")
+    .select("*")
+    .eq("item_id", itemId)
+    .order("created_at", { ascending: false })
     .limit(1);
-  return rows[0] ?? null;
+  if (error) throw error;
+  return data[0] ? camelizeRow<DbItemShare>(data[0]) : null;
 }
 
 export async function getAllData() {
   const [itemRows, catRows, attrRows, supRows, eventRows] = await Promise.all([
-    db.select().from(items),
-    db.select().from(categories),
-    db.select().from(categoryAttributes),
-    db.select().from(suppliers),
-    db.select().from(priceEvents),
+    supabase.from("items").select("*"),
+    supabase.from("categories").select("*"),
+    supabase.from("category_attributes").select("*"),
+    supabase.from("suppliers").select("*"),
+    supabase.from("price_events").select("*"),
   ]);
+  for (const result of [itemRows, catRows, attrRows, supRows, eventRows]) {
+    if (result.error) throw result.error;
+  }
   return {
-    items: itemRows,
-    categories: catRows,
-    attributes: attrRows,
-    suppliers: supRows,
-    events: eventRows,
+    items: camelizeRows<DbItem>(itemRows.data),
+    categories: camelizeRows<DbCategory>(catRows.data),
+    attributes: camelizeRows<DbCategoryAttribute>(attrRows.data),
+    suppliers: camelizeRows<DbSupplier>(supRows.data),
+    events: camelizeRows<DbPriceEvent>(eventRows.data),
   };
 }
 

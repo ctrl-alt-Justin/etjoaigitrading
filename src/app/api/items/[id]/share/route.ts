@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { itemShares, items } from "@/db/schema";
+import { supabase } from "@/lib/supabase";
+import { camelizeRow } from "@/db/records";
+import type { DbItem, DbItemShare } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
 import { getLatestShareForItem } from "@/lib/queries";
 
@@ -25,7 +25,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const id = await parseId(ctx);
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
-  const [item] = await db.select().from(items).where(eq(items.id, id));
+  const { data: itemRow, error: itemError } = await supabase.from("items").select("*").eq("id", id).maybeSingle();
+  if (itemError) throw itemError;
+  const item = itemRow ? camelizeRow<DbItem>(itemRow) : null;
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (item.status === "sold" || item.status === "archived")
     return NextResponse.json({ error: "Sold or archived items cannot be shared" }, { status: 400 });
@@ -56,26 +58,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const existing = await getLatestShareForItem(id);
 
   if (existing) {
-    const [row] = await db
-      .update(itemShares)
-      .set({ remarks, offerPrice, active: true, updatedAt: new Date() })
-      .where(eq(itemShares.id, existing.id))
-      .returning();
-    return NextResponse.json({ share: row });
+    const { data, error } = await supabase.from("item_shares").update({ remarks, offer_price: offerPrice, active: true, updated_at: new Date().toISOString() }).eq("id", existing.id).select().single();
+    if (error) throw error;
+    return NextResponse.json({ share: camelizeRow<DbItemShare>(data) });
   }
 
   let token = randomBytes(6).toString("hex");
   for (let attempt = 0; attempt < 3; attempt++) {
-    const clash = await db.select({ id: itemShares.id }).from(itemShares).where(eq(itemShares.token, token));
+    const { data: clash, error } = await supabase.from("item_shares").select("id").eq("token", token);
+    if (error) throw error;
     if (!clash.length) break;
     token = randomBytes(6).toString("hex");
   }
 
-  const [row] = await db
-    .insert(itemShares)
-    .values({ itemId: id, token, remarks, offerPrice, active: true })
-    .returning();
-  return NextResponse.json({ share: row }, { status: 201 });
+  const { data, error } = await supabase.from("item_shares").insert({ item_id: id, token, remarks, offer_price: offerPrice, active: true }).select().single();
+  if (error) throw error;
+  return NextResponse.json({ share: camelizeRow<DbItemShare>(data) }, { status: 201 });
 }
 
 /** Deactivate the share link. */
@@ -84,10 +82,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
   const existing = await getLatestShareForItem(id);
   if (!existing) return NextResponse.json({ share: null });
-  const [row] = await db
-    .update(itemShares)
-    .set({ active: false, updatedAt: new Date() })
-    .where(eq(itemShares.id, existing.id))
-    .returning();
-  return NextResponse.json({ share: row });
+  const { data, error } = await supabase.from("item_shares").update({ active: false, updated_at: new Date().toISOString() }).eq("id", existing.id).select().single();
+  if (error) throw error;
+  return NextResponse.json({ share: camelizeRow<DbItemShare>(data) });
 }

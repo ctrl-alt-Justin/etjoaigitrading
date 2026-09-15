@@ -1,25 +1,25 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
-import { db } from "@/db";
+import { supabase } from "@/lib/supabase";
 import { seedIfEmpty } from "@/db/seed";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [{ c: cats }] = (await db.execute(sql`select count(*)::int as c from categories`)).rows as { c: number }[];
-  const [{ c: itms }] = (await db.execute(sql`select count(*)::int as c from items`)).rows as { c: number }[];
-  return NextResponse.json({ seeded: cats > 0, categories: cats, items: itms });
+  const [{ count: cats }, { count: itms }] = await Promise.all([
+    supabase.from("categories").select("id", { count: "exact", head: true }),
+    supabase.from("items").select("id", { count: "exact", head: true }),
+  ]);
+  return NextResponse.json({ seeded: (cats ?? 0) > 0, categories: cats ?? 0, items: itms ?? 0 });
 }
 
 export async function POST(req: Request) {
   try {
     const force = new URL(req.url).searchParams.get("force") === "1";
     if (force) {
-      await db.execute(sql`delete from price_events`);
-      await db.execute(sql`delete from items`);
-      await db.execute(sql`delete from category_attributes`);
-      await db.execute(sql`delete from categories`);
-      await db.execute(sql`delete from suppliers`);
+      for (const table of ["item_shares", "price_events", "items", "category_attributes", "categories", "suppliers"]) {
+        const { error } = await supabase.from(table).delete().not("id", "is", null);
+        if (error) throw error;
+      }
     }
     const result = await seedIfEmpty();
     return NextResponse.json(result, { status: result.seeded ? 201 : 200 });

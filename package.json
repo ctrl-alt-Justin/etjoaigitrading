@@ -9,8 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "dotenv": "17.3.1",
-    "drizzle-orm": "0.45.2",
+    "@supabase/supabase-js": "^2.116.0",
     "framer-motion": "^13.2.0",
     "fuse.js": "^7.5.0",
     "lucide-react": "^1.43.0",
@@ -26,7 +25,6 @@
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "postcss": "8.5.8",

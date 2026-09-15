@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { categoryAttributes } from "@/db/schema";
+import { supabase } from "@/lib/supabase";
+import { camelizeRow } from "@/db/records";
+import type { DbCategoryAttribute } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +25,19 @@ export async function POST(req: Request) {
   const options = (body.options ?? []).map((o) => o.trim()).filter(Boolean);
   if (inputType === "select" && options.length === 0)
     return NextResponse.json({ error: "Select fields need at least one option" }, { status: 400 });
-  const [row] = await db
-    .insert(categoryAttributes)
-    .values({
-      categoryId: body.categoryId,
+  const { data, error } = await supabase
+    .from("category_attributes")
+    .insert({
+      category_id: body.categoryId,
       name,
-      inputType,
+      input_type: inputType,
       options: inputType === "select" ? options : null,
       required: !!body.required,
     })
-    .returning();
-  return NextResponse.json(row, { status: 201 });
+    .select()
+    .single();
+  if (error) throw error;
+  return NextResponse.json(camelizeRow<DbCategoryAttribute>(data), { status: 201 });
 }
 
 export async function DELETE(req: Request) {
@@ -46,6 +48,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await db.delete(categoryAttributes).where(eq(categoryAttributes.id, body.id));
+  const { error } = await supabase.from("category_attributes").delete().eq("id", body.id);
+  if (error) throw error;
   return NextResponse.json({ ok: true });
 }

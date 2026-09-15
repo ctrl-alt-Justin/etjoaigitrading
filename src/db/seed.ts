@@ -1,10 +1,6 @@
-import { db } from "@/db";
+import { supabase } from "@/lib/supabase";
+import { snakeizeRow, snakeizeRows } from "@/db/records";
 import {
-  categories,
-  categoryAttributes,
-  items,
-  priceEvents,
-  suppliers,
   type ChecklistEntry,
   type Grade,
   type ItemPhoto,
@@ -12,7 +8,6 @@ import {
 } from "@/db/schema";
 import { brandTier, computeFloor, round50, valuate } from "@/lib/valuation";
 import { checklistFor, refPhotoFor, SOLD_CHANNELS, WAREHOUSE_LOCATIONS } from "@/lib/taxonomy-data";
-import { sql } from "drizzle-orm";
 
 /* Deterministic pseudo-random for stable seed data */
 function mulberry32(seed: number) {
@@ -207,41 +202,47 @@ const NOTES: Record<Grade, string[]> = {
 const GRADE_POOL: Grade[] = ["A", "A", "B", "B", "B", "B", "C", "C", "C", "D"];
 
 export async function seedIfEmpty() {
-  const existing = await db.select({ id: categories.id }).from(categories).limit(1);
+  const { data: existing, error: existingError } = await supabase.from("categories").select("id").limit(1);
+  if (existingError) throw existingError;
   if (existing.length > 0) return { seeded: false as const };
 
   // suppliers (Philippine sourcing channels)
-  const supRows = await db
-    .insert(suppliers)
-    .values([
+  const { data: supRows, error: supplierError } = await supabase
+    .from("suppliers")
+    .insert(snakeizeRows([
       { name: "Makati Office Liquidations", channel: "Liquidation", contactPerson: "Dana Villanueva", email: "dana@makatioliq.example", phone: "+63 917 555 0184" },
       { name: "Cebu Corporate Surplus", channel: "Downsizing", contactPerson: "RJ Ramos", email: "rj@cebusurplus.example", phone: "+63 32 555 0119" },
       { name: "Kapitolyo Auction House", channel: "Auction", contactPerson: "Liza Mercado", email: "liza@kapitolyoauc.example", phone: "+63 917 555 0142" },
       { name: "GreenCycle Reuse Network", channel: "Lease return", contactPerson: "Tomás Reyes", email: "tomas@greencycle.example", phone: "+63 917 555 0177" },
       { name: "Alabang Relocation Services", channel: "Direct", contactPerson: "Ingrid Ocampo", email: "ingrid@alabangreloc.example", phone: "+63 917 555 0133" },
       { name: "UP Diliman Property Surplus", channel: "Institutional", contactPerson: "Marcos Bellen", email: "mbellen@upd-surplus.example", phone: "+63 2 555 0160" },
-    ])
-    .returning({ id: suppliers.id });
+    ]))
+    .select("id");
+  if (supplierError) throw supplierError;
   const supIds = supRows.map((r) => r.id);
 
   // categories
   const rootId: Record<string, number> = {};
   for (const [ix, r] of ROOTS.entries()) {
-    const [row] = await db
-      .insert(categories)
-      .values({ name: r.name, slug: r.key, parentId: null, sortOrder: ix + 1 })
-      .returning({ id: categories.id });
+    const { data: row, error } = await supabase
+      .from("categories")
+      .insert(snakeizeRow({ name: r.name, slug: r.key, parentId: null, sortOrder: ix + 1 }))
+      .select("id")
+      .single();
+    if (error) throw error;
     rootId[r.key] = row.id;
   }
   const leafId: Record<string, number> = {};
   for (const leaf of LEAVES) {
-    const [row] = await db
-      .insert(categories)
-      .values({ name: leaf.name, slug: leaf.slug, parentId: rootId[leaf.root], sortOrder: leaf.sort, baseValue: leaf.baseValue })
-      .returning({ id: categories.id });
+    const { data: row, error } = await supabase
+      .from("categories")
+      .insert(snakeizeRow({ name: leaf.name, slug: leaf.slug, parentId: rootId[leaf.root], sortOrder: leaf.sort, baseValue: leaf.baseValue }))
+      .select("id")
+      .single();
+    if (error) throw error;
     leafId[leaf.slug] = row.id;
     if (leaf.attrs.length) {
-      await db.insert(categoryAttributes).values(
+      const { error: attributeError } = await supabase.from("category_attributes").insert(snakeizeRows(
         leaf.attrs.map((a, ix) => ({
           categoryId: row.id,
           name: a.name,
@@ -250,7 +251,8 @@ export async function seedIfEmpty() {
           required: a.required ?? false,
           sortOrder: ix + 1,
         }))
-      );
+      ));
+      if (attributeError) throw attributeError;
     }
   }
 
@@ -352,9 +354,9 @@ export async function seedIfEmpty() {
     }
 
     const supplierId = pick(supIds);
-    const [row] = await db
-      .insert(items)
-      .values({
+    const { data: row, error: itemError } = await supabase
+      .from("items")
+      .insert(snakeizeRow({
         name: `${spec.b} ${spec.m}`,
         brand: spec.b,
         model: spec.m,
@@ -384,11 +386,14 @@ export async function seedIfEmpty() {
         soldAt,
         createdAt: intakeAt,
         updatedAt: soldAt ?? listedAt ?? intakeAt,
-      })
-      .returning({ id: items.id });
+      }))
+      .select("id")
+      .single();
+    if (itemError) throw itemError;
 
     const sku = `RF-${String(row.id).padStart(4, "0")}`;
-    await db.execute(sql`UPDATE items SET sku = ${sku} WHERE id = ${row.id}`);
+    const { error: skuError } = await supabase.from("items").update({ sku }).eq("id", row.id);
+    if (skuError) throw skuError;
 
     eventSeeds.push({ itemId: row.id, kind: "intake", price: acquisition, note: "Acquired into stock", createdAt: intakeAt });
     if (listedAt && finalListed != null) {
@@ -408,9 +413,10 @@ export async function seedIfEmpty() {
     }
   }
 
-  await db.insert(priceEvents).values(
-    eventSeeds.map((e) => ({ itemId: e.itemId, kind: e.kind, price: e.price, note: e.note, createdAt: e.createdAt }))
+  const { error: eventError } = await supabase.from("price_events").insert(
+    eventSeeds.map((e) => snakeizeRow({ itemId: e.itemId, kind: e.kind, price: e.price, note: e.note, createdAt: e.createdAt }))
   );
+  if (eventError) throw eventError;
 
   return { seeded: true as const, items: specs.length, categories: 6 + LEAVES.length, suppliers: 6 };
 }

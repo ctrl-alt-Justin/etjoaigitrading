@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
 import { BadgeCheck, Building2, CircleSlash, MapPin, Quote } from "lucide-react";
-import { db } from "@/db";
-import { items } from "@/db/schema";
+import { supabase } from "@/lib/supabase";
+import { camelizeRow } from "@/db/records";
+import type { DbItem } from "@/db/schema";
 import {
   buildCategoryIndexes,
   getAllData,
@@ -42,7 +42,9 @@ async function loadShare(token: string) {
   const share = await getShareByToken(token);
   if (!share) return { kind: "missing" as const };
   if (!share.active) return { kind: "disabled" as const };
-  const [item] = await db.select().from(items).where(eq(items.id, share.itemId));
+  const { data: itemRow, error } = await supabase.from("items").select("*").eq("id", share.itemId).maybeSingle();
+  if (error) throw error;
+  const item = itemRow ? camelizeRow<DbItem>(itemRow) : null;
   if (!item) return { kind: "missing" as const };
   return { kind: "ok" as const, share, item };
 }
