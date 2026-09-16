@@ -2,20 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { notFound } from "next/navigation";
-import { getAllData, buildCategoryIndexes, pathOf, getItemReviews } from "@/lib/queries";
+import { getShopItem, getShopCatalogData, buildCategoryIndexes, pathOf, getItemReviews } from "@/lib/queries";
 import { ShareGallery } from "@/components/share-gallery";
 import { ProductDetailInteractive } from "@/components/product-detail-interactive";
 import { ShopHeader } from "@/components/shop-header";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type PageProps = { params: Promise<{ id: string }> };
 
+export async function generateStaticParams() {
+  const { items } = await getShopCatalogData();
+  return items.map((item) => ({ id: String(item.id) }));
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id: idStr } = await params;
-  const { items } = await getAllData();
-  const item = items.find((entry) => entry.id === Number(idStr));
+  const id = Number(idStr);
+  if (!Number.isInteger(id)) return { title: "ETJOAIGI Collection" };
+  const { item } = await getShopItem(id);
   return { title: item ? `${item.name} — ETJOAIGI Collection` : "ETJOAIGI Collection" };
 }
 
@@ -24,13 +30,12 @@ export default async function ShopItemPage({ params }: PageProps) {
   const id = Number(idStr);
   if (!Number.isInteger(id)) notFound();
 
-  const [{ items, categories }, reviews] = await Promise.all([
-    getAllData(),
+  const [{ item, categories }, reviews] = await Promise.all([
+    getShopItem(id),
     getItemReviews(id),
   ]);
 
-  const item = items.find((entry) => entry.id === id && entry.status === "listed" && entry.listedPrice != null);
-  if (!item) notFound();
+  if (!item || item.status !== "listed" || item.listedPrice == null) notFound();
 
   const { byId } = buildCategoryIndexes(categories);
   const categoryPath = pathOf(item.categoryId, byId);

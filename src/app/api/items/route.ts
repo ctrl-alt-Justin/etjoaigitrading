@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { type ChecklistEntry, type Grade, type ItemPhoto } from "@/db/schema";
 import { computeFloor, valuate, type Valuation } from "@/lib/valuation";
 import { fmtMoney } from "@/lib/format";
-import { buildCategoryIndexes, getAllData, nearestBaseValue } from "@/lib/queries";
+import { buildCategoryIndexes, getAllData, invalidateAllDataCache, nearestBaseValue } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +141,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "ITEM_EVENT_INSERT_FAILED", message: eventError.message }, { status: 500 });
   }
 
+  invalidateAllDataCache();
   revalidateTag("inventory-data", "max");
 
   return NextResponse.json({ ok: true, id: row.id, sku }, { status: 201 });

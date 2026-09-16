@@ -4,16 +4,10 @@ import { ShopHeader } from "@/components/shop-header";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { normalizeRefPhoto } from "@/lib/taxonomy-data";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
-export default async function ShopCatalogPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string; q?: string }>;
-}) {
+export default async function ShopCatalogPage() {
   const { items: forSale, categories } = await getShopCatalogData();
-  const { category } = await searchParams;
-  const selectedCategory = categories.find((item) => item.slug === category)?.id;
   const heroPhoto = forSale.find((item) => item.photos?.[0]?.url)?.photos?.[0]?.url;
 
   return (
@@ -61,7 +55,6 @@ export default async function ShopCatalogPage({
           <CustomerCatalog
             items={forSale}
             categories={categories}
-            initialCategory={selectedCategory == null ? "all" : String(selectedCategory)}
           />
         </div>
       </main>

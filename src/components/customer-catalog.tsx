@@ -127,9 +127,20 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
   // Mobile sidebar open
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
 
+  const urlCategory = searchParams?.get("category") ?? "";
+
   useEffect(() => {
     setSearchQuery(urlQuery);
   }, [urlQuery]);
+
+  useEffect(() => {
+    if (urlCategory) {
+      const match = categories.find((c) => c.slug === urlCategory || String(c.id) === urlCategory);
+      if (match) {
+        setSelectedCategory(String(match.id));
+      }
+    }
+  }, [urlCategory, categories]);
 
   const [favToast, setFavToast] = useState<{
     show: boolean;

@@ -25,7 +25,7 @@ import { ShopHeader } from "@/components/shop-header";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { HeroSpotlightCard, FeaturedProductsGrid } from "@/components/shop-home-cards";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const CATEGORY_TILES = [
   { 

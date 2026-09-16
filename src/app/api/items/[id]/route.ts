@@ -5,6 +5,7 @@ import { camelizeRow, camelizeRows } from "@/db/records";
 import type { DbItem, DbPriceEvent } from "@/db/schema";
 import { computeFloor } from "@/lib/valuation";
 import { fmtMoney } from "@/lib/format";
+import { invalidateAllDataCache } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       listed_at: body.status === "listed" ? new Date().toISOString() : item.listedAt,
     }).eq("id", id);
     if (error) throw error;
+    invalidateAllDataCache();
     revalidateTag("inventory-data", "max");
     return NextResponse.json({ ok: true });
   }
@@ -115,6 +117,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "listed", price, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      invalidateAllDataCache();
       revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
@@ -128,6 +131,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind, price, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      invalidateAllDataCache();
       revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
@@ -138,32 +142,38 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "sold", price, note: body.channel || null, created_at: now.toISOString() });
       if (eventError) throw eventError;
+      invalidateAllDataCache();
       revalidateTag("inventory-data", "max");
       return NextResponse.json({ ok: true });
     }
     case "reserve": {
       const { error } = await supabase.from("items").update({ status: "reserved", updated_at: now.toISOString() }).eq("id", id);
       if (error) throw error;
+      invalidateAllDataCache();
       return NextResponse.json({ ok: true });
     }
     case "release": {
       const { error } = await supabase.from("items").update({ status: "listed", updated_at: now.toISOString() }).eq("id", id);
       if (error) throw error;
+      invalidateAllDataCache();
       return NextResponse.json({ ok: true });
     }
     case "unlist": {
       const { error } = await supabase.from("items").update({ status: "in_stock", updated_at: now.toISOString() }).eq("id", id);
       if (error) throw error;
+      invalidateAllDataCache();
       return NextResponse.json({ ok: true });
     }
     case "archive": {
       const { error } = await supabase.from("items").update({ status: "archived", updated_at: now.toISOString() }).eq("id", id);
       if (error) throw error;
+      invalidateAllDataCache();
       return NextResponse.json({ ok: true });
     }
     case "restore": {
       const { error } = await supabase.from("items").update({ status: "in_stock", updated_at: now.toISOString() }).eq("id", id);
       if (error) throw error;
+      invalidateAllDataCache();
       return NextResponse.json({ ok: true });
     }
     default:
@@ -179,6 +189,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (eventError) throw eventError;
   const { error } = await supabase.from("items").delete().eq("id", id);
   if (error) throw error;
+  invalidateAllDataCache();
   revalidateTag("inventory-data", "max");
   return NextResponse.json({ ok: true });
 }

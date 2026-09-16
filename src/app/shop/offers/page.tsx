@@ -8,7 +8,7 @@ import { Thumb, GradeChip, ProductHoverThumb } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import type { DbItem, Grade } from "@/db/schema";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata = {
   title: "Special Offers & Featured Pieces — ETJOAIGI Collection",
