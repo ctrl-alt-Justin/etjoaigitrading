@@ -105,20 +105,12 @@ export function ProductHoverThumb({
   className?: string;
   containerClassName?: string;
 }) {
-  const primaryUrl = photos?.[0]?.url ? normalizeRefPhoto(photos[0].url) : null;
+  const primaryItem = photos?.find((p) => p.slot === "front" && p.url) ?? photos?.[0];
+  const primaryUrl = primaryItem?.url ? normalizeRefPhoto(primaryItem.url) : null;
   
-  // Find a secondary photo: after, back, setup, or simply the second photo in array
-  const secondaryItem = photos?.find(
-    (p, idx) => idx > 0 && p.url && (p.slot === "after" || p.slot === "back" || p.slot === "setup" || p.url !== photos[0]?.url)
-  ) || (photos && photos.length > 1 ? photos[1] : null);
-
-  let secondaryUrl = secondaryItem?.url ? normalizeRefPhoto(secondaryItem.url) : null;
-
-  // If primary and secondary point to the same mock ref photo, switch to alternate setup view SVG if item has multiple photos
-  if (primaryUrl && secondaryUrl === primaryUrl && photos && photos.length > 1) {
-    secondaryUrl = "/images/reference-setup.svg";
-  }
-
+  // Secondary hover photo is strictly from the optional "setup" (Setup/Preview) slot
+  const setupItem = photos?.find((p) => (p.slot === "setup" || p.slot === "preview") && p.url);
+  const secondaryUrl = setupItem?.url ? normalizeRefPhoto(setupItem.url) : null;
   const hasSecondary = Boolean(secondaryUrl && secondaryUrl !== primaryUrl);
 
   if (!primaryUrl) {
@@ -137,23 +129,23 @@ export function ProductHoverThumb({
         src={primaryUrl}
         alt={alt}
         className={cn(
-          "h-full w-full object-contain transition-all duration-500",
+          "h-full w-full object-cover object-center transition-all duration-500",
           hasSecondary
-            ? "group-hover:opacity-0 group-hover/img:opacity-0 group-hover:scale-95 group-hover/img:scale-95"
-            : "group-hover:scale-105 group-hover/img:scale-105",
+            ? "group-hover:opacity-0 group-hover/img:opacity-0 group-hover/row:opacity-0 group-hover:scale-95 group-hover/img:scale-95 group-hover/row:scale-95"
+            : "group-hover:scale-105 group-hover/img:scale-105 group-hover/row:scale-105",
           className
         )}
         loading="lazy"
       />
 
-      {/* Secondary Image (Fades in on hover) */}
+      {/* Secondary Image (Fades in on hover ONLY if setup slot uploaded) */}
       {hasSecondary && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={secondaryUrl!}
-          alt={`${alt} - alternate setup`}
+          alt={`${alt} - setup preview`}
           className={cn(
-            "absolute inset-0 h-full w-full object-contain opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover/img:opacity-100 group-hover:scale-100 group-hover/img:scale-100",
+            "absolute inset-0 h-full w-full object-cover object-center opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover/img:opacity-100 group-hover/row:opacity-100 group-hover:scale-100 group-hover/img:scale-100 group-hover/row:scale-100",
             className
           )}
           loading="lazy"
@@ -162,7 +154,7 @@ export function ProductHoverThumb({
 
       {/* Visual pill indicating another setup view exists */}
       {hasSecondary && (
-        <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 pointer-events-none">
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 group-hover/row:opacity-0 pointer-events-none">
           +setup
         </span>
       )}

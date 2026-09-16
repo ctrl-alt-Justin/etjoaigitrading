@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { camelizeRow, camelizeRows } from "@/db/records";
 import type { DbItem, DbPriceEvent } from "@/db/schema";
@@ -8,6 +8,21 @@ import { fmtMoney } from "@/lib/format";
 import { invalidateAllDataCache } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
+
+function revalidateAll(id: number) {
+  invalidateAllDataCache();
+  try {
+    revalidatePath("/shop", "layout");
+    revalidatePath("/shop/catalog");
+    revalidatePath("/shop/offers");
+    revalidatePath(`/shop/${id}`);
+    revalidatePath("/inventory", "layout");
+    revalidatePath(`/inventory/${id}`);
+    revalidateTag("inventory-data", "max");
+  } catch {
+    // Ignore cache error in non-request environments
+  }
+}
 
 type Action =
   | {
@@ -100,8 +115,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       listed_at: body.status === "listed" ? new Date().toISOString() : item.listedAt,
     }).eq("id", id);
     if (error) throw error;
-    invalidateAllDataCache();
-    revalidateTag("inventory-data", "max");
+    revalidateAll(id);
     return NextResponse.json({ ok: true });
   }
 
@@ -117,8 +131,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "listed", price, created_at: now.toISOString() });
       if (eventError) throw eventError;
-      invalidateAllDataCache();
-      revalidateTag("inventory-data", "max");
+      revalidateAll(id);
       return NextResponse.json({ ok: true });
     }
     case "price": {
@@ -131,8 +144,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind, price, created_at: now.toISOString() });
       if (eventError) throw eventError;
-      invalidateAllDataCache();
-      revalidateTag("inventory-data", "max");
+      revalidateAll(id);
       return NextResponse.json({ ok: true });
     }
     case "sold": {
@@ -142,8 +154,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "sold", price, note: body.channel || null, created_at: now.toISOString() });
       if (eventError) throw eventError;
-      invalidateAllDataCache();
-      revalidateTag("inventory-data", "max");
+      revalidateAll(id);
       return NextResponse.json({ ok: true });
     }
     case "reserve": {
@@ -189,8 +200,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (eventError) throw eventError;
   const { error } = await supabase.from("items").delete().eq("id", id);
   if (error) throw error;
-  invalidateAllDataCache();
-  revalidateTag("inventory-data", "max");
+  revalidateAll(id);
   return NextResponse.json({ ok: true });
 }
 

@@ -6,7 +6,7 @@ import type { Grade } from "@/db/schema";
  */
 
 export type PhotoSlot = {
-  slot: "front" | "back" | "detail" | "after" | "label";
+  slot: "front" | "back" | "detail" | "after" | "label" | "setup";
   label: string;
   hint: string;
   required?: boolean;
@@ -30,6 +30,12 @@ export const PHOTO_SLOTS: PhotoSlot[] = [
     label: "Defects & wear",
     hint: "Close-up of every scratch, stain or dent",
     required: true,
+  },
+  {
+    slot: "setup",
+    label: "Setup/Preview",
+    hint: "Optional styled setup or room view shown on catalog hover",
+    required: false,
   },
   {
     slot: "after",

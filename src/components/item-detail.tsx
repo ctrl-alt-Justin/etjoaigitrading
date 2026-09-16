@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   History,
+  ImageIcon,
   ImagePlus,
   Loader2,
   PackagePlus,
@@ -27,7 +28,7 @@ import {
 import type { DbCategory, DbPriceEvent, Grade, ItemPhoto } from "@/db/schema";
 import type { EnrichedItem } from "@/lib/queries";
 import { agingMarkdown, computeFloor, GRADE_META, GRADE_ORDER } from "@/lib/valuation";
-import { SOLD_CHANNELS } from "@/lib/taxonomy-data";
+import { PHOTO_SLOTS, refPhotoFor, REAL_SETUP_PHOTO, SOLD_CHANNELS } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { compressImageFile } from "@/lib/image-compress";
 import { Field, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
@@ -233,8 +234,24 @@ function EditItemModal({
     categoryId: item.categoryId == null ? "" : String(item.categoryId),
   });
   const [checklist, setChecklist] = useState(item.checklist ?? []);
-  const [intakePhotos, setIntakePhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => !photo.slot.startsWith("after-")));
-  const [afterPhotos, setAfterPhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => photo.slot.startsWith("after-")));
+
+  // Map each standard slot (front, back, detail, setup, after, label) to its photo if present
+  const [slotPhotos, setSlotPhotos] = useState<Record<string, ItemPhoto | null>>(() => {
+    const map: Record<string, ItemPhoto | null> = {};
+    const photos = item.photos ?? [];
+    for (const s of PHOTO_SLOTS) {
+      const found = photos.find((p) => p.slot === s.slot);
+      map[s.slot] = found ?? null;
+    }
+    return map;
+  });
+
+  // Any non-standard extra photos / walkaround videos
+  const [extraPhotos, setExtraPhotos] = useState<ItemPhoto[]>(() => {
+    const standardSlots = new Set<string>(PHOTO_SLOTS.map((s) => s.slot));
+    return (item.photos ?? []).filter((p) => !standardSlots.has(p.slot));
+  });
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!open) return null;
@@ -263,48 +280,60 @@ function EditItemModal({
     { label: "Value high", value: item.valueHigh },
   ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
 
-  const addIntakeMedia = async (file: File | undefined) => {
+  const updateSlotPhoto = (slot: string, label: string, url: string, timestamp?: string) => {
+    setSlotPhotos((prev) => ({
+      ...prev,
+      [slot]: { slot, label, url, timestamp },
+    }));
+  };
+
+  const removeSlotPhoto = (slot: string) => {
+    setSlotPhotos((prev) => ({
+      ...prev,
+      [slot]: null,
+    }));
+  };
+
+  const handleUploadSlot = async (slot: string, label: string, file: File | undefined) => {
     if (!file) return;
     const now = new Date();
     const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
     try {
       const dataUrl = await compressImageFile(file);
-      setIntakePhotos((current) => [...current, { slot: `intake-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "Video" : "Intake photo", url: dataUrl, timestamp }]);
+      updateSlotPhoto(slot, label, dataUrl, timestamp);
     } catch {
       const reader = new FileReader();
-      reader.onload = () => setIntakePhotos((current) => [...current, { slot: `intake-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "Video" : "Intake photo", url: String(reader.result), timestamp }]);
+      reader.onload = () => {
+        updateSlotPhoto(slot, label, String(reader.result), timestamp);
+      };
       reader.readAsDataURL(file);
     }
   };
 
-  const replaceIntakePhoto = async (index: number, file: File | undefined) => {
+  const handleUseReference = (slot: string, label: string) => {
+    const catId = Number(form.categoryId) || item.categoryId;
+    const cat = categories.find((c) => c.id === catId);
+    const url = slot === "setup" ? REAL_SETUP_PHOTO : refPhotoFor(cat?.slug ?? "");
+    const now = new Date();
+    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    updateSlotPhoto(slot, label, url, timestamp);
+  };
+
+  const handleAddExtraMedia = async (file: File | undefined) => {
     if (!file) return;
     const now = new Date();
     const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    const isVideo = file.type.startsWith("video/");
+    const slotKey = isVideo ? `video-${Date.now()}` : `extra-${Date.now()}`;
+    const label = isVideo ? "Walkaround video" : "Extra detail photo";
     try {
       const dataUrl = await compressImageFile(file);
-      setIntakePhotos((current) => current.map((p, i) => i === index ? { ...p, url: dataUrl, timestamp } : p));
+      setExtraPhotos((prev) => [...prev, { slot: slotKey, label, url: dataUrl, timestamp }]);
     } catch {
       const reader = new FileReader();
-      reader.onload = () => setIntakePhotos((current) => current.map((p, i) => i === index ? { ...p, url: String(reader.result), timestamp } : p));
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const deleteIntakePhoto = (index: number) => {
-    setIntakePhotos((current) => current.filter((_, i) => i !== index));
-  };
-
-  const addAfterMedia = async (file: File | undefined) => {
-    if (!file) return;
-    const now = new Date();
-    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
-    try {
-      const dataUrl = await compressImageFile(file);
-      setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: dataUrl, timestamp }]);
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result), timestamp }]);
+      reader.onload = () => {
+        setExtraPhotos((prev) => [...prev, { slot: slotKey, label, url: String(reader.result), timestamp }]);
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -312,10 +341,26 @@ function EditItemModal({
   const submit = async () => {
     setBusy(true);
     setError(null);
+    const combinedPhotos: ItemPhoto[] = [
+      ...PHOTO_SLOTS.map((s) => slotPhotos[s.slot]).filter((p): p is ItemPhoto => Boolean(p && p.url)),
+      ...extraPhotos.filter((p) => Boolean(p && p.url)),
+    ];
     const res = await fetch(`/api/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "edit", ...form, status: form.status, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...intakePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
+      body: JSON.stringify({
+        action: "edit",
+        ...form,
+        status: form.status,
+        dimensions: normalizeDimensions(form.dimensions, dimensionUnit),
+        checklist,
+        photos: combinedPhotos,
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        acquisitionCost: Number(form.acquisitionCost),
+        refurbCost: Number(form.refurbCost),
+        listedPrice: form.listedPrice ? Number(form.listedPrice) : null,
+        grade: form.grade || null,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -329,7 +374,7 @@ function EditItemModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="card max-h-[90vh] w-full max-w-3xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4"><div><h3 className="font-display text-xl font-semibold text-stone-900">Edit inventory entry</h3><p className="mt-1 text-[12.5px] text-stone-500">Update the record without changing its price history.</p></div><button onClick={onClose} className="btn-ghost px-3">Close</button></div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {([["name", "Item name"], ["brand", "Brand"], ["model", "Model"], ["color", "Color"], ["material", "Material"], ["location", "Location"]] as const).map(([key, label]) => <label key={key} className={key === "name" ? "sm:col-span-2" : ""}><span className="label">{label}</span><input className="input" value={form[key]} onChange={(event) => update(key, event.target.value)} /></label>)}
@@ -427,100 +472,195 @@ function EditItemModal({
             </div>
           )}
         </div>
-        {/* Intake photos and videos */}
-        <div className="mt-5 border-t border-stone-100 pt-4">
+        {/* Media editing per slot */}
+        <div className="mt-6 border-t border-stone-100 pt-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="label mb-0">Intake photos and videos</div>
-              <p className="mt-1 text-[11px] text-stone-400">
-                Change or delete the photos originally uploaded during intake, or add new views.
+              <div className="label mb-0 text-sm font-bold text-stone-800">Media & Photography by Slot</div>
+              <p className="mt-0.5 text-[12px] text-stone-500">
+                Edit media per slot: front &amp; reverse views, wears &amp; defects, styled setup preview, after condition, and serial labels.
               </p>
             </div>
-            <label className="btn-soft h-9 cursor-pointer text-[12px]">
-              <ImagePlus className="h-4 w-4" />
-              <span>Add intake photo</span>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={(event) => {
-                  addIntakeMedia(event.target.files?.[0]);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
           </div>
-          {intakePhotos.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">
-              No intake photos remaining. Click &ldquo;Add intake photo&rdquo; to upload.
-            </div>
-          ) : (
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {intakePhotos.map((photo, ix) => (
-                <div key={photo.slot || ix} className="group relative overflow-hidden rounded-xl border border-[var(--line)] bg-stone-50">
-                  {photo.url.startsWith("data:video/") ? (
-                    <video src={photo.url} controls className="aspect-square w-full object-cover" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photo.url} alt={photo.label} className="aspect-square w-full object-cover" />
-                  )}
 
-                  <div className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase backdrop-blur-sm">
-                    {photo.label || `Photo ${ix + 1}`}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {PHOTO_SLOTS.map((s) => {
+              const photo = slotPhotos[s.slot];
+
+              return (
+                <div
+                  key={s.slot}
+                  className={cn(
+                    "relative flex flex-col justify-between overflow-hidden rounded-xl border transition-all",
+                    photo
+                      ? "border-stone-200 bg-white shadow-sm"
+                      : "border-dashed border-stone-300 bg-stone-50/70"
+                  )}
+                >
+                  {/* Slot Header */}
+                  <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/90 px-3 py-1.5 text-[11px]">
+                    <span className="font-bold text-stone-800 flex items-center gap-1">
+                      {s.label}
+                      {s.required ? (
+                        <span className="text-rose-500 font-bold">*</span>
+                      ) : (
+                        <span className="text-stone-400 font-normal text-[10px]">(optional)</span>
+                      )}
+                    </span>
+                    <span className="text-[9.5px] font-semibold text-stone-400 uppercase tracking-wider">
+                      {s.slot}
+                    </span>
                   </div>
 
-                  <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
-                    <label
-                      className="cursor-pointer rounded-full bg-stone-950/70 p-1 text-white backdrop-blur transition hover:bg-stone-900"
-                      title="Change photo"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        onChange={(event) => {
-                          replaceIntakePhoto(ix, event.target.files?.[0]);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
+                  {photo ? (
+                    <div className="p-2.5">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-stone-100">
+                        {photo.url.startsWith("data:video/") ? (
+                          <video src={photo.url} controls className="h-full w-full object-cover" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photo.url}
+                            alt={s.label}
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+
+                        {/* Timestamp */}
+                        {photo.timestamp && (
+                          <div className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-medium text-white backdrop-blur">
+                            <Clock className="h-2.5 w-2.5 text-amber-400" />
+                            {photo.timestamp}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <label
+                          className="btn-soft h-7 flex-1 cursor-pointer justify-center text-[11px] font-semibold"
+                          title={`Change ${s.label}`}
+                        >
+                          <Camera className="h-3 w-3" />
+                          <span>Change</span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleUploadSlot(s.slot, s.label, e.target.files?.[0]);
+                              e.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUseReference(s.slot, s.label)}
+                          className="btn-ghost h-7 px-2 text-[10.5px] text-[#1D5D8B]"
+                          title="Reset to reference photo"
+                        >
+                          Ref
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeSlotPhoto(s.slot)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition"
+                          title={`Delete ${s.label}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 flex-col items-center justify-center p-4 text-center min-h-[140px]">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-stone-400 shadow-sm mb-1">
+                        <Camera className="h-4 w-4" />
+                      </div>
+                      <p className="text-[10.5px] leading-tight text-stone-400 line-clamp-2 px-1 mb-2">
+                        {s.hint}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <label className="btn-soft h-7 cursor-pointer px-2.5 text-[11px] font-semibold">
+                          <ImagePlus className="h-3 w-3" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleUploadSlot(s.slot, s.label, e.target.files?.[0]);
+                              e.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleUseReference(s.slot, s.label)}
+                          className="btn-ghost h-7 px-2 text-[10.5px] text-[#1D5D8B]"
+                          title="Use standard reference photo"
+                        >
+                          Ref
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Additional Media & Videos (Extra defect shots, walkarounds) */}
+          <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[12px] font-bold text-stone-700">Additional Media &amp; Videos</span>
+                <p className="text-[11px] text-stone-400">Add extra defect angles, alternate styling views, or walkaround videos</p>
+              </div>
+              <label className="btn-ghost h-7 cursor-pointer text-[11.5px] font-semibold text-stone-700">
+                <ImagePlus className="h-3.5 w-3.5" />
+                <span>+ Add extra media</span>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleAddExtraMedia(e.target.files?.[0]);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {extraPhotos.length > 0 ? (
+              <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {extraPhotos.map((p, idx) => (
+                  <div key={p.slot || idx} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-stone-200 bg-white">
+                    {p.url.startsWith("data:video/") ? (
+                      <video src={p.url} controls className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+                    )}
                     <button
                       type="button"
-                      onClick={() => deleteIntakePhoto(ix)}
-                      className="rounded-full bg-rose-600/80 p-1 text-white backdrop-blur transition hover:bg-rose-700"
-                      title="Delete photo"
+                      onClick={() => setExtraPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900/70 text-white hover:bg-rose-600 transition"
+                      title="Remove extra media"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
                     </button>
+                    <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white truncate max-w-[80%]">
+                      {p.label || `Extra ${idx + 1}`}
+                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 border-t border-stone-100 pt-4">
-          <div className="flex items-center justify-between gap-3"><div><div className="label mb-0">After photos and videos</div><p className="mt-1 text-[11px] text-stone-400">Add the finished or refurbished condition without replacing the before photos.</p></div><label className="btn-soft h-9 cursor-pointer text-[12px]"><ImagePlus className="h-4 w-4" /><span>Add media</span><input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => { addAfterMedia(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label></div>
-          {afterPhotos.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">No after media added yet.</div>
-          ) : (
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {afterPhotos.map((photo) => (
-                <div key={photo.slot} className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-stone-50">
-                  {photo.url.startsWith("data:video/") ? (
-                    <video src={photo.url} controls className="aspect-square w-full object-cover" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photo.url} alt={photo.label} className="aspect-square w-full object-cover" />
-                  )}
-                  <button type="button" onClick={() => setAfterPhotos((current) => current.filter((item) => item.slot !== photo.slot))} className="absolute right-1.5 top-1.5 rounded-full bg-stone-950/65 p-1 text-white" aria-label={`Remove ${photo.label}`}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-[11px] text-stone-400 italic">No additional media uploaded.</p>
+            )}
+          </div>
         </div>
         {error && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{error}</div>}
         <div className="mt-5 flex justify-end gap-2"><button onClick={onClose} className="btn-ghost">Cancel</button><button onClick={submit} disabled={busy} className="btn-primary">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save changes</button></div>
@@ -713,6 +853,19 @@ export function ItemDetail({
         <div className="space-y-5">
           {/* gallery */}
           <div className="card overflow-hidden p-3">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-[11.5px] font-bold uppercase tracking-wider text-stone-500">
+                Item Photography
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1D5D8B] hover:underline"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                <span>Edit media slots</span>
+              </button>
+            </div>
             {photos.length ? (
               <>
                 <div className="relative overflow-hidden rounded-xl">

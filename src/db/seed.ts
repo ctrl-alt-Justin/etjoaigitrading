@@ -332,7 +332,7 @@ export async function seedIfEmpty() {
             ? [{ slot: "detail", label: "Defects & wear", url: refPhotoFor(spec.cat) }]
             : []),
           ...(chance(0.65)
-            ? [{ slot: "setup", label: "Styled / room setup", url: REAL_SETUP_PHOTO }]
+            ? [{ slot: "setup", label: "Setup/Preview", url: REAL_SETUP_PHOTO }]
             : []),
         ];
 

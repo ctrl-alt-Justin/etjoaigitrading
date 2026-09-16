@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { type ChecklistEntry, type Grade, type ItemPhoto } from "@/db/schema";
 import { computeFloor, valuate, type Valuation } from "@/lib/valuation";
@@ -142,7 +142,14 @@ export async function POST(req: Request) {
   }
 
   invalidateAllDataCache();
-  revalidateTag("inventory-data", "max");
+  try {
+    revalidatePath("/shop", "layout");
+    revalidatePath("/shop/catalog");
+    revalidatePath("/inventory", "layout");
+    revalidateTag("inventory-data", "max");
+  } catch {
+    // Ignore cache error in non-request environments
+  }
 
   return NextResponse.json({ ok: true, id: row.id, sku }, { status: 201 });
 }

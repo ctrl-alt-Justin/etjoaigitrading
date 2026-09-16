@@ -181,8 +181,8 @@ async function fetchShopCatalogData() {
         material: i.material,
         dimensions: i.dimensions,
         grade: i.grade,
-        // Keep first 2 photos (main + hover preview) for catalog/home to keep HTML & RSC payload tiny
-        photos: Array.isArray(i.photos) ? i.photos.slice(0, 2) : [],
+        // Keep all photos so catalog cards have both primary (front) and hover preview (setup)
+        photos: Array.isArray(i.photos) ? i.photos : [],
         conditionNotes: i.conditionNotes,
         listedPrice: i.listedPrice,
         benchmarkPrice: i.benchmarkPrice,

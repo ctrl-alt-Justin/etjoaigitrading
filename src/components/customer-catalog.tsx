@@ -776,11 +776,11 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     )}
 
                     {/* Product Image with Hover to Alternate Setup View */}
-                    <div className="relative z-10 flex h-52 w-full items-center justify-center p-2 pointer-events-none">
+                    <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-stone-100 pointer-events-none">
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
-                        className="h-44 w-full"
+                        className="h-full w-full"
                       />
                     </div>
 
@@ -858,15 +858,15 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     key={item.id}
                     className="group/row grid overflow-hidden transition-colors duration-200 md:grid-cols-[40%_60%] lg:grid-cols-[36%_64%] bg-white text-[#17364b] hover:bg-[#1D5D8B] hover:text-white"
                   >
-                    {/* Left: Product Image on Pure White Background */}
+                    {/* Left: Product Image on Clean Background */}
                     <Link
                       href={`/shop/${item.id}`}
-                      className="group/img relative flex min-h-[260px] items-center justify-center p-6 bg-white border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200"
+                      className="group/img relative flex aspect-[4/3] w-full max-h-[260px] items-center justify-center bg-stone-50 border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200 overflow-hidden"
                     >
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
-                        className="h-56 w-full"
+                        className="h-full w-full"
                       />
                     </Link>
 

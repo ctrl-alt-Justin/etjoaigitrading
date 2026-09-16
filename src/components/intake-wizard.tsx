@@ -45,6 +45,7 @@ import {
   calculateAutoGrade,
   MIN_CLEANING_COST,
   refPhotoFor,
+  REAL_SETUP_PHOTO,
   type ChecklistCategory,
 } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
@@ -815,7 +816,7 @@ export function IntakeWizard({
                                 {leaf && (
                                   <button
                                     type="button"
-                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
+                                    onClick={() => onUseReference(s.slot, s.slot === "setup" ? REAL_SETUP_PHOTO : refPhotoFor(leaf.slug))}
                                     className="rounded-full bg-white/95 px-2.5 py-1 text-[10.5px] font-semibold text-[#1D5D8B] backdrop-blur shadow-sm transition hover:bg-white hover:underline"
                                     title="Switch to reference photo"
                                   >
@@ -840,7 +841,7 @@ export function IntakeWizard({
                                 {leaf && (
                                   <button
                                     type="button"
-                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
+                                    onClick={() => onUseReference(s.slot, s.slot === "setup" ? REAL_SETUP_PHOTO : refPhotoFor(leaf.slug))}
                                     className="btn-soft h-9 px-3 text-[12.5px]"
                                   >
                                     Use reference
