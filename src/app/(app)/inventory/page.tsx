@@ -18,6 +18,12 @@ export default async function InventoryPage() {
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((c) => ({ slug: c.slug, name: c.name }));
 
+  const tableItems = enriched.map((i) => ({
+    ...i,
+    photos: i.photos?.slice(0, 1) ?? [],
+    checklist: null,
+  }));
+
   return (
     <div className="space-y-5">
       <Reveal>
@@ -39,7 +45,7 @@ export default async function InventoryPage() {
         </div>
       </Reveal>
       <Reveal delay={0.05}>
-        <InventoryTable items={enriched} roots={roots} />
+        <InventoryTable items={tableItems} roots={roots} />
       </Reveal>
     </div>
   );

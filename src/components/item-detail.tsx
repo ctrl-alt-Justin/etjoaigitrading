@@ -28,6 +28,7 @@ import type { EnrichedItem } from "@/lib/queries";
 import { agingMarkdown, computeFloor, GRADE_META, GRADE_ORDER } from "@/lib/valuation";
 import { SOLD_CHANNELS } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
+import { compressImageFile } from "@/lib/image-compress";
 import { Field, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
 import { ShareModal, type ShareInfo } from "./share-modal";
 
@@ -260,13 +261,18 @@ function EditItemModal({
     { label: "Value high", value: item.valueHigh },
   ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
   const beforePhotos = (item.photos ?? []).filter((photo) => !photo.slot.startsWith("after-"));
-  const addAfterMedia = (file: File | undefined) => {
+  const addAfterMedia = async (file: File | undefined) => {
     if (!file) return;
-    const reader = new FileReader();
     const now = new Date();
     const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
-    reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result), timestamp }]);
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await compressImageFile(file);
+      setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: dataUrl, timestamp }]);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result), timestamp }]);
+      reader.readAsDataURL(file);
+    }
   };
   const submit = async () => {
     setBusy(true);

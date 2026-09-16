@@ -596,11 +596,13 @@ export function computeDashboard(
     topValue: [...active]
       .filter((i) => i.listedPrice)
       .sort((a, b) => (b.listedPrice ?? 0) - (a.listedPrice ?? 0))
-      .slice(0, 6),
+      .slice(0, 6)
+      .map((i) => ({ ...i, photos: i.photos?.slice(0, 1) ?? [], checklist: null })),
     slowMovers: alerts.slice(0, 6),
     recentIntake: [...enriched]
       .sort((a, b) => +new Date(b.intakeAt) - +new Date(a.intakeAt))
-      .slice(0, 6),
+      .slice(0, 6)
+      .map((i) => ({ ...i, photos: i.photos?.slice(0, 1) ?? [], checklist: null })),
     supplierStats: supplierStatsOf(enriched, sups),
   };
 }

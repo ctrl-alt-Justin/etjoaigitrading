@@ -16,7 +16,9 @@ import {
   ChevronDown,
   SlidersHorizontal,
   X,
-  RotateCcw
+  RotateCcw,
+  PanelLeftClose,
+  PanelLeft
 } from "lucide-react";
 import type { DbCategory, DbItem, Grade } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
@@ -126,6 +128,9 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
   // Mobile sidebar open
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+
+  // Desktop filter panel collapse
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
 
   const urlCategory = searchParams?.get("category") ?? "";
 
@@ -367,8 +372,16 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
       {/* Sticky Top Toolbar (Category Title + Counter + View Switcher + Sort) */}
       <div className="sticky top-[61px] z-30 -mx-6 px-6 sm:-mx-12 sm:px-12 bg-[#FCFDF8]/95 backdrop-blur-md border-b border-stone-200/80 py-3.5 shadow-sm transition-all">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Left: Breadcrumb / Category Title */}
-          <div className="flex items-center gap-2 text-2xl font-black text-[#16c4df]">
+          {/* Left: Breadcrumb / Category Title + Filter Toggle */}
+          <div className="flex items-center gap-3 text-2xl font-black text-[#16c4df]">
+            <button
+              type="button"
+              onClick={() => setFiltersCollapsed(!filtersCollapsed)}
+              aria-label={filtersCollapsed ? "Show filters" : "Hide filters"}
+              className="hidden md:flex h-8 w-8 items-center justify-center border border-stone-200 bg-white text-stone-500 hover:text-[#1D5D8B] hover:border-[#1D5D8B] transition"
+            >
+              {filtersCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
             <ChevronRight className="h-6 w-6 stroke-[3] text-[#17364b]" />
             <h2 className="font-display tracking-tight text-[#16c4df]">
               {currentCategoryTitle}
@@ -383,13 +396,13 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             </span>
 
             {/* View Switcher Icons */}
-            <div className="flex items-center gap-1.5 rounded-lg bg-stone-100 p-1 border border-stone-200/60">
+            <div className="flex items-center gap-1.5 bg-stone-100 p-1 border border-stone-200/60">
               {/* List View Toggle Button */}
               <button
                 type="button"
                 onClick={() => setViewMode("list")}
                 aria-label="List view"
-                className={`rounded-md p-1.5 transition ${
+                className={`p-1.5 transition ${
                   viewMode === "list"
                     ? "bg-white text-[#16c4df] shadow-sm"
                     : "text-stone-400 hover:text-stone-600"
@@ -403,7 +416,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 type="button"
                 onClick={() => setViewMode("grid")}
                 aria-label="Block grid view"
-                className={`rounded-md p-1.5 transition ${
+                className={`p-1.5 transition ${
                   viewMode === "grid"
                     ? "bg-white text-[#16c4df] shadow-sm"
                     : "text-stone-400 hover:text-stone-600"
@@ -417,7 +430,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             <button
               type="button"
               onClick={() => setSidebarMobileOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-bold text-[#1D5D8B] md:hidden"
+              className="flex items-center gap-1.5 border border-stone-200 px-3 py-1.5 text-xs font-bold text-[#1D5D8B] md:hidden"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
             </button>
@@ -430,7 +443,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   aria-label="Sort catalog items"
-                  className="cursor-pointer appearance-none rounded-md bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-bold text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
+                  className="cursor-pointer appearance-none bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-bold text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
                 >
                   <option value="relevance" className="bg-white text-[#17364b]">Relevance</option>
                   <option value="price-low" className="bg-white text-[#17364b]">Price: low to high</option>
@@ -445,12 +458,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
       </div>
 
       {/* Main Content Area (Sidebar + Product Grid/List) */}
-      <div className="mt-6 grid grid-cols-1 items-start gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]">
+      <div className={`mt-6 grid grid-cols-1 items-start gap-8 transition-all ${filtersCollapsed ? '' : 'md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]'}`}>
         {/* Left Sidebar Filter (Sticky on desktop, collapsible drawer on mobile) */}
         <aside
           className={`fixed inset-y-0 left-0 z-50 w-72 bg-white p-6 shadow-2xl transition-transform md:static md:z-20 md:w-auto md:bg-transparent md:p-0 md:shadow-none md:sticky md:top-[128px] md:self-start md:max-h-[calc(100vh-142px)] md:overflow-y-auto pr-2 scrollbar-thin ${
             sidebarMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-          }`}
+          } ${filtersCollapsed ? 'md:hidden' : ''}`}
         >
           {/* Mobile close header */}
           <div className="mb-4 flex items-center justify-between border-b pb-3 md:hidden">
@@ -746,7 +759,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
         {/* Right Area: Items in Grid or List Mode */}
         <div className="min-w-0">
           {visible.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-[#d8e2e7] bg-white p-12 text-center shadow-sm">
+            <div className="border border-dashed border-[#d8e2e7] bg-white p-12 text-center shadow-sm">
               <h3 className="font-display text-lg font-bold text-[#17364b]">
                 No pieces match your filters
               </h3>
@@ -756,7 +769,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               <button
                 type="button"
                 onClick={resetAllFilters}
-                className="mt-4 rounded-xl bg-[#16c4df] px-5 py-2 text-xs font-bold text-[#17364b] hover:bg-[#70e2ef]"
+                className="mt-4 bg-[#16c4df] px-5 py-2 text-xs font-bold text-[#17364b] hover:bg-[#70e2ef]"
               >
                 Clear all filters
               </button>
@@ -765,7 +778,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             /* ========================================================= */
             /* BLOCK / GRID VIEW (Matches Mockup 1 & 2)                  */
             /* ========================================================= */
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+            <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
               {visible.map((item, index) => {
                 const badge = getItemBadge(item, index);
                 const gradeBadge = getGradeBadge(item.grade as Grade | null);
@@ -777,14 +790,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 return (
                   <article
                     key={item.id}
-                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-lg"
+                    className="group relative flex flex-col justify-between overflow-hidden border border-stone-200/80 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-lg"
                   >
                     {/* Top-right Favorite Heart Button (Mockup 2) - Positioned above image, OUTSIDE of Link */}
                     <button
                       type="button"
                       onClick={(e) => handleToggleFavorite(item, e)}
                       aria-label={isFav ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-                      className="absolute right-6 top-6 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 shadow-sm border border-stone-200/60 backdrop-blur transition hover:bg-white hover:scale-110 active:scale-90"
+                      className="absolute right-6 top-6 z-20 flex h-8 w-8 items-center justify-center bg-white/95 shadow-sm border border-stone-200/60 backdrop-blur transition hover:bg-white hover:scale-110 active:scale-90"
                     >
                       <Heart
                         className={`h-4 w-4 transition-colors ${
@@ -799,10 +812,10 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     <div>
                       {/* Product Image Link */}
                       <Link href={`/shop/${item.id}`} className="block group/img">
-                        <div className="relative flex h-52 w-full items-center justify-center rounded-xl bg-[#f5f2eb]/70 p-4 transition group-hover/img:bg-[#efebe2]">
+                        <div className="relative flex h-52 w-full items-center justify-center bg-[#f5f2eb]/70 p-4 transition group-hover/img:bg-[#efebe2]">
                           {/* Top-left Badge (NEW or Discount) */}
                           {badge && (
-                            <span className="absolute left-3 top-3 rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
+                            <span className="absolute left-3 top-3 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
                               {badge.label}
                             </span>
                           )}
@@ -830,7 +843,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                       {/* Grade Chip + Title */}
                       <div className="mt-2.5 flex items-center gap-2">
                         <span
-                          className={`flex h-4 min-w-4 items-center justify-center rounded px-1 text-[9px] font-black ${gradeBadge.bg}`}
+                          className={`flex h-4 min-w-4 items-center justify-center px-1 text-[9px] font-black ${gradeBadge.bg}`}
                         >
                           {gradeBadge.letter}
                         </span>
@@ -870,7 +883,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                         type="button"
                         onClick={(e) => handleAddToCart(item, e)}
                         aria-label={`Add ${item.name} to cart`}
-                        className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition shadow-sm ${
+                        className={`flex h-7 w-7 items-center justify-center text-xs font-bold transition shadow-sm ${
                           isAdded
                             ? "bg-emerald-600 text-white"
                             : "bg-[#16c4df] text-[#17364b] hover:scale-110 hover:bg-[#70e2ef]"
@@ -887,9 +900,8 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             /* ========================================================= */
             /* LIST VIEW (Matches Mockup 3 with alternating cards)       */
             /* ========================================================= */
-            <div className="divide-y divide-[#d8e2e7] rounded-3xl border border-[#d8e2e7] bg-white overflow-hidden shadow-sm">
+            <div className="divide-y divide-[#d8e2e7] border border-[#d8e2e7] bg-white overflow-hidden shadow-sm">
               {visible.map((item, index) => {
-                const isBlueTheme = index % 2 === 1;
                 const badge = getItemBadge(item, index);
                 const gradeBadge = getGradeBadge(item.grade as Grade | null);
                 const colorDots = getColorDots(item);
@@ -900,11 +912,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 return (
                   <article
                     key={item.id}
-                    className={`grid overflow-hidden transition md:grid-cols-[40%_60%] lg:grid-cols-[36%_64%] ${
-                      isBlueTheme
-                        ? "bg-[#1D5D8B] text-white"
-                        : "bg-white text-[#17364b]"
-                    }`}
+                    className="group/row grid overflow-hidden transition-colors duration-200 md:grid-cols-[40%_60%] lg:grid-cols-[36%_64%] bg-white text-[#17364b] hover:bg-[#1D5D8B] hover:text-white"
                   >
                     {/* Left: Product Image on Pure White Background */}
                     <Link
@@ -925,12 +933,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {badge && (
-                              <span className="rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white bg-[#c62f57]">
+                              <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white bg-[#c62f57]">
                                 {badge.label}
                               </span>
                             )}
                             <span
-                              className={`flex h-5 min-w-5 items-center justify-center rounded px-1.5 text-[10px] font-black ${gradeBadge.bg}`}
+                              className={`flex h-5 min-w-5 items-center justify-center px-1.5 text-[10px] font-black ${gradeBadge.bg}`}
                             >
                               {gradeBadge.letter}
                             </span>
@@ -941,7 +949,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                             {colorDots.map((dot, idx) => (
                               <span
                                 key={idx}
-                                className="h-3.5 w-3.5 rounded-full border border-black/15 shadow-sm"
+                                className="h-3.5 w-3.5 border border-black/15 shadow-sm"
                                 style={{ backgroundColor: dot }}
                               />
                             ))}
@@ -952,9 +960,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                         <div className="mt-3 flex items-start justify-between gap-4">
                           <Link href={`/shop/${item.id}`}>
                             <h3
-                              className={`font-display text-2xl font-black uppercase tracking-tight sm:text-3xl transition ${
-                                isBlueTheme ? "text-white hover:text-[#16c4df]" : "text-[#17364b] hover:text-[#1D5D8B]"
-                              }`}
+                              className="font-display text-2xl font-black uppercase tracking-tight sm:text-3xl transition text-[#17364b] group-hover/row:text-white hover:text-[#16c4df] group-hover/row:hover:text-[#16c4df]"
                             >
                               {item.name}
                             </h3>
@@ -983,9 +989,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
                         {/* Two-column Specifications List */}
                         <dl
-                          className={`mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs ${
-                            isBlueTheme ? "text-[#b9d5e4]" : "text-[#557287]"
-                          }`}
+                          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[#557287] group-hover/row:text-[#b9d5e4] transition-colors"
                         >
                           <div className="flex gap-2">
                             <dt className="w-16 shrink-0 font-medium">Brand</dt>
@@ -1011,11 +1015,9 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                       </div>
 
                       {/* Bottom: Price + Circular Cyan Cart Button */}
-                      <div className="mt-6 flex items-center justify-between border-t border-white/15 pt-4">
+                      <div className="mt-6 flex items-center justify-between border-t border-stone-200 group-hover/row:border-white/15 pt-4 transition-colors">
                         <div
-                          className={`font-display text-2xl font-black sm:text-3xl ${
-                            isBlueTheme ? "text-white" : "text-[#17364b]"
-                          }`}
+                          className="font-display text-2xl font-black sm:text-3xl text-[#17364b] group-hover/row:text-white transition-colors"
                         >
                           {fmtMoney(item.listedPrice)}
                         </div>
@@ -1025,7 +1027,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                           type="button"
                           onClick={(e) => handleAddToCart(item, e)}
                           aria-label={`Add ${item.name} to cart`}
-                          className={`flex h-11 w-11 items-center justify-center rounded-full shadow-md transition duration-200 hover:scale-110 ${
+                          className={`flex h-11 w-11 items-center justify-center shadow-md transition duration-200 hover:scale-110 ${
                             isAdded
                               ? "bg-emerald-500 text-white"
                               : "bg-[#16c4df] text-[#17364b] hover:bg-[#70e2ef]"
@@ -1049,9 +1051,9 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
       {/* Toast Notification when favoriting */}
       {favToast?.show && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 border border-stone-200 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-bottom-5">
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${
+            className={`flex h-8 w-8 items-center justify-center ${
               favToast.action === "added"
                 ? "bg-[#16c4df]/15 text-[#16c4df]"
                 : "bg-stone-100 text-stone-500"
@@ -1075,7 +1077,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
           </div>
           <Link
             href="/shop/favorites"
-            className="ml-2 rounded-lg bg-[#1D5D8B] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#164e75] transition"
+            className="ml-2 bg-[#1D5D8B] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#164e75] transition"
           >
             View
           </Link>

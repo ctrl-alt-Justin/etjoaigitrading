@@ -48,6 +48,7 @@ import {
   type ChecklistCategory,
 } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
+import { compressImageFile } from "@/lib/image-compress";
 import { GradeChip, Thumb } from "./ui";
 
 export type SoldRef = {
@@ -480,7 +481,7 @@ export function IntakeWizard({
     if (!nameTouched) setName([b, m].filter(Boolean).join(" "));
   };
 
-  const onFile = (slot: string, f: File | undefined) => {
+  const onFile = async (slot: string, f: File | undefined) => {
     if (!f) return;
     const nowStr = new Date().toLocaleString("en-US", {
       month: "short",
@@ -490,12 +491,18 @@ export function IntakeWizard({
       minute: "2-digit",
       hour12: true,
     });
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotos((p) => ({ ...p, [slot]: String(reader.result) }));
+    try {
+      const dataUrl = await compressImageFile(f);
+      setPhotos((p) => ({ ...p, [slot]: dataUrl }));
       setPhotoTimestamps((t) => ({ ...t, [slot]: nowStr }));
-    };
-    reader.readAsDataURL(f);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPhotos((p) => ({ ...p, [slot]: String(reader.result) }));
+        setPhotoTimestamps((t) => ({ ...t, [slot]: nowStr }));
+      };
+      reader.readAsDataURL(f);
+    }
   };
 
   const onUseReference = (slot: string, url: string) => {

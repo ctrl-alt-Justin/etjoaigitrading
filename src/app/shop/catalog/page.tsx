@@ -29,7 +29,7 @@ export default async function ShopCatalogPage() {
           <div className="relative flex h-full flex-col justify-between px-6 py-8 sm:px-12">
             {/* Top Product Note */}
             <div className="text-left">
-              <div className="font-display text-xs font-black uppercase tracking-wider text-white sm:text-sm">
+              <div className="font-hegarty text-xs font-black uppercase tracking-wider text-white sm:text-sm">
                 LANDSKRONA
               </div>
               <div className="text-[11px] font-medium text-stone-200">
@@ -40,10 +40,10 @@ export default async function ShopCatalogPage() {
 
             {/* Bottom Big Drop Text */}
             <div className="text-right">
-              <div className="font-display text-2xl font-black tracking-tight text-[#ff4a68] sm:text-4xl">
+              <div className="font-hegarty text-2xl font-black tracking-tight text-[#ff4a68] sm:text-4xl">
                 09/14/26
               </div>
-              <div className="font-display text-5xl font-black uppercase tracking-tight text-[#16c4df] drop-shadow-[0_4px_12px_rgba(22,196,223,0.4)] sm:text-8xl">
+              <div className="font-hegarty text-5xl font-black uppercase tracking-tight text-[#16c4df] drop-shadow-[0_4px_12px_rgba(22,196,223,0.4)] sm:text-8xl">
                 NEW DROP
               </div>
             </div>
@@ -63,7 +63,7 @@ export default async function ShopCatalogPage() {
       <footer className="border-t border-[#8ab7d2]/30 bg-white">
         <div className="mx-auto grid max-w-[1480px] gap-8 px-6 py-12 text-sm text-[#294e65] sm:grid-cols-[1.5fr_1fr_1fr_1fr] sm:px-8">
           <div>
-            <div className="font-display text-3xl font-black tracking-tight text-[#1D5D8B]">
+            <div className="font-hegarty text-3xl font-black tracking-tight text-[#1D5D8B]">
               ETJOAIGI
             </div>
             <div className="mt-1 text-xs font-bold text-[#16c4df]">
