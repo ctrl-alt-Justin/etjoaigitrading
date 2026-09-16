@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { fmtInt, fmtMoney } from "@/lib/format";
+import type { ProductAgeItem } from "@/lib/queries";
 
 const AXIS = { fontSize: 11, fill: "#8a8272" };
 const GRID = "#E9E4D8";
@@ -213,5 +214,101 @@ export function TriadChart({
         <Bar dataKey="sold" name="Sold price" fill="#0e9f6e" radius={[3, 3, 0, 0]} maxBarSize={16} />
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+/* ---------------- Product age in inventory ---------------- */
+export function ProductAgeChart({
+  data,
+}: {
+  data: ProductAgeItem[];
+}) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-xs text-stone-400">
+        No active items in stock
+      </div>
+    );
+  }
+
+  // Display top 6 longest-aged items in active inventory
+  const items = data.slice(0, 6);
+  const maxHours = Math.max(...items.map((i) => i.hoursInStock), 0);
+  const useDays = maxHours >= 48;
+
+  const chartData = items.map((i) => ({
+    ...i,
+    chartValue: useDays
+      ? Math.max(0.1, Number((i.hoursInStock / 24).toFixed(1)))
+      : Math.max(0.2, Math.round(i.hoursInStock * 10) / 10),
+    displayName: i.model.length > 15 ? `${i.model.slice(0, 14)}…` : i.model,
+  }));
+
+  return (
+    <div className="h-full flex flex-col justify-between">
+      <div className="flex items-center justify-between text-[11px] text-stone-400 px-1 mb-1">
+        <span>Model</span>
+        <span>Duration ({useDays ? "days" : "hours"})</span>
+      </div>
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 16, bottom: 0, left: 2 }}>
+            <CartesianGrid stroke={GRID} horizontal={false} />
+            <XAxis type="number" hide />
+            <YAxis
+              type="category"
+              dataKey="displayName"
+              width={106}
+              tick={{ ...AXIS, fontSize: 11, fill: "#44403c", fontWeight: 500 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const p = payload[0].payload as (typeof chartData)[0];
+                return (
+                  <div className="min-w-[210px] rounded-xl border border-stone-200 bg-white/95 p-3 text-xs shadow-xl backdrop-blur">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-stone-900 truncate max-w-[130px]">{p.model}</span>
+                      {p.grade && (
+                        <span
+                          className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-black text-stone-900 shadow-xs"
+                          style={{ backgroundColor: p.color }}
+                        >
+                          Grade {p.grade}
+                        </span>
+                      )}
+                    </div>
+                    {p.brand && <div className="text-[11px] text-stone-400">{p.brand}</div>}
+                    <div className="my-2 border-t border-stone-100" />
+                    <div className="space-y-1.5 text-[11px]">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-stone-400">Intake date:</span>
+                        <span className="font-medium text-stone-700">{p.intakeFormatted}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-stone-400">Time in inventory:</span>
+                        <span className="font-bold text-amber-700">{p.ageLabel}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-stone-400">Status:</span>
+                        <span className="font-medium capitalize text-stone-600">{p.status.replace("_", " ")}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }}
+              cursor={{ fill: "rgba(120,113,99,0.06)" }}
+            />
+            <Bar dataKey="chartValue" name={useDays ? "Days in stock" : "Hours in stock"} radius={[0, 4, 4, 0]} maxBarSize={15}>
+              {chartData.map((d, ix) => (
+                <Cell key={ix} fill={d.color || "#1D5D8B"} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

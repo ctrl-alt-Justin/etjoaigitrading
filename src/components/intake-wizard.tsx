@@ -43,7 +43,6 @@ import {
   categorizedChecklistFor,
   CHECKLIST_CATEGORIES,
   calculateAutoGrade,
-  MIN_CLEANING_COST,
   refPhotoFor,
   REAL_SETUP_PHOTO,
   type ChecklistCategory,
@@ -65,7 +64,28 @@ export type SoldRef = {
 
 export type SupplierLite = { id: number; name: string; channel: string };
 
-const STEPS = ["Media & photos", "Sourcing", "Category / Identity", "Inspection", "Pricing & publish"];
+const STEPS = ["Media & Photos", "Sourcing", "Identity", "Inspection", "Pricing & Publish"];
+
+export const INTAKE_FIXED_SLOTS = [
+  {
+    slot: "front",
+    label: "Front View",
+    hint: "Full item, angled three-quarter, good light",
+    required: true,
+  },
+  {
+    slot: "back",
+    label: "Back / Reverse",
+    hint: "Frame, mechanism or rear panels visible",
+    required: true,
+  },
+  {
+    slot: "label",
+    label: "Label / Serial",
+    hint: "Manufacturer tag, model sticker or serial plate",
+    required: false,
+  },
+] as const;
 
 function parseInitialDims(raw?: string | null): { l: string; w: string; h: string; unit: DimensionUnit } {
   if (!raw) return { l: "", w: "", h: "", unit: "cm" };
@@ -110,6 +130,36 @@ export const DEFAULT_MATERIALS = [
 ];
 
 const MATERIAL_STORAGE_KEY = "etjoaigi_material_frequencies";
+
+export const GRADE_CARD_THEMES: Record<
+  Grade,
+  {
+    chip: string;
+    activeCard: string;
+    checkColor: string;
+  }
+> = {
+  A: {
+    chip: "bg-[#f0d900] text-[#17364b] font-black border-[#e5ce00]",
+    activeCard: "border-[#f0d900] bg-[#fefce8] ring-2 ring-[#f0d900]/50",
+    checkColor: "text-amber-500",
+  },
+  B: {
+    chip: "bg-[#16a34a] text-white font-bold border-[#15803d]",
+    activeCard: "border-[#16a34a] bg-emerald-50/60 ring-2 ring-[#16a34a]/40",
+    checkColor: "text-[#16a34a]",
+  },
+  C: {
+    chip: "bg-[#2563eb] text-white font-bold border-[#1d4ed8]",
+    activeCard: "border-[#2563eb] bg-blue-50/60 ring-2 ring-[#2563eb]/40",
+    checkColor: "text-[#2563eb]",
+  },
+  D: {
+    chip: "bg-[#e11d48] text-white font-bold border-[#be123c]",
+    activeCard: "border-[#e11d48] bg-rose-50/60 ring-2 ring-[#e11d48]/40",
+    checkColor: "text-[#e11d48]",
+  },
+};
 
 /* ------------------------------------------------------------------ */
 
@@ -328,7 +378,7 @@ export function IntakeWizard({
   const [acq, setAcq] = useState(initialItem?.acquisitionCost ? String(initialItem.acquisitionCost) : "");
   const [refurb, setRefurb] = useState(initialItem?.refurbCost ? String(initialItem.refurbCost) : "");
   const [cleaning, setCleaning] = useState(
-    initialItem?.attributes?.cleaning_cost ? String(initialItem.attributes.cleaning_cost) : String(MIN_CLEANING_COST)
+    initialItem?.attributes?.cleaning_cost ? String(initialItem.attributes.cleaning_cost) : "0"
   );
 
   const updateDims = (l: string, w: string, h: string, u: DimensionUnit) => {
@@ -384,7 +434,20 @@ export function IntakeWizard({
       (initialItem?.photos ?? []).filter((p) => p.timestamp).map((p) => [p.slot, p.timestamp!])
     )
   );
+  const initialDefectPhotos = useMemo(() => {
+    return (initialItem?.photos ?? [])
+      .filter((p) => p.slot === "detail" || p.slot.startsWith("detail_"))
+      .map((p, ix) => ({
+        id: `defect-${ix}-${Date.now()}`,
+        url: p.url,
+        timestamp: p.timestamp,
+      }));
+  }, [initialItem?.photos]);
+  const [defectPhotos, setDefectPhotos] = useState<{ id: string; url: string; timestamp?: string }[]>(initialDefectPhotos);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const defectMultiInputRef = useRef<HTMLInputElement | null>(null);
+  const defectSingleInputRef = useRef<HTMLInputElement | null>(null);
+  const activeChangeDefectId = useRef<string | null>(null);
 
   const [listMode, setListMode] = useState<"intake" | "stock" | "listed" | "for_cleaning" | "for_refurb">(
     initialItem?.status === "listed"
@@ -462,8 +525,14 @@ export function IntakeWizard({
   /* ---- gating ---- */
   const answered = categorizedChecklist.filter((_, ix) => checks[ix] != null).length;
   const isGradeA = effectiveGrade === "A";
-  const requiredPhotos = PHOTO_SLOTS.filter((s) => s.required && !(s.slot === "after" && isGradeA));
-  const photosOk = requiredPhotos.every((s) => photos[s.slot]);
+  const requiredPhotosOk = Boolean(photos["front"] && photos["back"]);
+  const hasAnyMedia = Boolean(
+    photos["front"] ||
+    photos["back"] ||
+    photos["label"] ||
+    defectPhotos.length > 0 ||
+    photos["video"]
+  );
   const mustAttrsOk = catAttrs.filter((a) => a.required).every((a) => (attrVals[a.name] ?? "").trim() !== "");
   const listingReady =
     leafId != null &&
@@ -473,10 +542,10 @@ export function IntakeWizard({
     mustAttrsOk &&
     effectiveGrade != null &&
     answered === categorizedChecklist.length &&
-    photosOk &&
+    requiredPhotosOk &&
     priceNum >= floor &&
     priceNum > 0;
-  const canContinue = true;
+  const canContinue = step === 0 ? hasAnyMedia : true;
 
   const syncName = (b: string, m: string) => {
     if (!nameTouched) setName([b, m].filter(Boolean).join(" "));
@@ -501,6 +570,62 @@ export function IntakeWizard({
       reader.onload = () => {
         setPhotos((p) => ({ ...p, [slot]: String(reader.result) }));
         setPhotoTimestamps((t) => ({ ...t, [slot]: nowStr }));
+      };
+      reader.readAsDataURL(f);
+    }
+  };
+
+  const onDefectFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const nowStr = new Date().toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    for (const f of Array.from(files)) {
+      try {
+        const dataUrl = await compressImageFile(f);
+        setDefectPhotos((prev) => [
+          ...prev,
+          { id: `defect-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url: dataUrl, timestamp: nowStr },
+        ]);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setDefectPhotos((prev) => [
+            ...prev,
+            { id: `defect-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url: String(reader.result), timestamp: nowStr },
+          ]);
+        };
+        reader.readAsDataURL(f);
+      }
+    }
+  };
+
+  const onChangeSingleDefectFile = async (id: string, f: File | undefined) => {
+    if (!f) return;
+    const nowStr = new Date().toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    try {
+      const dataUrl = await compressImageFile(f);
+      setDefectPhotos((prev) =>
+        prev.map((dp) => (dp.id === id ? { ...dp, url: dataUrl, timestamp: nowStr } : dp))
+      );
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setDefectPhotos((prev) =>
+          prev.map((dp) => (dp.id === id ? { ...dp, url: String(reader.result), timestamp: nowStr } : dp))
+        );
       };
       reader.readAsDataURL(f);
     }
@@ -574,17 +699,26 @@ export function IntakeWizard({
             status: checks[ix] ?? "pass",
           })),
           photos: [
-            ...PHOTO_SLOTS.filter((s) => photos[s.slot]).map((s) => ({
-              slot: s.slot,
-              label: s.label,
-              url: photos[s.slot]!,
-              timestamp: photoTimestamps[s.slot] || undefined,
+            ...(photos["front"]
+              ? [{ slot: "front", label: "Front View", url: photos["front"], timestamp: photoTimestamps["front"] || undefined }]
+              : []),
+            ...(photos["back"]
+              ? [{ slot: "back", label: "Back / Reverse", url: photos["back"], timestamp: photoTimestamps["back"] || undefined }]
+              : []),
+            ...defectPhotos.map((dp, i) => ({
+              slot: i === 0 ? "detail" : `detail_${i}`,
+              label: defectPhotos.length === 1 ? "Defects & Wear" : `Defects & Wear #${i + 1}`,
+              url: dp.url,
+              timestamp: dp.timestamp || undefined,
             })),
+            ...(photos["label"]
+              ? [{ slot: "label", label: "Label / Serial", url: photos["label"], timestamp: photoTimestamps["label"] || undefined }]
+              : []),
             ...(photos["video"]
               ? [
                   {
                     slot: "video",
-                    label: "Condition walkaround video",
+                    label: "Condition Walkaround Video",
                     url: photos["video"],
                     timestamp: photoTimestamps["video"] || undefined,
                   },
@@ -638,8 +772,8 @@ export function IntakeWizard({
     setAttrVals({}); setColor(""); setMaterial(""); setDimensions(""); setDimensionUnit("cm");
     setDimL(""); setDimW(""); setDimH("");
     setSupplierId(""); setAcq(""); setRefurb(""); setGrade(null); setGradeOverridden(false);
-    setCleaning(String(MIN_CLEANING_COST));
-    setChecks({}); setNotes(""); setPhotos({}); setPhotoTimestamps({}); setListMode("stock");
+    setCleaning("0");
+    setChecks({}); setNotes(""); setPhotos({}); setPhotoTimestamps({}); setDefectPhotos([]); setListMode("intake");
     setPrice(""); setPriceTouched(false); setResult(null); setError(null);
   };
 
@@ -657,12 +791,12 @@ export function IntakeWizard({
         </div>
         <h2 className="mt-5 font-display text-[26px] font-semibold tracking-tight text-stone-900">
           {result.status === "draft"
-            ? "Saved as a draft"
+            ? "Saved as a Draft"
             : result.status === "for_cleaning"
-            ? "Queued for cleaning"
+            ? "Queued for Cleaning"
             : result.status === "for_refurb"
-            ? "Queued for refurbishing"
-            : "Logged into the book"}
+            ? "Queued for Refurbishing"
+            : "Logged into the Book"}
         </h2>
         <p className="mt-1.5 text-sm text-stone-500">
           <span className="font-semibold text-stone-800">{name || "Information required"}</span> is now tracked as{" "}
@@ -732,23 +866,14 @@ export function IntakeWizard({
             {step === 0 && (
               <div className="space-y-4">
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Photo capture</h3>
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Photo Capture</h3>
                   <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                    Start with what you have. Add photos or a short video now, then complete the record and listing details later.
+                    Start with what you have. Add photos now, then complete the record and listing details later.
                   </p>
                   <div className="grid gap-3.5 sm:grid-cols-2">
-                    {PHOTO_SLOTS.map((s) => {
+                    {INTAKE_FIXED_SLOTS.map((s) => {
                       const url = photos[s.slot];
-                      const isAfterSlot = s.slot === "after";
-                      const slotBadge = isAfterSlot ? (
-                        isGradeA ? (
-                          <span className="font-semibold text-emerald-600">(optional for Grade A)</span>
-                        ) : effectiveGrade != null ? (
-                          <span className="font-semibold text-amber-600">(expected for Grade {effectiveGrade})</span>
-                        ) : (
-                          <span className="font-medium text-stone-400">(optional for Grade A)</span>
-                        )
-                      ) : s.required ? (
+                      const slotBadge = s.required ? (
                         <span className="text-rose-500">*</span>
                       ) : (
                         <span className="font-medium text-stone-400">(optional)</span>
@@ -758,12 +883,8 @@ export function IntakeWizard({
                         <div key={s.slot} className={cn("overflow-hidden rounded-2xl border transition-all", url ? "border-[var(--line)] shadow-sm bg-white" : "border-dashed border-stone-300 bg-stone-50/60")}>
                           {url ? (
                             <div className="relative group">
-                              {url.startsWith("data:video/") ? (
-                                <video src={url} controls className="aspect-[4/3] w-full object-cover" />
-                              ) : (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
-                              )}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
 
                               {/* Timestamp Badge */}
                               {photoTimestamps[s.slot] && (
@@ -806,17 +927,12 @@ export function IntakeWizard({
                               <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
                                 <div className="flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
                                   <span>{s.label}</span>
-                                  {isAfterSlot && (
-                                    <span className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-extrabold text-amber-800 uppercase">
-                                      After Refurb
-                                    </span>
-                                  )}
                                 </div>
 
                                 {leaf && (
                                   <button
                                     type="button"
-                                    onClick={() => onUseReference(s.slot, s.slot === "setup" ? REAL_SETUP_PHOTO : refPhotoFor(leaf.slug))}
+                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
                                     className="rounded-full bg-white/95 px-2.5 py-1 text-[10.5px] font-semibold text-[#1D5D8B] backdrop-blur shadow-sm transition hover:bg-white hover:underline"
                                     title="Switch to reference photo"
                                   >
@@ -841,7 +957,7 @@ export function IntakeWizard({
                                 {leaf && (
                                   <button
                                     type="button"
-                                    onClick={() => onUseReference(s.slot, s.slot === "setup" ? REAL_SETUP_PHOTO : refPhotoFor(leaf.slug))}
+                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
                                     className="btn-soft h-9 px-3 text-[12.5px]"
                                   >
                                     Use reference
@@ -853,7 +969,7 @@ export function IntakeWizard({
                           <input
                             ref={(el) => { fileRefs.current[s.slot] = el; }}
                             type="file"
-                            accept="image/*,video/*"
+                            accept="image/*"
                             className="hidden"
                             onChange={(e) => {
                               onFile(s.slot, e.target.files?.[0]);
@@ -863,19 +979,121 @@ export function IntakeWizard({
                         </div>
                       );
                     })}
+
+                    {/* Multi-Photo Wear & Defects Slots */}
+                    {defectPhotos.map((dp, idx) => (
+                      <div key={dp.id} className="overflow-hidden rounded-2xl border border-[var(--line)] shadow-sm bg-white">
+                        <div className="relative group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={dp.url} alt={`Defects & Wear #${idx + 1}`} className="aspect-[4/3] w-full object-cover" />
+
+                          {dp.timestamp && (
+                            <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-medium text-white backdrop-blur shadow-sm">
+                              <Clock className="h-3 w-3 text-amber-400" />
+                              {dp.timestamp}
+                            </div>
+                          )}
+
+                          <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                activeChangeDefectId.current = dp.id;
+                                defectSingleInputRef.current?.click();
+                              }}
+                              className="flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-stone-900 shadow-sm"
+                              title="Change photo"
+                            >
+                              <Camera className="h-3.5 w-3.5 text-stone-300" />
+                              <span>Change</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDefectPhotos((prev) => prev.filter((p) => p.id !== dp.id))}
+                              className="flex items-center justify-center rounded-full bg-rose-600/90 p-1.5 text-white backdrop-blur transition hover:bg-rose-700 shadow-sm"
+                              title="Delete photo"
+                              aria-label="Delete photo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
+                              <span>Defects & Wear #{idx + 1}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Upload Card for Defects & Wear (Upload 1 or more photos) */}
+                    <div className="overflow-hidden rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 transition-all hover:border-stone-400">
+                      <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 p-5 text-center">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-stone-400 shadow-sm">
+                          {defectPhotos.length > 0 ? (
+                            <Plus className="h-5 w-5 text-amber-600" strokeWidth={2} />
+                          ) : (
+                            <Camera className="h-5 w-5" strokeWidth={1.8} />
+                          )}
+                        </div>
+                        <div className="text-[13px] font-bold text-stone-700">
+                          {defectPhotos.length > 0 ? "Add Another Defect Photo" : "Defects & Wear"}{" "}
+                          <span className="font-medium text-stone-400">(optional)</span>
+                        </div>
+                        <p className="text-[11.5px] leading-snug text-stone-400">
+                          {defectPhotos.length > 0
+                            ? "Upload more angles or close-ups of wear"
+                            : "Close-up of scratches, stains, or wear (multiple photos allowed)"}
+                        </p>
+                        <div className="mt-1 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => defectMultiInputRef.current?.click()}
+                            className="btn-ghost h-9 px-3 text-[12.5px]"
+                          >
+                            <ImageIcon className="h-4 w-4" /> {defectPhotos.length > 0 ? "Add Photos" : "Upload"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Hidden inputs for multi-defect uploads and single-defect replacement */}
+                  <input
+                    ref={defectMultiInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      onDefectFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={defectSingleInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (activeChangeDefectId.current) {
+                        onChangeSingleDefectFile(activeChangeDefectId.current, e.target.files?.[0]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
                 </div>
 
                 {/* Video Upload Section */}
                 <div className="card p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h3 className="flex items-center gap-2 font-display text-xl font-semibold text-stone-900">
-                        <Video className="h-5 w-5 text-amber-600" />
-                        Condition & walkaround video
+                      <h3 className="font-display text-xl font-semibold text-stone-900">
+                        Condition & Walkaround Video
                       </h3>
                       <p className="mt-1 text-[13px] text-stone-500">
-                        Upload a video walkaround showing mechanical functions, 360° overview, or condition details.
+                        Show mechanical functions, 360° overview, or condition details
                       </p>
                     </div>
                     {photos["video"] && (
@@ -893,31 +1111,34 @@ export function IntakeWizard({
                     )}
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
                     {photos["video"] ? (
-                      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-stone-950">
-                        <video
-                          src={photos["video"]}
-                          controls
-                          className="aspect-video max-h-[380px] w-full object-contain"
-                        />
-                        <div className="flex items-center justify-between border-t border-stone-800 bg-stone-900/90 px-4 py-2.5 backdrop-blur">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[12px] font-medium text-stone-300">Walkaround condition video</span>
-                            {photoTimestamps["video"] && (
-                              <span className="flex items-center gap-1 text-[11px] text-stone-400">
-                                <Clock className="h-3 w-3 text-amber-400" />
-                                {photoTimestamps["video"]}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
+                      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-stone-950 shadow-sm">
+                        <div className="relative group">
+                          <video
+                            src={photos["video"]}
+                            controls
+                            className="aspect-[4/3] w-full object-cover"
+                          />
+
+                          {/* Timestamp Badge */}
+                          {photoTimestamps["video"] && (
+                            <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-medium text-white backdrop-blur shadow-sm">
+                              <Clock className="h-3 w-3 text-amber-400" />
+                              {photoTimestamps["video"]}
+                            </div>
+                          )}
+
+                          {/* Top-Right Action Controls */}
+                          <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => fileRefs.current["video"]?.click()}
-                              className="rounded-lg bg-stone-800 px-3 py-1.5 text-[12px] font-semibold text-stone-200 transition hover:bg-stone-700"
+                              className="flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-stone-900 shadow-sm"
+                              title="Change Condition Video"
                             >
-                              Replace video
+                              <Video className="h-3.5 w-3.5 text-stone-300" />
+                              <span>Change</span>
                             </button>
                             <button
                               type="button"
@@ -929,34 +1150,44 @@ export function IntakeWizard({
                                   return next;
                                 });
                               }}
-                              className="flex items-center gap-1.5 rounded-lg bg-rose-900/40 px-3 py-1.5 text-[12px] font-semibold text-rose-300 transition hover:bg-rose-900/60"
+                              className="flex items-center justify-center rounded-full bg-rose-600/90 p-1.5 text-white backdrop-blur transition hover:bg-rose-700 shadow-sm"
+                              title="Delete Condition Video"
+                              aria-label="Delete Condition Video"
                             >
-                              <Trash2 className="h-3.5 w-3.5" /> Remove
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
+                          </div>
+
+                          {/* Bottom Label */}
+                          <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
+                              <span>Condition Video</span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => fileRefs.current["video"]?.click()}
-                        className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50/70 p-8 text-center transition hover:border-amber-400 hover:bg-amber-50/20"
-                      >
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-amber-600 shadow-sm">
-                          <Video className="h-7 w-7" strokeWidth={1.8} />
-                        </div>
-                        <div>
-                          <div className="text-[14px] font-bold text-stone-800">Upload walkaround video</div>
-                          <p className="mt-1 text-[12px] text-stone-500">
-                            Drag and drop or click to browse. Supports MP4, WebM, MOV.
+                      <div className="overflow-hidden rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 transition-all hover:border-stone-400">
+                        <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 p-5 text-center">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-stone-400 shadow-sm">
+                            <Video className="h-5 w-5" strokeWidth={1.8} />
+                          </div>
+                          <div className="text-[13px] font-bold text-stone-700">
+                            Condition Video <span className="font-medium text-stone-400">(optional)</span>
+                          </div>
+                          <p className="text-[11.5px] leading-snug text-stone-400">
+                            Show mechanical functions, 360° overview, or condition details
                           </p>
+                          <div className="mt-1 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => fileRefs.current["video"]?.click()}
+                              className="btn-ghost h-9 px-3 text-[12.5px]"
+                            >
+                              <Video className="h-4 w-4" /> Upload
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); fileRefs.current["video"]?.click(); }}
-                          className="btn-soft mt-1 h-9 px-4 text-[13px]"
-                        >
-                          <Video className="h-4 w-4" /> Select video file
-                        </button>
                       </div>
                     )}
                     <input
@@ -964,7 +1195,10 @@ export function IntakeWizard({
                       type="file"
                       accept="video/*"
                       className="hidden"
-                      onChange={(e) => onFile("video", e.target.files?.[0])}
+                      onChange={(e) => {
+                        onFile("video", e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
                     />
                   </div>
                 </div>
@@ -975,35 +1209,30 @@ export function IntakeWizard({
             {step === 1 && (
               <div className="space-y-4">
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Sourcing & acquisition</h3>
-                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                    Track the supplier, channel provenance, and initial purchase cost of this unit.
-                  </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Sourcing & Acquisition</h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="label">Source / supplier</label>
-                      <div className="flex gap-2">
-                        <select
-                          className="input"
-                          value={supplierId}
-                          onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
-                        >
-                          <option value="">— unassigned —</option>
-                          {sups.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} · {s.channel}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => setNewSup((s) => ({ ...s, open: !s.open }))}
-                          className="btn-ghost shrink-0 px-3"
-                          title="Add supplier"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <label className="label">Source / Supplier</label>
+                      <select
+                        className="input"
+                        value={newSup.open ? "__new__" : supplierId}
+                        onChange={(e) => {
+                          if (e.target.value === "__new__") {
+                            setNewSup((s) => ({ ...s, open: true }));
+                          } else {
+                            setNewSup((s) => ({ ...s, open: false }));
+                            setSupplierId(e.target.value ? Number(e.target.value) : "");
+                          }
+                        }}
+                      >
+                        <option value="">— unassigned —</option>
+                        {sups.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} · {s.channel}
+                          </option>
+                        ))}
+                        <option value="__new__">+ Add new supplier…</option>
+                      </select>
                       {newSup.open && (
                         <div className="mt-2.5 space-y-2 rounded-xl border border-[var(--line)] bg-stone-50/70 p-3">
                           <input
@@ -1029,21 +1258,30 @@ export function IntakeWizard({
                               onChange={(e) => setNewSup((s) => ({ ...s, contact: e.target.value }))}
                             />
                           </div>
-                          <button
-                            type="button"
-                            onClick={addSupplier}
-                            disabled={newSup.busy || !newSup.name.trim()}
-                            className="btn-soft h-9 w-full text-[13px]"
-                          >
-                            {newSup.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save supplier
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={addSupplier}
+                              disabled={newSup.busy || !newSup.name.trim()}
+                              className="btn-soft h-9 flex-1 text-[13px]"
+                            >
+                              {newSup.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save supplier
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewSup((s) => ({ ...s, open: false }))}
+                              className="btn-ghost h-9 px-3 text-[13px]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
 
                     <div>
                       <label className="label">
-                        Acquisition cost <span className="text-rose-500">*</span>
+                        Acquisition Cost <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
                         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
@@ -1056,9 +1294,6 @@ export function IntakeWizard({
                           placeholder="0"
                         />
                       </div>
-                      <p className="mt-1.5 text-[11px] text-stone-400">
-                        Initial purchase / buyout price paid for this unit.
-                      </p>
                     </div>
                   </div>
 
@@ -1076,14 +1311,11 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 2 · CATEGORY & IDENTITY ---------------- */}
+            {/* ---------------- STEP 2 · IDENTITY ---------------- */}
             {step === 2 && (
               <div className="space-y-4">
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">What is it?</h3>
-                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                    One controlled taxonomy for the whole company. Pick the leaf category, or fuzzy-search the tree.
-                  </p>
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Category Selection</h3>
                   <input
                     className="input"
                     placeholder="Search the taxonomy — e.g. “stand desk”, “filing”…"
@@ -1167,7 +1399,7 @@ export function IntakeWizard({
                 </div>
 
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Identity & specifications</h3>
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Identity & Specifications</h3>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="label">Brand</label>
@@ -1178,9 +1410,6 @@ export function IntakeWizard({
                         placeholder="Herman Miller, Steelcase…"
                         icon={Factory}
                       />
-                      <p className="mt-1.5 text-[11px] text-stone-400">
-                        Valuation tier: <span className="font-semibold text-stone-600">{tier.name} ×{tier.multiplier}</span>
-                      </p>
                     </div>
                     <div>
                       <label className="label">Model</label>
@@ -1213,64 +1442,59 @@ export function IntakeWizard({
                         suggestions={materialSuggestions}
                         frequencies={materialFreqs}
                         placeholder="Mesh, veneer, steel…"
-                        icon={Layers}
                         headerLabel="Suggested materials"
                       />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="min-w-0">
                       <label className="label">
-                        Dimensions <span className="text-rose-500">*</span>
+                        Dimensions (L/W/H) <span className="text-rose-500">*</span>
                       </label>
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            className="input text-center font-medium"
-                            placeholder="L"
-                            value={dimL}
-                            onChange={(e) => updateDims(e.target.value, dimW, dimH, dimensionUnit)}
-                            aria-label="Length"
-                          />
-                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">L</span>
-                        </div>
-                        <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
-                        <div className="relative flex-1">
-                          <input
-                            className="input text-center font-medium"
-                            placeholder="W"
-                            value={dimW}
-                            onChange={(e) => updateDims(dimL, e.target.value, dimH, dimensionUnit)}
-                            aria-label="Width"
-                          />
-                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">W</span>
-                        </div>
-                        <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
-                        <div className="relative flex-1">
-                          <input
-                            className="input text-center font-medium"
-                            placeholder="H"
-                            value={dimH}
-                            onChange={(e) => updateDims(dimL, dimW, e.target.value, dimensionUnit)}
-                            aria-label="Height"
-                          />
-                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">H</span>
-                        </div>
+                      <div className="flex w-full min-w-0 items-center gap-1.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="input min-w-0 flex-1 px-1.5 text-center font-medium"
+                          placeholder="L"
+                          value={dimL}
+                          onChange={(e) => updateDims(e.target.value, dimW, dimH, dimensionUnit)}
+                          aria-label="Length"
+                        />
+                        <span className="shrink-0 select-none text-xs font-semibold text-stone-300">×</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="input min-w-0 flex-1 px-1.5 text-center font-medium"
+                          placeholder="W"
+                          value={dimW}
+                          onChange={(e) => updateDims(dimL, e.target.value, dimH, dimensionUnit)}
+                          aria-label="Width"
+                        />
+                        <span className="shrink-0 select-none text-xs font-semibold text-stone-300">×</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="input min-w-0 flex-1 px-1.5 text-center font-medium"
+                          placeholder="H"
+                          value={dimH}
+                          onChange={(e) => updateDims(dimL, dimW, e.target.value, dimensionUnit)}
+                          aria-label="Height"
+                        />
                         <select
-                          className="input"
-                          style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }}
+                          className="input shrink-0 !pl-2.5 !pr-7 !text-left font-medium"
+                          style={{ width: "84px", minWidth: "84px", maxWidth: "84px", flex: "0 0 84px" }}
                           value={dimensionUnit}
                           onChange={(e) => updateDims(dimL, dimW, dimH, e.target.value as DimensionUnit)}
                           aria-label="Dimension unit"
                         >
                           <option value="cm">cm</option>
                           <option value="mm">mm</option>
-                          <option value="in">inch</option>
-                          <option value="m">meters</option>
+                          <option value="in">in</option>
+                          <option value="m">m</option>
                         </select>
                       </div>
-                      <p className="mt-1.5 text-[11px] text-stone-400">Length × Width × Height (e.g. 120 × 60 × 75 cm)</p>
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="label">Storage location</label>
+                    <div className="min-w-0">
+                      <label className="label">Storage Location</label>
                       <select className="input" value={location} onChange={(e) => setLocation(e.target.value)}>
                         {WAREHOUSE_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
                       </select>
@@ -1319,11 +1543,11 @@ export function IntakeWizard({
                 {/* 1. Categorized Checklist at the top */}
                 <div className="card p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-display text-xl font-semibold text-stone-900">Inspection checklist</h3>
-                      <p className="mt-1 text-[13px] text-stone-500">
-                        {root?.name ?? "Item"} standard · {answered}/{categorizedChecklist.length} inspected
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-display text-xl font-semibold text-stone-900">Inspection Checklist</h3>
+                      <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-600">
+                        {answered}/{categorizedChecklist.length} inspected
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -1355,7 +1579,6 @@ export function IntakeWizard({
                                 {catKey === "completeness" && <CheckSquare className="h-4 w-4 text-purple-600" />}
                                 {cat.label}
                               </div>
-                              <p className="text-[11.5px] text-stone-500">{cat.desc}</p>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px] font-medium">
                               <span className="rounded-md bg-emerald-100/70 px-1.5 py-0.5 text-emerald-800">{passedInCat} pass</span>
@@ -1400,39 +1623,22 @@ export function IntakeWizard({
                   </div>
                 </div>
 
-                {/* 2. Condition Grade (Follows Checklist & Auto-Graded) */}
+                {/* 2. Condition Grade & Valuation */}
                 <div className="card p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h3 className="font-display text-xl font-semibold text-stone-900">Condition grade</h3>
-                      <p className="mt-1 text-[13px] text-stone-500">
-                        One scale for the whole company — auto-evaluated from your inspection checklist.
-                      </p>
+                      <h3 className="font-display text-xl font-semibold text-stone-900">Condition Grade & Valuation</h3>
                     </div>
-                    {gradeOverridden ? (
-                      <div className="flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[12px] text-amber-800">
-                        <span>Manual grade · auto was <strong>Grade {autoGrade}</strong></span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGradeOverridden(false);
-                            setGrade(autoGrade);
-                          }}
-                          className="font-bold underline hover:text-amber-900"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-800">
-                        <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-                        Auto-graded: Grade {effectiveGrade}
-                      </div>
+                    {gradeOverridden && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+                        Manually overridden
+                      </span>
                     )}
                   </div>
-                  <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
                     {GRADE_ORDER.map((g) => {
                       const meta = GRADE_META[g];
+                      const theme = GRADE_CARD_THEMES[g];
                       const active = effectiveGrade === g;
                       return (
                         <button
@@ -1442,13 +1648,13 @@ export function IntakeWizard({
                           className={cn(
                             "rounded-2xl border p-3.5 text-left transition relative",
                             active
-                              ? "border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40"
+                              ? theme.activeCard
                               : "border-[var(--line)] bg-white hover:border-stone-300"
                           )}
                         >
                           <div className="flex items-center justify-between">
-                            <span className={cn("chip", meta.chip)}>{g}</span>
-                            {active && <CheckCircle2 className="h-4 w-4 text-amber-600" />}
+                            <span className={cn("chip shadow-sm", theme.chip)}>{g}</span>
+                            {active && <CheckCircle2 className={cn("h-4 w-4", theme.checkColor)} />}
                           </div>
                           <div className="mt-2 text-[13.5px] font-bold text-stone-900">{meta.tagline}</div>
                           <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wide text-stone-400">
@@ -1461,46 +1667,9 @@ export function IntakeWizard({
                   </div>
                 </div>
 
-                {/* 3. Refurbishment & Repair Budget */}
+                {/* 3. Condition Notes */}
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Refurbishment & repair budget</h3>
-                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                    Estimated cost for steam cleaning, parts replacement, upholstery, re-veneering, or technician labor.
-                  </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="label">Refurb budget</label>
-                      <div className="relative">
-                        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
-                        <input
-                          className="input pl-8"
-                          type="number"
-                          min={0}
-                          value={refurb}
-                          onChange={(e) => setRefurb(e.target.value)}
-                          placeholder="0"
-                        />
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-stone-400">Added to floor cost calculation (1.18× multiplier).</p>
-                    </div>
-                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total invested unit cost</div>
-                      <div className="mt-1 font-display text-2xl font-bold tabular-nums text-stone-900">
-                        {fmtMoney(acqNum + refurbNum + cleaningNum)}
-                      </div>
-                      <div className="mt-1 text-[11.5px] text-stone-500">
-                        Acquisition ({fmtMoney(acqNum)}) + Refurb ({fmtMoney(refurbNum)}) + Cleaning ({fmtMoney(cleaningNum)})
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. Condition Notes */}
-                <div className="card p-5">
-                  <label className="label font-display text-base font-semibold text-stone-900">Condition notes</label>
-                  <p className="mb-2 text-[12.5px] text-stone-500">
-                    Anything a buyer or warehouse technician should know — scratches, replaced parts, wobble, or touch-ups needed.
-                  </p>
+                  <label className="label font-display text-base font-semibold text-stone-900">Condition Notes</label>
                   <textarea
                     className="input min-h-[90px]"
                     value={notes}
@@ -1513,55 +1682,139 @@ export function IntakeWizard({
 
             {/* ---------------- STEP 4 · PRICING & PUBLISH ---------------- */}
             {step === 4 && (
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                {/* Left Column: Valuation Engine & Margin Calculator */}
                 <div className="space-y-4">
+                  {/* Valuation Engine */}
                   <div className="card p-5">
-                    <h3 className="font-display text-xl font-semibold text-stone-900">Valuation engine</h3>
-                    <div className="mt-3 space-y-2 text-[13px]">
-                      {[
-                        ["Category reference (new)", baseValue ? fmtMoney(baseValue) : "—", false],
-                        [`Brand tier · ${tier.name}`, `× ${tier.multiplier}`, false],
-                        [`Grade band · ${effectiveGrade ?? "—"}`, v.band ? `${Math.round(v.band[0] * 100)}–${Math.round(v.band[1] * 100)}%` : "—", false],
-                      ].map(([l, r]) => (
-                        <div key={String(l)} className="flex items-center justify-between border-b border-dashed border-stone-100 pb-2">
-                          <span className="text-stone-500">{l}</span>
-                          <span className="font-semibold tabular-nums text-stone-800">{r}</span>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2.5">
-                        <span className="font-semibold text-amber-900">Auto base value range</span>
-                        <span className="font-display text-[17px] font-bold tabular-nums text-amber-900">
-                          {v.low != null ? `${fmtMoney(v.low)} – ${fmtMoney(v.high)}` : "—"}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Algorithmic baseline</span>
+                      <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600">
+                        Tier: {tier.name} ({tier.multiplier}×)
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-baseline gap-3">
+                      <span className="font-display text-3xl font-bold tracking-tight text-stone-900">
+                        {v.suggested ? fmtMoney(v.suggested) : "—"}
+                      </span>
+                      {v.band && (
+                        <span className="text-xs text-stone-500">
+                          band {fmtMoney(v.band[0])} – {fmtMoney(v.band[1])}
                         </span>
-                      </div>
-                      <div className="flex items-center justify-between px-1 pt-1 text-stone-500">
-                        <span>Market benchmark</span>
-                        <span className="font-semibold tabular-nums text-indigo-700">{fmtMoney(v.benchmark)}</span>
-                      </div>
-                      <div className="flex items-center justify-between px-1 text-stone-500">
-                        <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-amber-600" /> Enforced floor</span>
-                        <span className="font-semibold tabular-nums text-rose-600">{fmtMoney(floor)}</span>
-                      </div>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] text-stone-500">
+                      <div>Base catalog ref: <span className="font-semibold text-stone-700">{baseValue ? fmtMoney(baseValue) : "—"}</span></div>
+                      <div>Floor (cost × 1.18): <span className="font-semibold text-stone-700">{fmtMoney(floor)}</span></div>
                     </div>
                   </div>
 
+                  {/* Margin Calculator (Moved directly under Valuation Engine, without subtitle) */}
                   <div className="card p-5">
-                    <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-stone-500">From your sold history</h4>
-                    {history.count ? (
-                      <Fragment>
-                        <div className="mt-2.5 flex flex-wrap gap-1.5 text-[12px]">
-                          <span className="chip border-stone-200 bg-stone-50 text-stone-600">{history.count} comparable{history.count === 1 ? "" : "s"}</span>
-                          <span className="chip border-stone-200 bg-stone-50 text-stone-700">avg {fmtMoney(history.avg)}</span>
-                          <span className="chip border-stone-200 bg-stone-50 text-stone-500">{fmtMoney(history.min)} – {fmtMoney(history.max)}</span>
+                    <h3 className="font-display text-xl font-semibold text-stone-900">Margin Calculator</h3>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="min-w-0">
+                        <label className="label truncate">Acquisition</label>
+                        <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600 font-medium">{fmtMoney(acqNum)}</div>
+                      </div>
+                      <div className="min-w-0">
+                        <label className="label truncate">Refurb</label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                          <input
+                            className="input pl-8 font-medium tabular-nums"
+                            type="number"
+                            min={0}
+                            value={refurb}
+                            onChange={(e) => setRefurb(e.target.value)}
+                            placeholder="0"
+                          />
                         </div>
-                        <div className="mt-3 space-y-2">
+                      </div>
+                      <div className="min-w-0">
+                        <label className="label truncate">Cleaning</label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                          <input
+                            className="input pl-8 font-medium tabular-nums"
+                            type="number"
+                            min={0}
+                            value={cleaning}
+                            onChange={(e) => setCleaning(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3.5">
+                      <label className="label">Ask price</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                          <input
+                            className="input pl-8 text-base sm:text-lg font-semibold tabular-nums"
+                            type="number"
+                            min={0}
+                            value={price}
+                            onChange={(e) => { setPrice(e.target.value); setPriceTouched(true); }}
+                            placeholder={suggested ? String(suggested) : "0"}
+                          />
+                        </div>
+                        {suggested != null && priceNum !== suggested && (
+                          <button
+                            type="button"
+                            onClick={() => { setPrice(String(suggested)); setPriceTouched(true); }}
+                            className="btn-soft h-10 shrink-0 px-3 text-xs sm:text-[13px]"
+                          >
+                            Use {fmtMoney(suggested)}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {priceNum > 0 && (
+                      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
+                        {[
+                          ["Margin", acqNum + refurbNum + cleaningNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum + cleaningNum) - 1) * 100)}%` : "—"],
+                          ["Gross profit", fmtMoney(priceNum - acqNum - refurbNum - cleaningNum)],
+                          ["vs benchmark", v.benchmark ? `${priceNum >= v.benchmark ? "+" : ""}${Math.round((priceNum / v.benchmark - 1) * 100)}%` : "—"],
+                        ].map(([l, r]) => (
+                          <div key={l} className="rounded-xl bg-stone-50 px-2 py-2.5 min-w-0" title={`${l}: ${r}`}>
+                            <div className="text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider text-stone-400 truncate">{l}</div>
+                            <div className="mt-0.5 font-display text-[13px] sm:text-[15px] md:text-[17px] font-bold tabular-nums text-stone-900 truncate">{r}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {priceTouched && priceNum > 0 && priceNum < floor && (
+                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] sm:text-[12.5px] text-rose-700">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        Below the enforced price floor of {fmtMoney(floor)}. Listing is blocked until the ask is raised.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Historical Comparables, Refurb Budget & Publish/Routing */}
+                <div className="space-y-4">
+                  {/* Historical Comparables */}
+                  <div className="card p-5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-display text-base font-semibold text-stone-900">Historical Comparables</h4>
+                      <span className="text-xs text-stone-400">{history.count} match(es)</span>
+                    </div>
+                    {history.rows.length ? (
+                      <Fragment>
+                        <div className="mt-2 text-xs text-stone-500">
+                          Avg sold price: <span className="font-semibold text-stone-800">{history.avg ? fmtMoney(history.avg) : "—"}</span>
+                          {history.min && history.max && (
+                            <span className="ml-2 text-stone-400">({fmtMoney(history.min)} – {fmtMoney(history.max)})</span>
+                          )}
+                        </div>
+                        <div className="mt-3 divide-y divide-stone-100">
                           {history.rows.map((r) => (
-                            <div key={r.id} className="flex items-center justify-between gap-2 text-[12.5px]">
-                              <span className="min-w-0 truncate text-stone-600">
-                                {r.name}
-                                <span className="ml-1.5 text-stone-300">{r.grade}</span>
-                              </span>
-                              <span className="shrink-0 tabular-nums text-stone-500">
+                            <div key={r.id} className="flex items-center justify-between py-2 text-xs">
+                              <span className="truncate text-stone-700">{r.name}</span>
+                              <span className="shrink-0 text-stone-500">
                                 <span className="font-semibold text-stone-800">{fmtMoney(r.soldPrice)}</span>
                                 <span className="ml-1.5">{relTime(r.soldAt)}</span>
                               </span>
@@ -1570,104 +1823,53 @@ export function IntakeWizard({
                         </div>
                       </Fragment>
                     ) : (
-                      <p className="mt-2 text-[12.5px] text-stone-400">No close comparables sold yet in this family — the valuation band is the reference.</p>
+                      <p className="mt-2 text-xs text-stone-400">No comparables found.</p>
                     )}
                   </div>
-                </div>
 
-                <div className="space-y-4">
+                  {/* Refurbishment & Repair Budget */}
                   <div className="card p-5">
-                    <h3 className="font-display text-xl font-semibold text-stone-900">Margin calculator</h3>
-                    <p className="mt-1 text-[12.5px] text-stone-500">
-                      Total unit cost basis includes initial acquisition, technician refurbishing, and cleaning.
+                    <h3 className="font-display text-xl font-semibold text-stone-900">Refurbishment & Repair Budget</h3>
+                    <p className="mb-4 mt-1 text-[13px] text-stone-500">
+                      Estimated cost for steam cleaning, parts replacement, upholstery, re-veneering, or technician labor.
                     </p>
-                    <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="label">Acquisition</label>
-                        <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600">{fmtMoney(acqNum)}</div>
-                      </div>
-                      <div>
-                        <label className="label">Refurb</label>
-                        <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600">{fmtMoney(refurbNum)}</div>
-                      </div>
-                      <div>
-                        <label className="label flex items-center justify-between">
-                          <span>Cleaning</span>
-                          <span className="text-[10px] text-stone-400">Min ₱{MIN_CLEANING_COST}</span>
-                        </label>
+                        <label className="label">Refurb budget</label>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
                           <input
-                            className="input pl-8"
+                            className="input pl-8 font-medium tabular-nums"
                             type="number"
-                            min={MIN_CLEANING_COST}
-                            value={cleaning}
-                            onChange={(e) => setCleaning(e.target.value)}
-                            placeholder={String(MIN_CLEANING_COST)}
+                            min={0}
+                            value={refurb}
+                            onChange={(e) => setRefurb(e.target.value)}
+                            placeholder="0"
                           />
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-stone-400">Added to floor cost calculation (1.18× multiplier).</p>
+                      </div>
+                      <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total invested unit cost</div>
+                        <div className="mt-1 font-display text-2xl font-bold tabular-nums text-stone-900">
+                          {fmtMoney(acqNum + refurbNum + cleaningNum)}
+                        </div>
+                        <div className="mt-1 text-[11.5px] text-stone-500">
+                          Acquisition ({fmtMoney(acqNum)}) + Refurb ({fmtMoney(refurbNum)}) + Cleaning ({fmtMoney(cleaningNum)})
                         </div>
                       </div>
                     </div>
-                    {cleaningNum < MIN_CLEANING_COST && (
-                      <p className="mt-1.5 text-[11px] text-amber-600">
-                        * Note: Minimum service cost for professional cleaning is ₱{MIN_CLEANING_COST}.
-                      </p>
-                    )}
-                    <div className="mt-3">
-                      <label className="label">Ask price</label>
-                      <div className="flex gap-2">
-                        <input
-                          className="input text-lg font-semibold tabular-nums"
-                          type="number"
-                          min={0}
-                          value={price}
-                          onChange={(e) => { setPrice(e.target.value); setPriceTouched(true); }}
-                          placeholder={suggested ? String(suggested) : "0"}
-                        />
-                        {suggested != null && priceNum !== suggested && (
-                          <button onClick={() => { setPrice(String(suggested)); setPriceTouched(true); }} className="btn-soft shrink-0">
-                            Use {fmtMoney(suggested)}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {priceNum > 0 && (
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                        {[
-                          ["Margin", acqNum + refurbNum + cleaningNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum + cleaningNum) - 1) * 100)}%` : "—"],
-                          ["Gross profit", fmtMoney(priceNum - acqNum - refurbNum - cleaningNum)],
-                          ["vs benchmark", v.benchmark ? `${priceNum >= v.benchmark ? "+" : ""}${Math.round((priceNum / v.benchmark - 1) * 100)}%` : "—"],
-                        ].map(([l, r]) => (
-                          <div key={l} className="rounded-xl bg-stone-50 px-2 py-2.5">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{l}</div>
-                            <div className="mt-0.5 font-display text-[17px] font-bold tabular-nums text-stone-900">{r}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {priceTouched && priceNum > 0 && priceNum < floor && (
-                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12.5px] text-rose-700">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        Below the enforced price floor of {fmtMoney(floor)}. Listing is blocked until the ask is raised.
-                      </div>
-                    )}
                   </div>
 
+                  {/* Publish & Routing */}
                   <div className="card p-5">
-                    <h3 className="font-display text-xl font-semibold text-stone-900">Publish & routing</h3>
+                    <h3 className="font-display text-xl font-semibold text-stone-900">Publish & Routing</h3>
                     <div className="mt-3 space-y-2">
                       {([
                         {
-                          k: "listed",
-                          t: "List for sale now",
-                          d: listingReady ? "Goes live on the book at the ask price above." : "Information is still required — this will be saved as a draft instead.",
-                          rec: false,
-                          recLabel: "",
-                        },
-                        {
-                          k: "stock",
-                          t: "Save to stock",
-                          d: "Priced and ready — list later from the item page.",
+                          k: "intake",
+                          t: "Keep in intake queue",
+                          d: "Park it; pricing, photos, or inspection details can be finished later.",
                           rec: false,
                           recLabel: "",
                         },
@@ -1684,13 +1886,6 @@ export function IntakeWizard({
                           d: "Route to technician queue for mechanical repairs, part replacement, and refurbishing.",
                           rec: effectiveGrade === "B" || effectiveGrade === "C",
                           recLabel: "Recommended for Grade B & C",
-                        },
-                        {
-                          k: "intake",
-                          t: "Keep in intake queue (Draft)",
-                          d: "Park it; pricing, photos, or inspection details can be finished later.",
-                          rec: false,
-                          recLabel: "",
                         },
                       ] as const).map((o) => (
                         <button
@@ -1718,30 +1913,20 @@ export function IntakeWizard({
                       ))}
                     </div>
 
-                    {listMode === "listed" && !listingReady && (
-                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] text-amber-900">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        Complete the category, identity, dimensions, acquisition cost, grade, checklist, required photos, and asking price to publish. This submission will be marked <span className="font-bold">Information required</span>.
-                      </div>
-                    )}
-
-                    {/* Picture thumbnail here: using uploaded after photos */}
+                    {/* Picture thumbnail here */}
                     <div className="mt-4 flex items-center gap-3 rounded-xl bg-stone-50 p-3">
                       <div className="relative shrink-0">
-                        <Thumb url={photos.after || photos.front} alt="" className="h-12 w-16 rounded-lg border border-stone-200 object-cover" />
-                        {photos.after && (
-                          <span className="absolute -bottom-1 -right-1 rounded bg-amber-600 px-1 py-0.5 text-[8.5px] font-black uppercase text-white shadow">
-                            After
-                          </span>
-                        )}
+                        <Thumb url={photos.front || photos.back || defectPhotos[0]?.url} alt="" className="h-12 w-16 rounded-lg border border-stone-200 object-cover" />
                       </div>
                       <div className="min-w-0 text-[12.5px]">
                         <div className="truncate font-semibold text-stone-900">{name || "Unnamed item"}</div>
                         <div className="mt-0.5 truncate text-stone-500">{leaf ? pathOfLeaf(leaf) : "—"}</div>
                         <div className="mt-1 flex items-center gap-1.5">
                           <GradeChip grade={effectiveGrade} />
-                          {photos.after ? (
-                            <span className="text-[11px] font-medium text-emerald-700">• After photo ready</span>
+                          {photos.front ? (
+                            <span className="text-[11px] font-medium text-emerald-700">• Front photo ready</span>
+                          ) : hasAnyMedia ? (
+                            <span className="text-[11px] text-emerald-700">• Media uploaded</span>
                           ) : (
                             <span className="text-[11px] text-stone-400">• Front photo</span>
                           )}
@@ -1761,7 +1946,7 @@ export function IntakeWizard({
                       className="btn-accent mt-4 w-full"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      {saving ? "Logging unit…" : listMode === "listed" && !listingReady ? "Save as draft" : "Log into inventory"}
+                      {saving ? "Logging unit…" : "Log into inventory"}
                     </button>
                   </div>
                 </div>
@@ -1784,7 +1969,12 @@ export function IntakeWizard({
             <span className="w-[118px]" />
           )}
         </div>
-        {step < STEPS.length - 1 && !canContinue && (
+        {step === 0 && !hasAnyMedia && (
+          <p className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-medium text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5" /> Media upload is required to continue
+          </p>
+        )}
+        {step > 0 && step < STEPS.length - 1 && !canContinue && (
           <p className="mt-2 flex items-center justify-end gap-1.5 text-[11.5px] text-stone-400">
             <X className="h-3 w-3" /> Complete the required fields above to continue
           </p>

@@ -16,7 +16,8 @@ import { fmtInt, fmtMoney, fmtMoneyCompact, fmtPct, relTime } from "@/lib/format
 import { SeedGate } from "@/components/seed-gate";
 import { Reveal } from "@/components/reveal";
 import { AgingChip, GradeChip, KpiCard, MarginPill, SectionHead, StatusChip, Thumb } from "@/components/ui";
-import { AgingChart, CategoryValueChart, Spark, TriadChart, VolumeChart } from "@/components/charts";
+import { AgingChart, CategoryValueChart, ProductAgeChart, Spark, TriadChart, VolumeChart } from "@/components/charts";
+import { DashboardRealtimeClock } from "@/components/dashboard-realtime-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,10 @@ export default async function DashboardPage() {
             <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight text-stone-900">
               The trading floor, at a glance
             </h1>
-            <p className="mt-2 text-[13.5px] text-stone-500">{today} — everything bought, graded, listed and sold.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[13.5px] text-stone-500">
+              <DashboardRealtimeClock initialDate={today} />
+              <span>— everything bought, graded, listed and sold.</span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2.5">
             <Link
@@ -142,9 +146,18 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="card p-5">
-            <SectionHead kicker="Aging" title="Stock age profile" sub="Days since intake, value at ask." />
+            <SectionHead
+              kicker="Aging"
+              title="Product age in inventory"
+              sub="Comparing intake date to count active time in stock."
+              right={
+                <span className="text-[10.5px] font-semibold text-stone-400">
+                  {dash.productAges.length} active
+                </span>
+              }
+            />
             <div className="mt-4 h-[260px]">
-              <AgingChart data={dash.aging} />
+              <ProductAgeChart data={dash.productAges} />
             </div>
           </div>
         </div>
@@ -227,7 +240,7 @@ export default async function DashboardPage() {
                   <Link key={i.id} href={`/inventory/${i.id}`} className="group block rounded-xl px-2 py-2.5 transition hover:bg-amber-50/60">
                     <div className="flex items-center justify-between gap-2">
                       <span className="min-w-0 truncate text-[13px] font-semibold text-stone-800">{i.name}</span>
-                      <AgingChip days={i.daysListed} />
+                      <AgingChip days={i.daysListed} listedAt={i.listedAt || i.updatedAt} />
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[11.5px] text-stone-500 tabular-nums">
                       <span>ask {fmtMoney(i.listedPrice)}</span>
@@ -312,7 +325,10 @@ export default async function DashboardPage() {
                     <div className="truncate text-[13px] font-semibold text-stone-800">{i.name}</div>
                     <div className="mt-0.5 text-[11px] text-stone-400">{i.sku} · {relTime(i.intakeAt)}</div>
                   </div>
-                  <StatusChip status={i.status} />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {i.grade && <GradeChip grade={i.grade} />}
+                    <StatusChip status={i.status} />
+                  </div>
                   <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-stone-300 transition group-hover:text-amber-600" />
                 </Link>
               ))}
@@ -333,6 +349,9 @@ function PageHead() {
       <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight text-stone-900">
         The trading floor, at a glance
       </h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[13.5px] text-stone-500">
+        <DashboardRealtimeClock />
+      </div>
     </div>
   );
 }

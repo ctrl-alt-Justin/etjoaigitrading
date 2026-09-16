@@ -86,28 +86,28 @@ export function InventoryTable({
     <div className="space-y-4">
       {/* filter bar */}
       <div className="card p-3.5">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[220px] flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-center">
+          <div className="relative w-full">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Fuzzy search — try “aern b grde” or a SKU…"
-              className="input pl-10"
+              className="input w-full pl-10"
             />
           </div>
-          <select value={grade} onChange={(e) => setGrade(e.target.value as typeof grade)} className="input h-10 w-auto">
+          <select value={grade} onChange={(e) => setGrade(e.target.value as typeof grade)} className="input h-10 w-full">
             {GRADES.map((g) => (
               <option key={g} value={g}>{g === "All" ? "All grades" : `Grade ${g}`}</option>
             ))}
           </select>
-          <select value={root} onChange={(e) => setRoot(e.target.value)} className="input h-10 w-auto">
+          <select value={root} onChange={(e) => setRoot(e.target.value)} className="input h-10 w-full">
             <option value="all">All families</option>
             {roots.map((r) => (
               <option key={r.slug} value={r.slug}>{r.name}</option>
             ))}
           </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value)} className="input h-10 w-auto">
+          <select value={sort} onChange={(e) => setSort(e.target.value)} className="input h-10 w-full">
             {SORTS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
@@ -184,11 +184,11 @@ export function InventoryTable({
                       <div className="flex min-w-0 items-center gap-2.5">
                         <Thumb
                           url={i.photos?.[0]?.url}
-                          alt={i.name}
+                          alt={i.model?.trim() || i.name}
                           className="h-10 w-12 shrink-0 rounded-lg border border-stone-100"
                         />
                         <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-stone-900">{i.name}</div>
+                          <div className="truncate text-[13px] font-semibold text-stone-900">{i.model?.trim() || i.name}</div>
                           <div className="mt-0.5 truncate text-[11px] text-stone-400">
                             {i.sku ?? "—"} · {i.brand ?? "Unknown brand"}
                           </div>
@@ -198,9 +198,15 @@ export function InventoryTable({
                     <td className="max-w-[130px] truncate px-2 text-[12px] text-stone-500">{i.categoryPath}</td>
                     <td className="px-2 whitespace-nowrap"><GradeChip grade={i.grade} /></td>
                     <td className="px-2 whitespace-nowrap text-[12px] text-stone-500">
-                      {relTime(i.intakeAt)}
-                      <span className="ml-1 text-stone-300">·</span>
-                      <span className="text-stone-400 tabular-nums">{i.daysInStock}d</span>
+                      {i.daysInStock <= 0 ? (
+                        <span className="font-medium text-stone-700">Today</span>
+                      ) : (
+                        <>
+                          {relTime(i.intakeAt)}
+                          <span className="ml-1 text-stone-300">·</span>
+                          <span className="text-stone-400 tabular-nums">{i.daysInStock}d</span>
+                        </>
+                      )}
                     </td>
                     <td className="px-2 text-right tabular-nums whitespace-nowrap text-[12px] text-stone-600">{fmtMoney(i.effectiveCost)}</td>
                     <td className="px-2 text-right font-semibold tabular-nums whitespace-nowrap text-[13px] text-stone-900">
@@ -210,7 +216,13 @@ export function InventoryTable({
                       {i.status === "sold" ? <MarginPill margin={i.realizedMargin} /> : <MarginPill margin={i.listedMargin} />}
                     </td>
                     <td className="px-2 whitespace-nowrap"><StatusChip status={i.status} /></td>
-                    <td className="px-2 text-center whitespace-nowrap"><AgingChip days={i.daysListed} /></td>
+                    <td className="px-2 text-center whitespace-nowrap">
+                      {i.status === "listed" || i.status === "reserved" ? (
+                        <AgingChip days={i.daysListed} listedAt={i.listedAt || i.updatedAt} />
+                      ) : (
+                        <span className="text-stone-300">—</span>
+                      )}
+                    </td>
                     <td className="w-8 pr-3 text-right text-stone-300">
                       <ArrowUpRight className="ml-auto h-4 w-4" />
                     </td>

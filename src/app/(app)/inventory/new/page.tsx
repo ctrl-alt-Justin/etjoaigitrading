@@ -50,10 +50,10 @@ export default async function NewIntakePage({ searchParams }: { searchParams: Pr
       <Reveal>
         <div>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
-            Intake desk
+            Intake Desk
           </div>
           <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-stone-900">
-            {editItem ? "Complete item information" : "Log a new unit"}
+            {editItem ? "Complete Item Information" : "Log a New Unit"}
           </h1>
           <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
             {editItem ? "Finish the required information below before this item can be listed for sale." : "Structured intake replaces mental checklists: fixed taxonomy, graded inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone."}

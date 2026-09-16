@@ -28,8 +28,8 @@ export const GRADE_META: Record<
     description:
       "Under 1 year of light use. No visible wear, fully functional, all parts original.",
     band: [0.5, 0.62],
-    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dot: "bg-emerald-500",
+    chip: "bg-[#fefce8] text-[#854d0e] border-[#f0d900]",
+    dot: "bg-[#f0d900]",
   },
   B: {
     label: "Grade B",
@@ -37,8 +37,8 @@ export const GRADE_META: Record<
     description:
       "Light cosmetic wear such as faint scuffs. Fully functional with no structural issues.",
     band: [0.35, 0.46],
-    chip: "bg-sky-50 text-sky-700 border-sky-200",
-    dot: "bg-sky-500",
+    chip: "bg-[#f0fdf4] text-[#15803d] border-[#16a34a]/40",
+    dot: "bg-[#16a34a]",
   },
   C: {
     label: "Grade C",
@@ -46,8 +46,8 @@ export const GRADE_META: Record<
     description:
       "Visible wear, stains or scratches. Minor functional quirks. Refurbishment candidate.",
     band: [0.2, 0.3],
-    chip: "bg-amber-50 text-amber-700 border-amber-200",
-    dot: "bg-amber-500",
+    chip: "bg-[#eff6ff] text-[#1d4ed8] border-[#2563eb]/40",
+    dot: "bg-[#2563eb]",
   },
   D: {
     label: "Grade D",
@@ -55,8 +55,8 @@ export const GRADE_META: Record<
     description:
       "Heavy wear or functional faults. Sold for parts, repair or deep-discount clearance.",
     band: [0.08, 0.15],
-    chip: "bg-rose-50 text-rose-700 border-rose-200",
-    dot: "bg-rose-500",
+    chip: "bg-[#fff1f2] text-[#be123c] border-[#e11d48]/40",
+    dot: "bg-[#e11d48]",
   },
 };
 

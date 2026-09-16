@@ -16,17 +16,17 @@ export function GradeChip({ grade, className }: { grade?: Grade | null; classNam
 }
 
 const STATUS_META: Record<string, { label: string; chip: string; dot: string }> = {
-  draft: { label: "Information required", chip: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
-  intake: { label: "Intake", chip: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500" },
-  for_cleaning: { label: "For cleaning", chip: "bg-teal-50 text-teal-700 border-teal-200", dot: "bg-teal-500" },
-  cleaning: { label: "For cleaning", chip: "bg-teal-50 text-teal-700 border-teal-200", dot: "bg-teal-500" },
-  for_refurb: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
-  for_refurbishing: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
-  refurbishing: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
-  in_stock: { label: "In stock", chip: "bg-sky-50 text-sky-700 border-sky-200", dot: "bg-sky-500" },
-  listed: { label: "Listed", chip: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
-  reserved: { label: "Reserved", chip: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
-  sold: { label: "Sold", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  draft: { label: "Information required", chip: "bg-[#fff1f2] text-[#be123c] border-[#e11d48]/30", dot: "bg-[#e11d48]" },
+  intake: { label: "Intake", chip: "bg-[#fefce8] text-[#854d0e] border-[#f0d900]/60", dot: "bg-[#f0d900]" },
+  for_cleaning: { label: "For cleaning", chip: "bg-[#ecfdf5] text-[#047857] border-[#10b981]/30", dot: "bg-[#10b981]" },
+  cleaning: { label: "For cleaning", chip: "bg-[#ecfdf5] text-[#047857] border-[#10b981]/30", dot: "bg-[#10b981]" },
+  for_refurb: { label: "For cleaning & refurbishing", chip: "bg-[#eff6ff] text-[#1d4ed8] border-[#2563eb]/30", dot: "bg-[#2563eb]" },
+  for_refurbishing: { label: "For cleaning & refurbishing", chip: "bg-[#eff6ff] text-[#1d4ed8] border-[#2563eb]/30", dot: "bg-[#2563eb]" },
+  refurbishing: { label: "For cleaning & refurbishing", chip: "bg-[#eff6ff] text-[#1d4ed8] border-[#2563eb]/30", dot: "bg-[#2563eb]" },
+  in_stock: { label: "In stock", chip: "bg-[#f0f9ff] text-[#0369a1] border-[#0284c7]/30", dot: "bg-[#0284c7]" },
+  listed: { label: "Listed", chip: "bg-[#f0fdf4] text-[#15803d] border-[#16a34a]/30", dot: "bg-[#16a34a]" },
+  reserved: { label: "Reserved", chip: "bg-[#faf5ff] text-[#7e22ce] border-[#a855f7]/30", dot: "bg-[#a855f7]" },
+  sold: { label: "Sold", chip: "bg-stone-100 text-stone-700 border-stone-200", dot: "bg-stone-500" },
   archived: { label: "Archived", chip: "bg-stone-100 text-stone-500 border-stone-200", dot: "bg-stone-400" },
 };
 
@@ -51,19 +51,65 @@ export function MarginPill({ margin, className }: { margin: number | null | unde
   return <span className={cn("chip tabular-nums", tone, className)}>{fmtPct(margin)}</span>;
 }
 
-export function AgingChip({ days, className }: { days: number | null | undefined; className?: string }) {
-  if (days == null) return <span className="text-stone-400">—</span>;
+export function AgingChip({
+  days,
+  listedAt,
+  className,
+}: {
+  days?: number | null;
+  listedAt?: string | Date | null;
+  className?: string;
+}) {
+  if (days == null && !listedAt) return <span className="text-stone-400">—</span>;
+
+  let text = "";
+  if (listedAt) {
+    const d = new Date(listedAt);
+    if (!isNaN(d.getTime())) {
+      const diffMs = Math.max(0, Date.now() - d.getTime());
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHr / 24);
+
+      if (diffMin < 1) {
+        text = "Just now";
+      } else if (diffMin < 60) {
+        text = `${diffMin}m ago`;
+      } else if (diffHr < 24) {
+        text = `${diffHr}h ago`;
+      } else if (diffDays === 1) {
+        text = "1d ago";
+      } else {
+        text = `${diffDays}d ago`;
+      }
+    }
+  }
+
+  if (!text) {
+    if (days == null) return <span className="text-stone-400">—</span>;
+    if (days <= 0) {
+      text = "Just now";
+    } else {
+      text = `${days}d listed`;
+    }
+  }
+
+  const effectiveDays = days ?? (listedAt ? Math.floor((Date.now() - new Date(listedAt).getTime()) / 86400000) : 0);
   const tone =
-    days >= 90
+    effectiveDays >= 90
       ? "bg-rose-50 text-rose-700 border-rose-200"
-      : days >= 60
+      : effectiveDays >= 60
         ? "bg-orange-50 text-orange-700 border-orange-200"
-        : days >= 30
+        : effectiveDays >= 30
           ? "bg-amber-50 text-amber-700 border-amber-200"
-          : "bg-stone-100 text-stone-500 border-stone-200";
+          : text === "Just now"
+            ? "bg-[#ecfdf5] text-[#047857] border-[#10b981]/30 font-semibold"
+            : "bg-stone-100 text-stone-600 border-stone-200";
+
   return (
     <span className={cn("chip tabular-nums", tone, className)}>
-      {days}d listed
+      {text}
     </span>
   );
 }

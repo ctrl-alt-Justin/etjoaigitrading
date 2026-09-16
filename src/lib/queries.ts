@@ -443,6 +443,23 @@ export interface DashboardData {
   slowMovers: AgingAlertRow[];
   recentIntake: EnrichedItem[];
   supplierStats: SupplierStat[];
+  productAges: ProductAgeItem[];
+}
+
+export interface ProductAgeItem {
+  id: number;
+  name: string;
+  model: string;
+  brand: string | null;
+  sku: string | null;
+  grade: Grade | null;
+  status: string;
+  intakeAt: string;
+  daysInStock: number;
+  hoursInStock: number;
+  ageLabel: string;
+  intakeFormatted: string;
+  color: string;
 }
 
 export function supplierStatsOf(enriched: EnrichedItem[], sups: DbSupplier[]): SupplierStat[] {
@@ -604,6 +621,51 @@ export function computeDashboard(
       .slice(0, 6)
       .map((i) => ({ ...i, photos: i.photos?.slice(0, 1) ?? [], checklist: null })),
     supplierStats: supplierStatsOf(enriched, sups),
+    productAges: active
+      .map((i) => {
+        const intakeTime = new Date(i.intakeAt).getTime();
+        const diffMs = Math.max(0, now.getTime() - intakeTime);
+        const diffHrs = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hoursRemainder = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+        let ageLabel = "";
+        if (days === 0) {
+          ageLabel = diffHrs < 1 ? "Just now" : `${Math.floor(diffHrs)}h in stock`;
+        } else {
+          ageLabel = hoursRemainder > 0 ? `${days}d ${hoursRemainder}h in stock` : `${days}d in stock`;
+        }
+
+        const intakeFormatted = new Date(i.intakeAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+
+        const gradeColorMap: Record<string, string> = {
+          A: "#f0d900",
+          B: "#16a34a",
+          C: "#2563eb",
+          D: "#e11d48",
+        };
+
+        return {
+          id: i.id,
+          name: i.name,
+          model: i.model?.trim() || i.name,
+          brand: i.brand,
+          sku: i.sku,
+          grade: i.grade,
+          status: i.status,
+          intakeAt: i.intakeAt,
+          daysInStock: days,
+          hoursInStock: diffHrs,
+          ageLabel,
+          intakeFormatted,
+          color: (i.grade && gradeColorMap[i.grade]) || "#1D5D8B",
+        };
+      })
+      .sort((a, b) => b.hoursInStock - a.hoursInStock),
   };
 }
 
