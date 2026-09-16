@@ -13,6 +13,7 @@ import {
 import { useFavorites } from "@/components/favorites-provider";
 import { useCart } from "@/components/cart-provider";
 import { ShopHeader } from "@/components/shop-header";
+import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { Thumb, GradeChip } from "@/components/ui";
 import { fmtMoney, relTime } from "@/lib/format";
@@ -192,15 +193,7 @@ export default function ShopFavoritesPage() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#8ab7d2]/30 bg-white">
-        <div className="mx-auto flex max-w-[1480px] items-center justify-between px-6 py-8 text-xs font-semibold text-[#557287] sm:px-8">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#1D5D8B]" /> ETJOAIGI Trading · Muntinlupa City, PH
-          </div>
-          <div>Pre-loved inspected pieces with transparent grading</div>
-        </div>
-      </footer>
+      <ShopFooter />
 
       <ScrollToTop />
     </div>

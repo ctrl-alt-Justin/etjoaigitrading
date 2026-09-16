@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/components/cart-provider";
 import { ShopHeader } from "@/components/shop-header";
+import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { fmtMoney } from "@/lib/format";
 import { Thumb, GradeChip } from "@/components/ui";
@@ -424,15 +425,7 @@ export default function ShopCartPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-[#8ab7d2]/30 bg-white">
-        <div className="mx-auto flex max-w-[1480px] items-center justify-between px-6 py-8 text-xs font-semibold text-[#557287] sm:px-8">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#1D5D8B]" /> ETJOAIGI Trading · Muntinlupa City, PH
-          </div>
-          <div>All pieces certified and inspected</div>
-        </div>
-      </footer>
+      <ShopFooter />
 
       <ScrollToTop />
     </div>

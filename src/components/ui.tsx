@@ -115,14 +115,14 @@ export function ProductHoverThumb({
 
   if (!primaryUrl) {
     return (
-      <div className={cn("flex items-center justify-center bg-stone-100 text-stone-300", containerClassName || className)}>
+      <div className={cn("flex items-center justify-center bg-transparent text-stone-300", containerClassName || className)}>
         <Armchair className="h-1/3 w-1/3" strokeWidth={1.5} />
       </div>
     );
   }
 
   return (
-    <div className={cn("relative h-full w-full flex items-center justify-center overflow-hidden", containerClassName)}>
+    <div className={cn("relative h-full w-full flex items-center justify-center overflow-hidden bg-transparent", containerClassName)}>
       {/* Primary Image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -150,13 +150,6 @@ export function ProductHoverThumb({
           )}
           loading="lazy"
         />
-      )}
-
-      {/* Visual pill indicating another setup view exists */}
-      {hasSecondary && (
-        <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 group-hover/row:opacity-0 pointer-events-none">
-          +setup
-        </span>
       )}
     </div>
   );

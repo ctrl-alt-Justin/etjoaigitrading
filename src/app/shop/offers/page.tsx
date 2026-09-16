@@ -1,19 +1,56 @@
 import Link from "next/link";
-import { Sparkles, Tag, Clock, ArrowRight, ArrowLeft, Building2 } from "lucide-react";
+import { Sparkles, Tag, Clock, ArrowRight, ChevronRight, Building2 } from "lucide-react";
 import { getShopCatalogData } from "@/lib/queries";
 import { ShopHeader } from "@/components/shop-header";
+import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
-import { QuickAddButton } from "@/components/quick-add-button";
-import { Thumb, GradeChip, ProductHoverThumb } from "@/components/ui";
+import { ProductHoverThumb } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import type { DbItem, Grade } from "@/db/schema";
 
 export const revalidate = 60;
 
 export const metadata = {
-  title: "Special Offers & Featured Pieces — ETJOAIGI Collection",
+  title: "Special Deals & Curations — ETJOAIGI Collection",
   description: "Curated featured items, items below retail value, and recent inventory drops.",
 };
+
+function getGradeBadge(grade: Grade | null | undefined) {
+  switch (grade) {
+    case "A":
+      return { letter: "A", bg: "bg-[#f0d900] text-[#17364b]" };
+    case "B":
+      return { letter: "B", bg: "bg-[#16a34a] text-white" };
+    case "C":
+      return { letter: "C", bg: "bg-[#2563eb] text-white" };
+    case "D":
+      return { letter: "D", bg: "bg-[#dc2626] text-white" };
+    default:
+      return { letter: "A", bg: "bg-[#f0d900] text-[#17364b]" };
+  }
+}
+
+function getColorDots(item: DbItem): string[] {
+  const colorStr = (item.color ?? "").toLowerCase();
+  const dots: string[] = [];
+  if (colorStr.includes("black")) dots.push("#1e1e1e");
+  if (colorStr.includes("brown") || colorStr.includes("wood") || colorStr.includes("walnut") || colorStr.includes("mahogany") || colorStr.includes("oak")) dots.push("#6d4327");
+  if (colorStr.includes("beige") || colorStr.includes("cream") || colorStr.includes("tan")) dots.push("#d6c6b2");
+  if (colorStr.includes("blue") || colorStr.includes("navy")) dots.push("#1D5D8B");
+  if (colorStr.includes("green") || colorStr.includes("olive")) dots.push("#8da84b");
+  if (colorStr.includes("grey") || colorStr.includes("gray") || colorStr.includes("mesh")) dots.push("#78716c");
+  if (colorStr.includes("white")) dots.push("#f3f4f6");
+  if (colorStr.includes("red") || colorStr.includes("burgundy")) dots.push("#991b1b");
+  
+  if (dots.length === 0) {
+    const hash = item.id % 4;
+    if (hash === 0) return ["#6d4327", "#8da84b"];
+    if (hash === 1) return ["#1e1e1e", "#d6c6b2"];
+    if (hash === 2) return ["#b08882"];
+    return ["#1D5D8B", "#6d4327"];
+  }
+  return dots.slice(0, 2);
+}
 
 export default async function ShopOffersPage() {
   const { items: forSale } = await getShopCatalogData();
@@ -47,79 +84,84 @@ export default async function ShopOffersPage() {
     .slice(0, 8);
 
   const renderProductCard = (item: DbItem, badge?: { label: string; tone: string }) => {
-    const savings =
-      item.benchmarkPrice && item.listedPrice && item.listedPrice < item.benchmarkPrice
-        ? item.benchmarkPrice - item.listedPrice
-        : null;
+    const gradeBadge = getGradeBadge(item.grade as Grade | null);
+    const colorDots = getColorDots(item);
 
     return (
       <article
         key={item.id}
-        className="group relative flex flex-col justify-between overflow-hidden border border-[#d8e2e7] bg-white transition duration-300 hover:border-[#16c4df] hover:shadow-lg"
+        className="group relative flex flex-col justify-between overflow-hidden border border-stone-200/80 bg-white text-black p-5 sm:p-6 transition-colors duration-200 hover:bg-[#1D5D8B] hover:text-white"
       >
-        <Link href={`/shop/${item.id}`} className="block">
-          <div className="relative h-56 w-full overflow-hidden bg-[#f3f5f1]">
-            <ProductHoverThumb
-              photos={item.photos}
-              alt={item.name}
-              className="h-full w-full p-4"
-            />
-            {badge && (
-              <span
-                className={`absolute left-3 top-3 z-10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-sm ${badge.tone}`}
-              >
-                {badge.label}
-              </span>
-            )}
-            {savings != null && (
-              <span className="absolute right-3 top-3 z-10 bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                Save {fmtMoney(savings)}
-              </span>
-            )}
-          </div>
+        {/* Entire card links to product details */}
+        <Link
+          href={`/shop/${item.id}`}
+          className="absolute inset-0 z-0"
+          aria-label={`View ${item.name}`}
+        />
 
-          <div className="p-5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#557287]">
-                {item.brand || "Inspected Piece"}
-              </span>
-              <GradeChip grade={item.grade as Grade | null} />
-            </div>
+        {/* Top-left Badge */}
+        {badge && (
+          <span
+            className={`absolute left-4 top-4 z-20 pointer-events-none px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm ${badge.tone}`}
+          >
+            {badge.label}
+          </span>
+        )}
 
-            <h3 className="mt-2 font-display text-base font-bold text-[#17364b] line-clamp-1 group-hover:text-[#1D5D8B] transition">
-              {item.name}
-            </h3>
+        {/* Product Image with Hover to Alternate Setup View - Transparent background & no shape outline */}
+        <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-transparent border-0 border-none outline-none ring-0 shadow-none pointer-events-none flex items-center justify-center">
+          <ProductHoverThumb
+            photos={item.photos}
+            alt={item.name}
+            className="h-full w-full object-contain"
+            containerClassName="bg-transparent border-none shadow-none"
+          />
+        </div>
 
-            <div className="mt-1 flex gap-2 text-xs text-[#557287]">
-              {item.color && <span>{item.color}</span>}
-              {item.dimensions && <span>• {item.dimensions}</span>}
-            </div>
-
-            <div className="mt-4 flex items-baseline justify-between border-t border-stone-100 pt-3">
-              <div>
-                <div className="font-display text-xl font-black text-[#17364b]">
-                  {fmtMoney(item.listedPrice)}
-                </div>
-                {item.benchmarkPrice && (
-                  <div className="text-[11px] text-[#557287] line-through">
-                    New: {fmtMoney(item.benchmarkPrice)}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* Quick Add Button at card bottom right */}
-        <div className="px-5 pb-5 pt-0">
+        {/* Product Details Section */}
+        <div className="relative z-10 mt-4 flex flex-col pointer-events-none">
+          {/* Available Color Swatches & Grade Tag */}
           <div className="flex items-center justify-between gap-2">
-            <Link
-              href={`/shop/${item.id}`}
-              className="text-xs font-bold text-[#1D5D8B] hover:text-[#16486B]"
+            {/* Color Swatch Dots */}
+            <div className="flex items-center gap-1.5">
+              {colorDots.map((dot, idx) => (
+                <span
+                  key={idx}
+                  className="h-4.5 w-4.5 rounded-full border border-black/20 shadow-sm"
+                  style={{ backgroundColor: dot }}
+                />
+              ))}
+            </div>
+
+            {/* Grade Tag (font-normal) */}
+            <span
+              className={`inline-flex h-5 min-w-5 items-center justify-center px-2 text-xs font-normal ${gradeBadge.bg}`}
             >
-              View details →
-            </Link>
-            <QuickAddButton item={item} className="h-9 w-9" />
+              {gradeBadge.letter}
+            </span>
+          </div>
+
+          {/* Product Name */}
+          <h3 className="mt-2.5 font-display text-base sm:text-[17px] font-bold text-black group-hover:text-white truncate transition-colors">
+            {item.name}
+          </h3>
+
+          {/* Price & Strikethrough Price (relocated to right of current price, color #BCBDBA, no "New:") */}
+          <div className="mt-2 flex items-baseline justify-between gap-2">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="font-display text-base sm:text-[17px] font-normal text-black group-hover:text-white transition-colors">
+                {fmtMoney(item.listedPrice)}
+              </span>
+              {item.benchmarkPrice && item.benchmarkPrice > (item.listedPrice ?? 0) && (
+                <span className="text-xs font-normal text-[#BCBDBA] line-through transition-colors">
+                  {fmtMoney(item.benchmarkPrice)}
+                </span>
+              )}
+            </div>
+
+            <span className="text-xs font-bold text-[#1D5D8B] group-hover:text-[#16c4df] transition">
+              View →
+            </span>
           </div>
         </div>
       </article>
@@ -131,41 +173,13 @@ export default async function ShopOffersPage() {
       <ShopHeader />
 
       <main className="mx-auto max-w-[1480px] px-5 pb-24 pt-6 sm:px-8">
-        {/* Banner Section */}
-        <section className="relative mb-12 overflow-hidden bg-gradient-to-r from-[#1D5D8B] to-[#123D5B] p-8 text-white shadow-md sm:p-12">
-          <div className="relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-2 border border-[#16c4df]/30 bg-[#16c4df]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#a9e4f1]">
-              <Sparkles className="h-3 w-3 text-[#16c4df]" /> Special Deals & Curations
-            </div>
-            <h1 className="mt-4 font-display text-4xl font-black tracking-tight sm:text-6xl">
-              Curated Offers & Drops
-            </h1>
-            <p className="mt-4 text-sm leading-relaxed text-[#d5e8f2] sm:text-base">
-              Explore pre-inspected items priced significantly below retail value, hand-picked featured pieces, and our freshest inventory releases.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-4">
-              <a
-                href="#featured"
-                className="bg-[#16c4df] px-5 py-2.5 text-xs font-bold text-[#17364b] shadow-sm transition hover:bg-[#70e2ef]"
-              >
-                Featured Picks
-              </a>
-              <a
-                href="#below-retail"
-                className="bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
-              >
-                Below Retail Value
-              </a>
-              <a
-                href="#latest-arrivals"
-                className="bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
-              >
-                Latest Drops
-              </a>
-            </div>
-          </div>
-          <div className="absolute right-0 top-0 h-full w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(22,196,223,0.2),transparent_70%)] pointer-events-none" />
-        </section>
+        {/* Page Heading matching Catalog style */}
+        <div className="mb-10 flex items-center gap-3 border-b border-stone-200/80 pb-4">
+          <ChevronRight className="h-6 w-6 stroke-[3] text-[#17364b]" />
+          <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-[#16c4df] uppercase">
+            Special Deals & Curations
+          </h1>
+        </div>
 
         {/* Section 1: Featured Items */}
         <section id="featured" className="mb-16 scroll-mt-24">
@@ -175,19 +189,22 @@ export default async function ShopOffersPage() {
                 <Sparkles className="h-4 w-4" /> Editorial Curations
               </div>
               <h2 className="mt-1 font-display text-2xl font-black uppercase text-[#1D5D8B] sm:text-3xl">
-                Featured Items
+                Featured Items ({featured.length})
               </h2>
             </div>
-            <span className="text-xs font-semibold text-[#557287]">
-              {featured.length} highlighted
-            </span>
+            <Link
+              href="/shop/catalog"
+              className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#1D5D8B] hover:text-[#16c4df] transition"
+            >
+              See All Drops <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {featured.map((item) =>
               renderProductCard(item, {
                 label: "Featured Pick",
-                tone: "bg-[#1D5D8B] text-white",
+                tone: "bg-[#1D5D8B]",
               })
             )}
           </div>
@@ -201,12 +218,15 @@ export default async function ShopOffersPage() {
                 <Tag className="h-4 w-4" /> Exceptional Value
               </div>
               <h2 className="mt-1 font-display text-2xl font-black uppercase text-[#1D5D8B] sm:text-3xl">
-                Below Retail Value
+                Below Retail Value ({belowRetail.length})
               </h2>
             </div>
-            <span className="text-xs font-semibold text-[#557287]">
-              {belowRetail.length} pieces on sale
-            </span>
+            <Link
+              href="/shop/catalog"
+              className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#1D5D8B] hover:text-[#16c4df] transition"
+            >
+              See All Drops <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
           {belowRetail.length === 0 ? (
@@ -216,7 +236,7 @@ export default async function ShopOffersPage() {
               {belowRetail.slice(0, 8).map((item) =>
                 renderProductCard(item, {
                   label: "Markdown",
-                  tone: "bg-emerald-600 text-white",
+                  tone: "bg-emerald-600",
                 })
               )}
             </div>
@@ -231,12 +251,12 @@ export default async function ShopOffersPage() {
                 <Clock className="h-4 w-4" /> Fresh Showroom Stock
               </div>
               <h2 className="mt-1 font-display text-2xl font-black uppercase text-[#1D5D8B] sm:text-3xl">
-                Latest Arrivals
+                Latest Arrivals ({latestArrivals.length})
               </h2>
             </div>
             <Link
               href="/shop/catalog"
-              className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#1D5D8B] hover:text-[#16c4df]"
+              className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#1D5D8B] hover:text-[#16c4df] transition"
             >
               See All Drops <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -246,22 +266,14 @@ export default async function ShopOffersPage() {
             {latestArrivals.map((item) =>
               renderProductCard(item, {
                 label: "New Drop",
-                tone: "bg-[#c62f57] text-white",
+                tone: "bg-[#c62f57]",
               })
             )}
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#8ab7d2]/30 bg-white">
-        <div className="mx-auto flex max-w-[1480px] items-center justify-between px-6 py-8 text-xs font-semibold text-[#557287] sm:px-8">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#1D5D8B]" /> ETJOAIGI Trading · Muntinlupa City, PH
-          </div>
-          <div>All pieces certified and inspected</div>
-        </div>
-      </footer>
+      <ShopFooter />
 
       <ScrollToTop />
     </div>

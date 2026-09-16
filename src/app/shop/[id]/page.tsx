@@ -6,6 +6,7 @@ import { getShopItem, getShopCatalogData, buildCategoryIndexes, pathOf, getItemR
 import { ShareGallery } from "@/components/share-gallery";
 import { ProductDetailInteractive } from "@/components/product-detail-interactive";
 import { ShopHeader } from "@/components/shop-header";
+import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
 export const revalidate = 60;
@@ -81,11 +82,7 @@ export default async function ShopItemPage({ params }: PageProps) {
         </div>
       </main>
 
-      <footer className="border-t border-[#8ab7d2]/30 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-5 py-7 text-xs font-semibold text-[#557287] sm:px-8">
-          <Building2 className="h-4 w-4 text-[#1D5D8B]" /> ETJOAIGI Trading · Muntinlupa City, PH
-        </div>
-      </footer>
+      <ShopFooter />
 
       <ScrollToTop />
     </div>

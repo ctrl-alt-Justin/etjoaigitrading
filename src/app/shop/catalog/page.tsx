@@ -1,6 +1,7 @@
 import { getShopCatalogData } from "@/lib/queries";
 import { CustomerCatalog } from "@/components/customer-catalog";
 import { ShopHeader } from "@/components/shop-header";
+import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { normalizeRefPhoto } from "@/lib/taxonomy-data";
 
@@ -38,14 +39,14 @@ export default async function ShopCatalogPage() {
               <div className="mt-0.5 text-xs font-bold text-white">4799</div>
             </div>
 
-            {/* Bottom Big Drop Text */}
-            <div className="text-right">
-              <div className="font-hegarty text-2xl font-black tracking-tight text-[#ff4a68] sm:text-4xl">
-                09/14/26
-              </div>
-              <div className="font-hegarty text-5xl font-black uppercase tracking-tight text-[#16c4df] drop-shadow-[0_4px_12px_rgba(22,196,223,0.4)] sm:text-8xl">
-                NEW DROP
-              </div>
+            {/* Bottom Promo Catchphrase */}
+            <div className="text-left">
+              <h1 className="font-hegarty text-2xl font-black uppercase tracking-tight text-white sm:text-4xl">
+                SUPER SUMMER SALE
+              </h1>
+              <p className="mt-0.5 text-xs font-bold uppercase tracking-wider text-[#16c4df] sm:text-sm">
+                UP TO 50% OFF ON SELECTED PRE-OWNED ITEMS
+              </p>
             </div>
           </div>
         </section>
@@ -59,61 +60,7 @@ export default async function ShopCatalogPage() {
         </div>
       </main>
 
-      {/* Footer Matching Mockup */}
-      <footer className="border-t border-[#8ab7d2]/30 bg-white">
-        <div className="mx-auto grid max-w-[1480px] gap-8 px-6 py-12 text-sm text-[#294e65] sm:grid-cols-[1.5fr_1fr_1fr_1fr] sm:px-8">
-          <div>
-            <div className="font-hegarty text-3xl font-black tracking-tight text-[#1D5D8B]">
-              ETJOAIGI
-            </div>
-            <div className="mt-1 text-xs font-bold text-[#16c4df]">
-              Affordable Finds, Furniture You Can Trust
-            </div>
-            <p className="mt-2 max-w-xs text-xs leading-relaxed text-[#4e6d82]">
-              Bring your dream space to life with stylish furniture, trusted service, and designs made for your lifestyle.
-            </p>
-            <div className="mt-6 text-[10px] text-stone-400">
-              All Rights Reserved © 2023 Eve
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
-              CUSTOMER SERVICE
-            </div>
-            <div className="mt-3 space-y-2 text-xs">
-              <p className="cursor-pointer hover:underline">Contact Us</p>
-              <p className="cursor-pointer hover:underline">FAQs</p>
-              <p className="cursor-pointer hover:underline">Return & Refund</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
-              COMPANY
-            </div>
-            <div className="mt-3 space-y-2 text-xs">
-              <p className="cursor-pointer hover:underline">About Us</p>
-              <p className="cursor-pointer hover:underline">Terms & Conditions</p>
-              <p className="cursor-pointer hover:underline">Privacy Policy</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
-              FOLLOW US
-            </div>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded border border-stone-800 text-xs font-bold text-stone-900 cursor-pointer hover:bg-stone-100">
-                f
-              </div>
-              <div className="flex h-7 w-7 items-center justify-center rounded border border-stone-800 text-xs font-bold text-stone-900 cursor-pointer hover:bg-stone-100">
-                d
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <ShopFooter />
 
       <ScrollToTop />
     </div>

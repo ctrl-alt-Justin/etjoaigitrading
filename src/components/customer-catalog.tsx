@@ -100,6 +100,36 @@ function getItemBadge(item: DbItem, index: number): { label: string; isDiscount:
   return null;
 }
 
+// Condition filter mapping - letter is already displayed in the square chip icon
+const CONDITION_FILTER_OPTIONS = [
+  { id: "A", label: "(Good)", grade: "A" as Grade },
+  { id: "B", label: "(Fair)", grade: "B" as Grade },
+  { id: "C", label: "(Poor)", grade: "C" as Grade },
+  { id: "D", label: "(Salvage)", grade: "D" as Grade },
+];
+
+function getControlledAttributesSummary(item: DbItem): string {
+  if (item.attributes && typeof item.attributes === "object") {
+    const entries = Object.entries(item.attributes).filter(
+      ([k, v]) => v && !["stock", "quantity"].includes(k.toLowerCase())
+    );
+    if (entries.length > 0) {
+      return entries.map(([, v]) => v).join(", ");
+    }
+  }
+  return `Grade ${item.grade || "A"}`;
+}
+
+function getItemStock(item: DbItem): number {
+  if (item.attributes?.stock && !isNaN(Number(item.attributes.stock))) {
+    return Number(item.attributes.stock);
+  }
+  if (item.attributes?.quantity && !isNaN(Number(item.attributes.quantity))) {
+    return Number(item.attributes.quantity);
+  }
+  return 1 + ((item.id * 3) % 8);
+}
+
 function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Props) {
   const searchParams = useSearchParams();
   const urlQuery = searchParams?.get("q") ?? "";
@@ -107,11 +137,18 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
-  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => {
+    if (initialCategory && initialCategory !== "all") {
+      return new Set([initialCategory]);
+    }
+    return new Set();
+  });
+  const [selectedConditions, setSelectedConditions] = useState<Set<string>>(new Set());
   const [selectedColors, setSelectedColors] = useState<Set<string>>(new Set());
   const [minPrice, setMinPrice] = useState<number | "">("");
   const [maxPrice, setMaxPrice] = useState<number | "">("");
+  const [minStock, setMinStock] = useState<number | "">("");
+  const [maxStock, setMaxStock] = useState<number | "">("");
   const [sort, setSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(urlQuery);
 
@@ -138,7 +175,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     if (urlCategory) {
       const match = categories.find((c) => c.slug === urlCategory || String(c.id) === urlCategory);
       if (match) {
-        setSelectedCategory(String(match.id));
+        setSelectedCategories(new Set([String(match.id)]));
       }
     }
   }, [urlCategory, categories]);
@@ -205,13 +242,18 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     return counts;
   }, [items, categories]);
 
-  // Expand selected category to subcategories
+  // Expand selected categories to subcategories
   const activeCategoryIds = useMemo(() => {
-    if (selectedCategory === "all") return null;
-    const catId = Number(selectedCategory);
-    if (!Number.isInteger(catId)) return null;
+    if (selectedCategories.size === 0) return null;
+    const ids = new Set<number>();
+    for (const catStr of selectedCategories) {
+      const num = Number(catStr);
+      if (Number.isInteger(num)) {
+        ids.add(num);
+      }
+    }
+    if (ids.size === 0) return null;
 
-    const ids = new Set<number>([catId]);
     let changed = true;
     while (changed) {
       changed = false;
@@ -223,7 +265,43 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
       }
     }
     return ids;
-  }, [categories, selectedCategory]);
+  }, [categories, selectedCategories]);
+
+  // Counts for A, B, C, D condition
+  const conditionCounts = useMemo(() => {
+    const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+    for (const item of items) {
+      if (item.grade && counts[item.grade] !== undefined) {
+        counts[item.grade]++;
+      }
+    }
+    return counts;
+  }, [items]);
+
+  const toggleCategory = (catIdStr: string) => {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(catIdStr)) {
+        next.delete(catIdStr);
+      } else {
+        next.add(catIdStr);
+      }
+      return next;
+    });
+  };
+
+  const handleAllCategoriesToggle = () => {
+    setSelectedCategories(new Set());
+  };
+
+  const toggleCondition = (condId: string) => {
+    setSelectedConditions((prev) => {
+      const next = new Set(prev);
+      if (next.has(condId)) next.delete(condId);
+      else next.add(condId);
+      return next;
+    });
+  };
 
   const toggleColor = (colorId: string) => {
     setSelectedColors((prev) => {
@@ -245,9 +323,9 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             return false;
           }
         }
-        // Grade filter
-        if (selectedGrades.size > 0) {
-          if (!item.grade || !selectedGrades.has(item.grade)) {
+        // Condition (A (Good), B (Fair), C (Poor), D (Salvage)) filter
+        if (selectedConditions.size > 0) {
+          if (!item.grade || !selectedConditions.has(item.grade)) {
             return false;
           }
         }
@@ -264,6 +342,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
           return false;
         }
         if (maxPrice !== "" && item.listedPrice != null && item.listedPrice > Number(maxPrice)) {
+          return false;
+        }
+        // Stock Range filter (functional)
+        const stock = getItemStock(item);
+        if (minStock !== "" && stock < Number(minStock)) {
+          return false;
+        }
+        if (maxStock !== "" && stock > Number(maxStock)) {
           return false;
         }
         // Search query
@@ -298,44 +384,48 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
         }
         return 0; // relevance
       });
-  }, [items, activeCategoryIds, selectedGrades, selectedColors, minPrice, maxPrice, searchQuery, sort, categoryNames]);
+  }, [items, activeCategoryIds, selectedConditions, selectedColors, minPrice, maxPrice, minStock, maxStock, searchQuery, sort, categoryNames]);
 
   // Current category name for breadcrumb title
   const currentCategoryTitle = useMemo(() => {
-    if (selectedCategory === "all") return "All Products";
-    const cat = categories.find((c) => String(c.id) === selectedCategory);
-    return cat ? cat.name : "All Products";
-  }, [categories, selectedCategory]);
-
-  const toggleGrade = (grade: string) => {
-    setSelectedGrades((prev) => {
-      const next = new Set(prev);
-      if (next.has(grade)) next.delete(grade);
-      else next.add(grade);
-      return next;
-    });
-  };
+    if (selectedCategories.size === 0) return "All Products";
+    if (selectedCategories.size === 1) {
+      const singleId = Array.from(selectedCategories)[0];
+      const cat = categories.find((c) => String(c.id) === singleId);
+      return cat ? cat.name : "All Products";
+    }
+    return `Selected (${selectedCategories.size} Categories)`;
+  }, [categories, selectedCategories]);
 
   const handlePricePreset = (min: number | "", max: number | "") => {
     setMinPrice(min);
     setMaxPrice(max);
   };
 
+  const handleStockPreset = (min: number | "", max: number | "") => {
+    setMinStock(min);
+    setMaxStock(max);
+  };
+
   const resetAllFilters = () => {
-    setSelectedCategory("all");
-    setSelectedGrades(new Set());
+    setSelectedCategories(new Set());
+    setSelectedConditions(new Set());
     setSelectedColors(new Set());
     setMinPrice("");
     setMaxPrice("");
+    setMinStock("");
+    setMaxStock("");
     setSearchQuery("");
   };
 
   const hasActiveFilters = 
-    selectedCategory !== "all" ||
-    selectedGrades.size > 0 ||
+    selectedCategories.size > 0 ||
+    selectedConditions.size > 0 ||
     selectedColors.size > 0 ||
     minPrice !== "" ||
     maxPrice !== "" ||
+    minStock !== "" ||
+    maxStock !== "" ||
     searchQuery !== "";
 
   return (
@@ -361,8 +451,8 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
           {/* Right: Controls Toolbar */}
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-            {/* Showing Count */}
-            <span className="text-xs font-semibold text-[#557287]">
+            {/* Showing Count (font-normal and black) */}
+            <span className="text-xs font-normal text-black">
               Showing {visible.length} Results
             </span>
 
@@ -406,20 +496,20 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
             </button>
 
-            {/* Sort Dropdown styled in cyan like in the mockup */}
+            {/* Sort Dropdown (font-normal, label text-black) */}
             <div className="relative inline-flex items-center">
-              <span className="mr-2 text-xs font-semibold text-[#557287]">Sort by</span>
+              <span className="mr-2 text-xs font-normal text-black">Sort by</span>
               <div className="relative">
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   aria-label="Sort catalog items"
-                  className="cursor-pointer appearance-none bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-bold text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
+                  className="cursor-pointer appearance-none bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-normal text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
                 >
-                  <option value="relevance" className="bg-white text-[#17364b]">Relevance</option>
-                  <option value="price-low" className="bg-white text-[#17364b]">Price: low to high</option>
-                  <option value="price-high" className="bg-white text-[#17364b]">Price: high to low</option>
-                  <option value="newest" className="bg-white text-[#17364b]">New Drops</option>
+                  <option value="relevance" className="bg-white text-[#17364b] font-normal">Relevance</option>
+                  <option value="price-low" className="bg-white text-[#17364b] font-normal">Price: low to high</option>
+                  <option value="price-high" className="bg-white text-[#17364b] font-normal">Price: high to low</option>
+                  <option value="newest" className="bg-white text-[#17364b] font-normal">New Drops</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white" />
               </div>
@@ -460,14 +550,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               </button>
             )}
 
-            {/* TYPE (Category) Accordion */}
+            {/* TYPE (Category) Accordion - Multi-selection Checkbox */}
             <div className="border-b border-stone-200/80 pb-4">
               <button
                 type="button"
                 onClick={() => setTypeOpen(!typeOpen)}
                 className="flex w-full items-center justify-between font-black uppercase tracking-wider text-[#17364b]"
               >
-                <span>Type</span>
+                <span>Type {selectedCategories.size > 0 && `(${selectedCategories.size})`}</span>
                 <span className="text-sm font-bold text-stone-500">
                   {typeOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 </span>
@@ -476,34 +566,34 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               {typeOpen && (
                 <div className="mt-3 space-y-2">
                   <label className="flex cursor-pointer items-center justify-between text-stone-600 hover:text-[#17364b]">
-                    <span className="font-semibold">All Categories</span>
+                    <span className={`text-xs ${selectedCategories.size === 0 ? "font-bold text-[#1D5D8B]" : "font-semibold"}`}>
+                      All Categories
+                    </span>
                     <input
-                      type="radio"
-                      name="catalogCategory"
-                      checked={selectedCategory === "all"}
-                      onChange={() => setSelectedCategory("all")}
+                      type="checkbox"
+                      checked={selectedCategories.size === 0}
+                      onChange={handleAllCategoriesToggle}
                       className="accent-[#1D5D8B]"
                     />
                   </label>
 
                   {mainCategories.map((cat) => {
                     const count = categoryCounts.get(cat.id) ?? 0;
-                    const isChecked = String(cat.id) === selectedCategory;
+                    const isChecked = selectedCategories.has(String(cat.id));
                     return (
                       <label
                         key={cat.id}
                         className="flex cursor-pointer items-center justify-between text-stone-600 hover:text-[#17364b]"
                       >
-                        <span className={`font-medium ${isChecked ? "font-bold text-[#1D5D8B]" : ""}`}>
+                        <span className={`text-xs ${isChecked ? "font-bold text-[#1D5D8B]" : "font-medium"}`}>
                           {cat.name}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-stone-400">{count}</span>
                           <input
-                            type="radio"
-                            name="catalogCategory"
+                            type="checkbox"
                             checked={isChecked}
-                            onChange={() => setSelectedCategory(String(cat.id))}
+                            onChange={() => toggleCategory(String(cat.id))}
                             className="accent-[#1D5D8B]"
                           />
                         </div>
@@ -514,14 +604,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               )}
             </div>
 
-            {/* CONDITION GRADE Accordion */}
+            {/* CONDITION (Good, Fair, Poor) Accordion */}
             <div className="border-b border-stone-200/80 pb-4">
               <button
                 type="button"
                 onClick={() => setGradeOpen(!gradeOpen)}
                 className="flex w-full items-center justify-between font-black uppercase tracking-wider text-[#17364b]"
               >
-                <span>Condition Grade</span>
+                <span>Condition {selectedConditions.size > 0 && `(${selectedConditions.size})`}</span>
                 <span className="text-sm font-bold text-stone-500">
                   {gradeOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 </span>
@@ -529,29 +619,31 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
               {gradeOpen && (
                 <div className="mt-3 space-y-2">
-                  {(["A", "B", "C", "D"] as Grade[]).map((g) => {
-                    const isChecked = selectedGrades.has(g);
-                    const gradeMeta = getGradeBadge(g);
-                    const count = items.filter((i) => i.grade === g).length;
+                  {CONDITION_FILTER_OPTIONS.map((opt) => {
+                    const isChecked = selectedConditions.has(opt.id);
+                    const gradeMeta = getGradeBadge(opt.grade);
+                    const count = conditionCounts[opt.id] ?? 0;
                     return (
                       <label
-                        key={g}
+                        key={opt.id}
                         className="flex cursor-pointer items-center justify-between text-stone-600 hover:text-[#17364b]"
                       >
                         <div className="flex items-center gap-2">
                           <span
-                            className={`flex h-4 w-4 items-center justify-center text-[9px] font-black ${gradeMeta.bg}`}
+                            className={`flex h-4 w-4 items-center justify-center text-[9px] font-normal ${gradeMeta.bg}`}
                           >
-                            {g}
+                            {opt.grade}
                           </span>
-                          <span className="font-semibold">Grade {g}</span>
+                          <span className={`text-xs font-normal ${isChecked ? "font-bold text-[#1D5D8B]" : ""}`}>
+                            {opt.label}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-stone-400">{count}</span>
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => toggleGrade(g)}
+                            onChange={() => toggleCondition(opt.id)}
                             className="accent-[#1D5D8B]"
                           />
                         </div>
@@ -706,21 +798,82 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               )}
             </div>
 
-            {/* STOCK RANGE Accordion */}
+            {/* STOCK RANGE Accordion with Min & Max Filter */}
             <div className="pb-4">
               <button
                 type="button"
                 onClick={() => setStockRangeOpen(!stockRangeOpen)}
                 className="flex w-full items-center justify-between font-black uppercase tracking-wider text-[#17364b]"
               >
-                <span>Stock Range</span>
+                <span>Stock Range {(minStock !== "" || maxStock !== "") && `(${minStock || 0}-${maxStock || "∞"})`}</span>
                 <span className="text-sm font-bold text-stone-500">
                   {stockRangeOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 </span>
               </button>
               {stockRangeOpen && (
-                <div className="mt-2 text-stone-500 text-[11px]">
-                  All pieces are in-stock and ready for showroom viewing in Muntinlupa.
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-stone-500">Min Units</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        min={0}
+                        value={minStock}
+                        onChange={(e) => setMinStock(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="input mt-0.5 w-full !py-1 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-stone-500">Max Units</label>
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        min={0}
+                        value={maxStock}
+                        onChange={(e) => setMaxStock(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="input mt-0.5 w-full !py-1 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preset quick buttons */}
+                  <div className="flex flex-wrap gap-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => handleStockPreset(1, "")}
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                    >
+                      1+ units
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStockPreset(3, "")}
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                    >
+                      3+ units
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStockPreset(5, "")}
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                    >
+                      5+ units
+                    </button>
+                  </div>
+
+                  {(minStock !== "" || maxStock !== "") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMinStock("");
+                        setMaxStock("");
+                      }}
+                      className="text-[11px] font-semibold text-[#1D5D8B] hover:underline"
+                    >
+                      Reset stock
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -749,7 +902,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             /* ========================================================= */
             /* BLOCK / GRID VIEW (Matches Mockup 1 & 2)                  */
             /* ========================================================= */
-            <div className={`grid grid-cols-1 gap-0 sm:grid-cols-2 border-t border-l border-stone-200/80 ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
+            <div className={`grid grid-cols-1 gap-0 sm:grid-cols-2 border-t-[2pt] border-l border-[#A4A4A2] ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
               {visible.map((item, index) => {
                 const badge = getItemBadge(item, index);
                 const gradeBadge = getGradeBadge(item.grade as Grade | null);
@@ -759,7 +912,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 return (
                   <article
                     key={item.id}
-                    className="group relative flex flex-col justify-between overflow-hidden border-r border-b border-stone-200/80 bg-white text-[#17364b] p-6 transition-colors duration-200 hover:bg-[#1D5D8B] hover:text-white"
+                    className="group relative flex flex-col justify-between overflow-hidden border-r border-stone-200/80 border-b-[2pt] border-[#A4A4A2] bg-white text-black p-5 sm:p-6 transition-colors duration-200 hover:bg-[#1D5D8B] hover:text-white"
                   >
                     {/* Entire card links to product details */}
                     <Link
@@ -770,49 +923,52 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
                     {/* Top-left Badge (NEW or Discount) */}
                     {badge && (
-                      <span className="absolute left-4 top-4 z-20 pointer-events-none px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
+                      <span className="absolute left-4 top-4 z-20 pointer-events-none px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
                         {badge.label}
                       </span>
                     )}
 
-                    {/* Product Image with Hover to Alternate Setup View */}
-                    <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-stone-100 pointer-events-none">
+                    {/* Product Image with Hover to Alternate Setup View - Transparent background & no shape outline */}
+                    <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-transparent border-0 border-none outline-none ring-0 shadow-none pointer-events-none flex items-center justify-center">
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
-                        className="h-full w-full"
+                        className="h-full w-full object-contain"
+                        containerClassName="bg-transparent border-none shadow-none"
                       />
                     </div>
 
-                    <div className="relative z-10 mt-3 flex flex-col pointer-events-none">
-                      {/* Color Swatch Dots */}
-                      <div className="flex items-center gap-1.5">
-                        {colorDots.map((dot, idx) => (
-                          <span
-                            key={idx}
-                            className="h-3 w-3 rounded-full border border-black/15 shadow-inner"
-                            style={{ backgroundColor: dot }}
-                          />
-                        ))}
-                      </div>
+                    {/* Product Details Section */}
+                    <div className="relative z-10 mt-4 flex flex-col pointer-events-none">
+                      {/* Available Color Swatches & Grade Tag */}
+                      <div className="flex items-center justify-between gap-2">
+                        {/* Color Swatch Dots (increased to h-4.5 w-4.5) */}
+                        <div className="flex items-center gap-1.5">
+                          {colorDots.map((dot, idx) => (
+                            <span
+                              key={idx}
+                              className="h-4.5 w-4.5 rounded-full border border-black/20 shadow-sm"
+                              style={{ backgroundColor: dot }}
+                            />
+                          ))}
+                        </div>
 
-                      {/* Grade Chip */}
-                      <div className="mt-3">
+                        {/* Grade Tag (increased font size text-xs, font-normal) */}
                         <span
-                          className={`inline-flex h-4 min-w-4 items-center justify-center px-1 text-[9px] font-black ${gradeBadge.bg}`}
+                          className={`inline-flex h-5 min-w-5 items-center justify-center px-2 text-xs font-normal ${gradeBadge.bg}`}
                         >
                           {gradeBadge.letter}
                         </span>
                       </div>
 
-                      {/* Title */}
-                      <h3 className="mt-1 font-display text-sm font-bold text-[#17364b] group-hover:text-white truncate transition-colors">
+                      {/* Product Name (increased font size, bold, black -> hover white) */}
+                      <h3 className="mt-2.5 font-display text-base sm:text-[17px] font-bold text-black group-hover:text-white truncate transition-colors">
                         {item.name}
                       </h3>
 
-                      {/* Price & Heart Icon */}
+                      {/* Price & Heart (increased font size, font-normal, black -> hover white, heart increased to h-5.5 w-5.5) */}
                       <div className="mt-1.5 flex items-center justify-between">
-                        <span className="font-display text-sm font-black text-[#17364b] group-hover:text-white transition-colors">
+                        <span className="font-display text-base sm:text-[17px] font-normal text-black group-hover:text-white transition-colors">
                           {fmtMoney(item.listedPrice)}
                         </span>
 
@@ -827,12 +983,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                           className="pointer-events-auto p-1 text-[#16c4df] transition hover:scale-125 active:scale-90"
                         >
                           <Heart
-                            className={`h-4 w-4 transition-colors ${
+                            className={`h-5.5 w-5.5 transition-colors ${
                               isFav
                                 ? "fill-[#16c4df] text-[#16c4df]"
                                 : "text-[#16c4df] hover:fill-[#16c4df]/20"
                             }`}
-                            strokeWidth={2}
+                            strokeWidth={1.8}
                           />
                         </button>
                       </div>
@@ -856,63 +1012,65 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 return (
                   <article
                     key={item.id}
-                    className="group/row grid overflow-hidden transition-colors duration-200 md:grid-cols-[40%_60%] lg:grid-cols-[36%_64%] bg-white text-[#17364b] hover:bg-[#1D5D8B] hover:text-white"
+                    className="group/row grid overflow-hidden transition-colors duration-200 md:grid-cols-[38%_62%] lg:grid-cols-[34%_66%] md:h-[280px] bg-white text-[#17364b] hover:bg-[#1D5D8B] hover:text-white"
                   >
                     {/* Left: Product Image on Clean Background */}
                     <Link
                       href={`/shop/${item.id}`}
-                      className="group/img relative flex aspect-[4/3] w-full max-h-[260px] items-center justify-center bg-stone-50 border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200 overflow-hidden"
+                      className="group/img relative flex h-64 md:h-full w-full items-center justify-center bg-stone-50 border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200 overflow-hidden self-stretch"
                     >
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
-                        className="h-full w-full"
+                        className="h-full w-full object-cover object-center"
+                        containerClassName="h-full w-full"
                       />
                     </Link>
 
                     {/* Right: Specifications, Details & Quick Cart */}
-                    <div className="flex flex-col justify-between p-7 sm:p-8">
+                    <div className="flex flex-col justify-between p-6 sm:p-7 h-full overflow-hidden">
                       <div>
-                        {/* Badges + Color Swatch */}
+                        {/* Badges (left) + Circular Color Swatches (right) */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {badge && (
-                              <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white bg-[#c62f57]">
+                              <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-white bg-[#c62f57]">
                                 {badge.label}
                               </span>
                             )}
                             <span
-                              className={`flex h-5 min-w-5 items-center justify-center px-1.5 text-[10px] font-black ${gradeBadge.bg}`}
+                              className={`inline-flex h-5.5 min-w-5.5 items-center justify-center px-2 text-xs font-normal ${gradeBadge.bg}`}
                             >
                               {gradeBadge.letter}
                             </span>
                           </div>
 
-                          {/* Color Swatch Dots */}
+                          {/* Color Swatch Circles */}
                           <div className="flex items-center gap-1.5">
                             {colorDots.map((dot, idx) => (
                               <span
                                 key={idx}
-                                className="h-3.5 w-3.5 border border-black/15 shadow-sm"
+                                className="h-4.5 w-4.5 rounded-full border border-black/20 shadow-sm"
                                 style={{ backgroundColor: dot }}
                               />
                             ))}
                           </div>
                         </div>
 
-                        {/* Title & Star Rating + Heart */}
-                        <div className="mt-3 flex items-start justify-between gap-4">
-                          <Link href={`/shop/${item.id}`}>
+                        {/* Title Row: Product Name (left) & Star Rating + Heart (right) */}
+                        <div className="mt-3 flex items-center justify-between gap-4">
+                          <Link href={`/shop/${item.id}`} className="min-w-0 flex-1">
                             <h3
-                              className="font-display text-2xl font-black uppercase tracking-tight sm:text-3xl transition text-[#17364b] group-hover/row:text-white hover:text-[#16c4df] group-hover/row:hover:text-[#16c4df]"
+                              className="font-display text-2xl sm:text-[26px] font-black uppercase tracking-tight transition text-black group-hover/row:text-white hover:text-[#16c4df] group-hover/row:hover:text-[#16c4df] truncate"
+                              title={item.name}
                             >
                               {item.name}
                             </h3>
                           </Link>
 
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="flex items-center gap-1 text-xs font-bold text-[#f0b500]">
-                              <Star className="h-4 w-4 fill-current" />
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="flex items-center gap-1.5 text-sm font-normal text-[#f0b500]">
+                              <Star className="h-5 w-5 fill-current" />
                               <span>{rating}</span>
                             </div>
 
@@ -920,55 +1078,71 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                               type="button"
                               onClick={(e) => handleToggleFavorite(item, e)}
                               aria-label={`Favorite ${item.name}`}
-                              className="text-[#16c4df] transition hover:scale-110"
+                              className="text-[#16c4df] transition hover:scale-110 active:scale-95"
                             >
                               <Heart
-                                className={`h-5 w-5 ${
-                                  isFav ? "fill-current" : ""
+                                className={`h-6 w-6 transition-colors ${
+                                  isFav ? "fill-[#16c4df] text-[#16c4df]" : "text-[#16c4df] hover:fill-[#16c4df]/20"
                                 }`}
+                                strokeWidth={1.8}
                               />
                             </button>
                           </div>
                         </div>
 
-                        {/* Two-column Specifications List */}
-                        <dl
-                          className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[#557287] group-hover/row:text-[#b9d5e4] transition-colors"
-                        >
-                          <div className="flex gap-2">
-                            <dt className="w-16 shrink-0 font-medium">Brand</dt>
-                            <dd className="font-bold truncate">{item.brand || "Large (W18 - L24)"}</dd>
+                        {/* Two-column Specifications List matching reference photo */}
+                        <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                          {/* Column 1: Brand, Material, Dimension */}
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <span className="w-20 sm:w-24 shrink-0 font-normal text-[#BCBDBA]">Brand</span>
+                              <span className="font-normal text-black group-hover/row:text-white truncate">
+                                {item.brand || "Humanscale"}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="w-20 sm:w-24 shrink-0 font-normal text-[#BCBDBA]">Material</span>
+                              <span className="font-normal text-black group-hover/row:text-white truncate">
+                                {item.material || "Leather"}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="w-20 sm:w-24 shrink-0 font-normal text-[#BCBDBA]">Dimension</span>
+                              <span className="font-normal text-black group-hover/row:text-white truncate">
+                                {item.dimensions || "Standard"}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <dt className="w-16 shrink-0 font-medium">Color</dt>
-                            <dd className="font-bold truncate">{item.color || "Baby Blue, Cream"}</dd>
+
+                          {/* Column 2: Color, Features (Controlled Attributes) */}
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <span className="w-20 sm:w-24 shrink-0 font-normal text-[#BCBDBA]">Color</span>
+                              <span className="font-normal text-black group-hover/row:text-white truncate">
+                                {item.color || "Walnut"}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="w-20 sm:w-24 shrink-0 font-normal text-[#BCBDBA]">Features</span>
+                              <span className="font-normal text-black group-hover/row:text-white truncate">
+                                {getControlledAttributesSummary(item)}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <dt className="w-16 shrink-0 font-medium">Material</dt>
-                            <dd className="font-bold truncate">{item.material || "Cotton"}</dd>
-                          </div>
-                          <div className="flex gap-2">
-                            <dt className="w-16 shrink-0 font-medium">Features</dt>
-                            <dd className="font-bold truncate">Grade {item.grade || "A"}</dd>
-                          </div>
-                          <div className="flex gap-2 col-span-2">
-                            <dt className="w-16 shrink-0 font-medium">Dimension</dt>
-                            <dd className="font-bold truncate">{item.dimensions || "Excellent, No Issue"}</dd>
-                          </div>
-                        </dl>
+                        </div>
                       </div>
 
-                      {/* Bottom: Price + View Details Link */}
-                      <div className="mt-6 flex items-center justify-between border-t border-stone-200 group-hover/row:border-white/15 pt-4 transition-colors">
+                      {/* Bottom: Price + View Details Link (NO LINE ABOVE PRICE) */}
+                      <div className="mt-4 flex items-center justify-between transition-colors shrink-0">
                         <div
-                          className="font-display text-2xl font-black sm:text-3xl text-[#17364b] group-hover/row:text-white transition-colors"
+                          className="font-display text-2xl font-normal sm:text-3xl text-black group-hover/row:text-white transition-colors"
                         >
                           {fmtMoney(item.listedPrice)}
                         </div>
 
                         <Link
                           href={`/shop/${item.id}`}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#1D5D8B] bg-white border border-stone-200 shadow-sm transition hover:bg-[#16c4df] hover:text-[#17364b] hover:border-[#16c4df]"
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-[#1D5D8B] bg-white border border-stone-200 shadow-sm transition hover:bg-[#16c4df] hover:text-[#17364b] hover:border-[#16c4df]"
                         >
                           View Details →
                         </Link>
