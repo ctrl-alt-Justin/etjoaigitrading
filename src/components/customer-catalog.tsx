@@ -9,7 +9,6 @@ import {
   LayoutGrid, 
   Heart, 
   Star, 
-  ShoppingBag, 
   Plus, 
   Minus, 
   Check, 
@@ -23,7 +22,6 @@ import {
 import type { DbCategory, DbItem, Grade } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
 import { Thumb, ProductHoverThumb } from "@/components/ui";
-import { useCart } from "@/components/cart-provider";
 import { useFavorites } from "@/components/favorites-provider";
 
 interface Props {
@@ -106,7 +104,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
   const searchParams = useSearchParams();
   const urlQuery = searchParams?.get("q") ?? "";
 
-  const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -117,7 +114,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
   const [maxPrice, setMaxPrice] = useState<number | "">("");
   const [sort, setSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(urlQuery);
-  const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
 
   // Sidebar accordion states
   const [typeOpen, setTypeOpen] = useState(true);
@@ -181,31 +177,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
       name: item.name,
       action: currentlyFav ? "removed" : "added",
     });
-  };
-
-  const handleAddToCart = (item: DbItem, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!item.listedPrice) return;
-    addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.listedPrice,
-      photo: item.photos?.[0]?.url,
-      color: item.color,
-      sku: item.sku,
-      brand: item.brand,
-      model: item.model,
-      grade: item.grade,
-    });
-    setAddedIds((prev) => new Set(prev).add(item.id));
-    setTimeout(() => {
-      setAddedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
-    }, 2000);
   };
 
   // Map category IDs to names & children
@@ -569,7 +540,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                       >
                         <div className="flex items-center gap-2">
                           <span
-                            className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-black ${gradeMeta.bg}`}
+                            className={`flex h-4 w-4 items-center justify-center text-[9px] font-black ${gradeMeta.bg}`}
                           >
                             {g}
                           </span>
@@ -581,7 +552,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleGrade(g)}
-                            className="accent-[#1D5D8B] rounded"
+                            className="accent-[#1D5D8B]"
                           />
                         </div>
                       </label>
@@ -692,28 +663,28 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     <button
                       type="button"
                       onClick={() => handlePricePreset("", 5000)}
-                      className="rounded bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
                     >
                       Under ₱5k
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePricePreset(5000, 15000)}
-                      className="rounded bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
                     >
                       ₱5k–₱15k
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePricePreset(15000, 30000)}
-                      className="rounded bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
                     >
                       ₱15k–₱30k
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePricePreset(30000, "")}
-                      className="rounded bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
                     >
                       ₱30k+
                     </button>
@@ -778,119 +749,93 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             /* ========================================================= */
             /* BLOCK / GRID VIEW (Matches Mockup 1 & 2)                  */
             /* ========================================================= */
-            <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
+            <div className={`grid grid-cols-1 gap-0 sm:grid-cols-2 border-t border-l border-stone-200/80 ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
               {visible.map((item, index) => {
                 const badge = getItemBadge(item, index);
                 const gradeBadge = getGradeBadge(item.grade as Grade | null);
                 const isFav = isFavorite(item.id);
                 const colorDots = getColorDots(item);
-                const rating = getItemRating(item);
-                const isAdded = addedIds.has(item.id);
 
                 return (
                   <article
                     key={item.id}
-                    className="group relative flex flex-col justify-between overflow-hidden border border-stone-200/80 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-lg"
+                    className="group relative flex flex-col justify-between overflow-hidden border-r border-b border-stone-200/80 bg-white text-[#17364b] p-6 transition-colors duration-200 hover:bg-[#1D5D8B] hover:text-white"
                   >
-                    {/* Top-right Favorite Heart Button (Mockup 2) - Positioned above image, OUTSIDE of Link */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleFavorite(item, e)}
-                      aria-label={isFav ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-                      className="absolute right-6 top-6 z-20 flex h-8 w-8 items-center justify-center bg-white/95 shadow-sm border border-stone-200/60 backdrop-blur transition hover:bg-white hover:scale-110 active:scale-90"
-                    >
-                      <Heart
-                        className={`h-4 w-4 transition-colors ${
-                          isFav
-                            ? "fill-[#16c4df] text-[#16c4df]"
-                            : "text-[#16c4df] hover:fill-[#16c4df]/20"
-                        }`}
-                        strokeWidth={2.2}
+                    {/* Entire card links to product details */}
+                    <Link
+                      href={`/shop/${item.id}`}
+                      className="absolute inset-0 z-0"
+                      aria-label={`View ${item.name}`}
+                    />
+
+                    {/* Top-left Badge (NEW or Discount) */}
+                    {badge && (
+                      <span className="absolute left-4 top-4 z-20 pointer-events-none px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
+                        {badge.label}
+                      </span>
+                    )}
+
+                    {/* Product Image with Hover to Alternate Setup View */}
+                    <div className="relative z-10 flex h-52 w-full items-center justify-center p-2 pointer-events-none">
+                      <ProductHoverThumb
+                        photos={item.photos}
+                        alt={item.name}
+                        className="h-44 w-full"
                       />
-                    </button>
+                    </div>
 
-                    <div>
-                      {/* Product Image Link */}
-                      <Link href={`/shop/${item.id}`} className="block group/img">
-                        <div className="relative flex h-52 w-full items-center justify-center bg-[#f5f2eb]/70 p-4 transition group-hover/img:bg-[#efebe2]">
-                          {/* Top-left Badge (NEW or Discount) */}
-                          {badge && (
-                            <span className="absolute left-3 top-3 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm bg-[#c62f57]">
-                              {badge.label}
-                            </span>
-                          )}
-
-                          {/* Product Image with Hover to Alternate Setup View */}
-                          <ProductHoverThumb
-                            photos={item.photos}
-                            alt={item.name}
-                            className="h-44 w-full"
-                          />
-                        </div>
-                      </Link>
-
+                    <div className="relative z-10 mt-3 flex flex-col pointer-events-none">
                       {/* Color Swatch Dots */}
-                      <div className="mt-3 flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5">
                         {colorDots.map((dot, idx) => (
                           <span
                             key={idx}
-                            className="h-3 w-3 rounded-full border border-black/10 shadow-inner"
+                            className="h-3 w-3 rounded-full border border-black/15 shadow-inner"
                             style={{ backgroundColor: dot }}
                           />
                         ))}
                       </div>
 
-                      {/* Grade Chip + Title */}
-                      <div className="mt-2.5 flex items-center gap-2">
+                      {/* Grade Chip */}
+                      <div className="mt-3">
                         <span
-                          className={`flex h-4 min-w-4 items-center justify-center px-1 text-[9px] font-black ${gradeBadge.bg}`}
+                          className={`inline-flex h-4 min-w-4 items-center justify-center px-1 text-[9px] font-black ${gradeBadge.bg}`}
                         >
                           {gradeBadge.letter}
                         </span>
-                        <Link
-                          href={`/shop/${item.id}`}
-                          className="font-display text-sm font-bold text-[#17364b] truncate hover:text-[#1D5D8B] transition"
-                        >
-                          {item.name}
-                        </Link>
                       </div>
 
-                      {/* Price & Rating */}
-                      <div className="mt-2.5 flex items-center justify-between">
-                        <Link
-                          href={`/shop/${item.id}`}
-                          className="font-display text-sm font-black text-[#17364b] hover:text-[#1D5D8B]"
-                        >
+                      {/* Title */}
+                      <h3 className="mt-1 font-display text-sm font-bold text-[#17364b] group-hover:text-white truncate transition-colors">
+                        {item.name}
+                      </h3>
+
+                      {/* Price & Heart Icon */}
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="font-display text-sm font-black text-[#17364b] group-hover:text-white transition-colors">
                           {fmtMoney(item.listedPrice)}
-                        </Link>
+                        </span>
 
-                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#d49c00]">
-                          <Star className="h-3.5 w-3.5 fill-current" />
-                          <span>{rating}</span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleToggleFavorite(item, e);
+                          }}
+                          aria-label={isFav ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+                          className="pointer-events-auto p-1 text-[#16c4df] transition hover:scale-125 active:scale-90"
+                        >
+                          <Heart
+                            className={`h-4 w-4 transition-colors ${
+                              isFav
+                                ? "fill-[#16c4df] text-[#16c4df]"
+                                : "text-[#16c4df] hover:fill-[#16c4df]/20"
+                            }`}
+                            strokeWidth={2}
+                          />
+                        </button>
                       </div>
-                    </div>
-
-                    {/* Quick Actions */}
-                    <div className="mt-3 border-t border-stone-100 pt-2.5 flex items-center justify-between">
-                      <Link
-                        href={`/shop/${item.id}`}
-                        className="text-[11px] font-bold text-[#1D5D8B] hover:text-[#16c4df]"
-                      >
-                        View Piece →
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={(e) => handleAddToCart(item, e)}
-                        aria-label={`Add ${item.name} to cart`}
-                        className={`flex h-7 w-7 items-center justify-center text-xs font-bold transition shadow-sm ${
-                          isAdded
-                            ? "bg-emerald-600 text-white"
-                            : "bg-[#16c4df] text-[#17364b] hover:scale-110 hover:bg-[#70e2ef]"
-                        }`}
-                      >
-                        {isAdded ? <Check className="h-3.5 w-3.5" /> : <ShoppingBag className="h-3.5 w-3.5" />}
-                      </button>
                     </div>
                   </article>
                 );
@@ -907,7 +852,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 const colorDots = getColorDots(item);
                 const rating = getItemRating(item);
                 const isFav = isFavorite(item.id);
-                const isAdded = addedIds.has(item.id);
 
                 return (
                   <article
@@ -1014,7 +958,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                         </dl>
                       </div>
 
-                      {/* Bottom: Price + Circular Cyan Cart Button */}
+                      {/* Bottom: Price + View Details Link */}
                       <div className="mt-6 flex items-center justify-between border-t border-stone-200 group-hover/row:border-white/15 pt-4 transition-colors">
                         <div
                           className="font-display text-2xl font-black sm:text-3xl text-[#17364b] group-hover/row:text-white transition-colors"
@@ -1022,23 +966,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                           {fmtMoney(item.listedPrice)}
                         </div>
 
-                        {/* Circular Cyan Cart Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleAddToCart(item, e)}
-                          aria-label={`Add ${item.name} to cart`}
-                          className={`flex h-11 w-11 items-center justify-center shadow-md transition duration-200 hover:scale-110 ${
-                            isAdded
-                              ? "bg-emerald-500 text-white"
-                              : "bg-[#16c4df] text-[#17364b] hover:bg-[#70e2ef]"
-                          }`}
+                        <Link
+                          href={`/shop/${item.id}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#1D5D8B] bg-white border border-stone-200 shadow-sm transition hover:bg-[#16c4df] hover:text-[#17364b] hover:border-[#16c4df]"
                         >
-                          {isAdded ? (
-                            <Check className="h-5 w-5" strokeWidth={2.5} />
-                          ) : (
-                            <ShoppingBag className="h-5 w-5" strokeWidth={2} />
-                          )}
-                        </button>
+                          View Details →
+                        </Link>
                       </div>
                     </div>
                   </article>

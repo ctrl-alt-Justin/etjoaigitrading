@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   try {
     const force = new URL(req.url).searchParams.get("force") === "1";
     if (force) {
-      for (const table of ["item_shares", "price_events", "items", "category_attributes", "categories", "suppliers"]) {
+      for (const table of ["reviews", "item_shares", "price_events", "items", "category_attributes", "categories", "suppliers"]) {
         const { error } = await supabase.from(table).delete().not("id", "is", null);
         if (error) throw error;
       }

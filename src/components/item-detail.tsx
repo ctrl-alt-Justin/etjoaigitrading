@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeDollarSign,
+  Camera,
   Check,
   CheckCircle2,
   Clock,
@@ -232,6 +233,7 @@ function EditItemModal({
     categoryId: item.categoryId == null ? "" : String(item.categoryId),
   });
   const [checklist, setChecklist] = useState(item.checklist ?? []);
+  const [intakePhotos, setIntakePhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => !photo.slot.startsWith("after-")));
   const [afterPhotos, setAfterPhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => photo.slot.startsWith("after-")));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -260,7 +262,39 @@ function EditItemModal({
     { label: "Benchmark", value: item.benchmarkPrice },
     { label: "Value high", value: item.valueHigh },
   ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
-  const beforePhotos = (item.photos ?? []).filter((photo) => !photo.slot.startsWith("after-"));
+
+  const addIntakeMedia = async (file: File | undefined) => {
+    if (!file) return;
+    const now = new Date();
+    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    try {
+      const dataUrl = await compressImageFile(file);
+      setIntakePhotos((current) => [...current, { slot: `intake-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "Video" : "Intake photo", url: dataUrl, timestamp }]);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setIntakePhotos((current) => [...current, { slot: `intake-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "Video" : "Intake photo", url: String(reader.result), timestamp }]);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const replaceIntakePhoto = async (index: number, file: File | undefined) => {
+    if (!file) return;
+    const now = new Date();
+    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    try {
+      const dataUrl = await compressImageFile(file);
+      setIntakePhotos((current) => current.map((p, i) => i === index ? { ...p, url: dataUrl, timestamp } : p));
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setIntakePhotos((current) => current.map((p, i) => i === index ? { ...p, url: String(reader.result), timestamp } : p));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const deleteIntakePhoto = (index: number) => {
+    setIntakePhotos((current) => current.filter((_, i) => i !== index));
+  };
+
   const addAfterMedia = async (file: File | undefined) => {
     if (!file) return;
     const now = new Date();
@@ -274,13 +308,14 @@ function EditItemModal({
       reader.readAsDataURL(file);
     }
   };
+
   const submit = async () => {
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "edit", ...form, status: form.status, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...beforePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
+      body: JSON.stringify({ action: "edit", ...form, status: form.status, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...intakePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -392,6 +427,79 @@ function EditItemModal({
             </div>
           )}
         </div>
+        {/* Intake photos and videos */}
+        <div className="mt-5 border-t border-stone-100 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="label mb-0">Intake photos and videos</div>
+              <p className="mt-1 text-[11px] text-stone-400">
+                Change or delete the photos originally uploaded during intake, or add new views.
+              </p>
+            </div>
+            <label className="btn-soft h-9 cursor-pointer text-[12px]">
+              <ImagePlus className="h-4 w-4" />
+              <span>Add intake photo</span>
+              <input
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(event) => {
+                  addIntakeMedia(event.target.files?.[0]);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
+          {intakePhotos.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">
+              No intake photos remaining. Click &ldquo;Add intake photo&rdquo; to upload.
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {intakePhotos.map((photo, ix) => (
+                <div key={photo.slot || ix} className="group relative overflow-hidden rounded-xl border border-[var(--line)] bg-stone-50">
+                  {photo.url.startsWith("data:video/") ? (
+                    <video src={photo.url} controls className="aspect-square w-full object-cover" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photo.url} alt={photo.label} className="aspect-square w-full object-cover" />
+                  )}
+
+                  <div className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase backdrop-blur-sm">
+                    {photo.label || `Photo ${ix + 1}`}
+                  </div>
+
+                  <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
+                    <label
+                      className="cursor-pointer rounded-full bg-stone-950/70 p-1 text-white backdrop-blur transition hover:bg-stone-900"
+                      title="Change photo"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          replaceIntakePhoto(ix, event.target.files?.[0]);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => deleteIntakePhoto(ix)}
+                      className="rounded-full bg-rose-600/80 p-1 text-white backdrop-blur transition hover:bg-rose-700"
+                      title="Delete photo"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="mt-5 border-t border-stone-100 pt-4">
           <div className="flex items-center justify-between gap-3"><div><div className="label mb-0">After photos and videos</div><p className="mt-1 text-[11px] text-stone-400">Add the finished or refurbished condition without replacing the before photos.</p></div><label className="btn-soft h-9 cursor-pointer text-[12px]"><ImagePlus className="h-4 w-4" /><span>Add media</span><input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => { addAfterMedia(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label></div>
           {afterPhotos.length === 0 ? (

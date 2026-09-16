@@ -162,7 +162,7 @@ export function ProductHoverThumb({
 
       {/* Visual pill indicating another setup view exists */}
       {hasSecondary && (
-        <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 pointer-events-none">
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 pointer-events-none">
           +setup
         </span>
       )}

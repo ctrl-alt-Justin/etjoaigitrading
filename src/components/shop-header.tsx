@@ -140,7 +140,7 @@ function ShopHeaderInner() {
 
           {/* Favorites Popup Dialog */}
           {favoritesOpen && (
-            <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 rounded-2xl bg-white p-4 text-[#17364b] shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-white p-4 text-[#17364b] shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
                 <div className="flex items-center gap-2">
                   <Heart className="h-4 w-4 fill-[#16c4df] text-[#16c4df]" />
@@ -171,7 +171,7 @@ function ShopHeaderInner() {
                       <Link
                         href={`/shop/${fav.id}`}
                         onClick={() => setFavoritesOpen(false)}
-                        className="h-12 w-14 shrink-0 overflow-hidden rounded-lg border border-stone-200 bg-stone-50 p-1"
+                        className="h-12 w-14 shrink-0 overflow-hidden border border-stone-200 bg-stone-50 p-1"
                       >
                         <Thumb
                           url={fav.photo}
@@ -198,7 +198,7 @@ function ShopHeaderInner() {
                           type="button"
                           onClick={() => handleQuickAdd(fav)}
                           title="Add to cart"
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e4f4f4] text-[#1D5D8B] hover:bg-[#16c4df] hover:text-[#17364b] transition"
+                          className="flex h-7 w-7 items-center justify-center bg-[#e4f4f4] text-[#1D5D8B] hover:bg-[#16c4df] hover:text-[#17364b] transition"
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />
                         </button>
@@ -206,7 +206,7 @@ function ShopHeaderInner() {
                           type="button"
                           onClick={() => removeFavorite(fav.id)}
                           title="Remove favorite"
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                          className="flex h-7 w-7 items-center justify-center text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

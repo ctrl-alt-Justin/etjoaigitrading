@@ -34,7 +34,7 @@ export function QuickAddButton({ item, className = "" }: { item: DbItem; classNa
       type="button"
       onClick={handleClick}
       aria-label={`Add ${item.name} to cart`}
-      className={`flex items-center justify-center rounded-xl font-bold transition duration-200 shadow-sm ${
+      className={`flex items-center justify-center font-bold transition duration-200 shadow-sm ${
         added
           ? "bg-emerald-600 text-white shadow-emerald-200"
           : "bg-[#16c4df] text-[#17364b] hover:scale-105 hover:bg-[#70e2ef]"

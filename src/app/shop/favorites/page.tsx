@@ -84,8 +84,8 @@ export default function ShopFavoritesPage() {
 
         {favorites.length === 0 ? (
           /* Empty State */
-          <div className="mx-auto mt-16 max-w-md rounded-3xl border border-dashed border-[#8edce8] bg-white p-12 text-center shadow-sm">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-[#e4f4f4] text-[#16c4df]">
+          <div className="mx-auto mt-16 max-w-md border border-dashed border-[#8edce8] bg-white p-12 text-center shadow-sm">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center bg-[#e4f4f4] text-[#16c4df]">
               <Heart className="h-10 w-10 text-[#16c4df]" strokeWidth={1.5} />
             </div>
             <h2 className="mt-5 font-display text-2xl font-black text-[#17364b]">
@@ -97,7 +97,7 @@ export default function ShopFavoritesPage() {
             <div className="mt-6">
               <Link
                 href="/shop/catalog"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#16c4df] px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#17364b] shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#70e2ef]"
+                className="inline-flex items-center gap-2 bg-[#16c4df] px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#17364b] shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#70e2ef]"
               >
                 Explore Catalog <ArrowRight className="h-4 w-4" />
               </Link>
@@ -111,13 +111,13 @@ export default function ShopFavoritesPage() {
               return (
                 <article
                   key={item.id}
-                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm transition hover:border-[#16c4df] hover:shadow-lg"
+                  className="group relative flex flex-col justify-between overflow-hidden border border-stone-200 bg-white p-4 shadow-sm transition hover:border-[#16c4df] hover:shadow-lg"
                 >
                   <div>
                     {/* Image Area */}
                     <Link
                       href={`/shop/${item.id}`}
-                      className="relative flex h-52 w-full items-center justify-center rounded-xl bg-[#f5f2eb]/70 p-4 transition group-hover:bg-[#efebe2]"
+                      className="relative flex h-52 w-full items-center justify-center bg-[#f5f2eb]/70 p-4 transition group-hover:bg-[#efebe2]"
                     >
                       <Thumb
                         url={item.photo}
@@ -157,7 +157,7 @@ export default function ShopFavoritesPage() {
                     <button
                       type="button"
                       onClick={() => handleAddToCart(item)}
-                      className={`flex flex-1 h-9 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                      className={`flex flex-1 h-9 items-center justify-center gap-1.5 text-xs font-bold transition shadow-sm ${
                         isAdded
                           ? "bg-emerald-600 text-white"
                           : "bg-[#16c4df] text-[#17364b] hover:bg-[#70e2ef]"
@@ -180,7 +180,7 @@ export default function ShopFavoritesPage() {
                       type="button"
                       onClick={() => removeFavorite(item.id)}
                       aria-label={`Remove ${item.name} from favorites`}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                      className="flex h-9 w-9 items-center justify-center text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

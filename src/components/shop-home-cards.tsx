@@ -75,15 +75,15 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
     : null;
 
   return (
-    <div className="relative group overflow-hidden rounded-3xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl transition duration-500 hover:border-white/30 hover:bg-white/[0.14]">
+    <div className="relative group overflow-hidden border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl transition duration-500 hover:border-white/30 hover:bg-white/[0.14]">
       {/* Top row: tags and favorite button */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
+          <span className="inline-flex items-center gap-1.5 bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
             <Sparkles className="h-3 w-3" /> Spotlight Pick
           </span>
           {item.grade && (
-            <span className="rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
+            <span className="border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
               Grade {item.grade} · {item.grade === "A" ? "Like New" : item.grade === "B" ? "Good" : "Inspected"}
             </span>
           )}
@@ -93,21 +93,21 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
           type="button"
           onClick={handleFav}
           aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur transition hover:bg-white hover:text-[#17364b]"
+          className="flex h-8 w-8 items-center justify-center bg-white/20 text-white backdrop-blur transition hover:bg-white hover:text-[#17364b]"
         >
           <Heart className={`h-4 w-4 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
         </button>
       </div>
 
       {/* Image container */}
-      <Link href={`/shop/${item.id}`} className="block relative mt-4 h-56 w-full rounded-2xl bg-white/10 p-4 transition group-hover:bg-white/15">
+      <Link href={`/shop/${item.id}`} className="block relative mt-4 h-56 w-full bg-white/10 p-4 transition group-hover:bg-white/15">
         <ProductHoverThumb
           photos={item.photos}
           alt={item.name}
           className="h-full w-full object-contain drop-shadow-md"
         />
         {discountPct && discountPct > 0 && (
-          <div className="absolute bottom-3 left-3 rounded-md bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow">
+          <div className="absolute bottom-3 left-3 z-10 bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow">
             Save {discountPct}% vs New
           </div>
         )}
@@ -143,14 +143,14 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
           <div className="flex items-center gap-2">
             <Link
               href={`/shop/${item.id}`}
-              className="inline-flex h-9 items-center justify-center rounded-xl bg-white/20 px-3 text-xs font-bold text-white transition hover:bg-white/30"
+              className="inline-flex h-9 items-center justify-center bg-white/20 px-3 text-xs font-bold text-white transition hover:bg-white/30"
             >
               Details
             </Link>
             <button
               type="button"
               onClick={handleAdd}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#16c4df] px-3.5 text-xs font-bold text-[#17364b] shadow transition hover:bg-[#70e2ef] active:scale-95"
+              className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#16c4df] px-3.5 text-xs font-bold text-[#17364b] shadow transition hover:bg-[#70e2ef] active:scale-95"
             >
               {added ? (
                 <>
@@ -287,14 +287,14 @@ export function FeaturedProductsGrid({
           return (
             <article
               key={item.id}
-              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-stone-200/90 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-xl"
+              className="group relative flex flex-col justify-between overflow-hidden border border-stone-200/90 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-xl"
             >
               {/* Top Bar: Grade Badge + Favorite Button */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   {item.grade ? (
                     <span
-                      className={`rounded px-2 py-0.5 text-[10px] font-black tracking-wide ${
+                      className={`px-2 py-0.5 text-[10px] font-black tracking-wide ${
                         item.grade === "A"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : item.grade === "B"
@@ -305,12 +305,12 @@ export function FeaturedProductsGrid({
                       Grade {item.grade} · {item.grade === "A" ? "Like New" : item.grade === "B" ? "Good" : "Fair"}
                     </span>
                   ) : (
-                    <span className="rounded bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">
+                    <span className="bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">
                       Inspected
                     </span>
                   )}
                   {discountPct && discountPct > 0 && (
-                    <span className="rounded bg-[#ff4a68] px-1.5 py-0.5 text-[9.5px] font-bold uppercase text-white shadow-sm">
+                    <span className="bg-[#ff4a68] px-1.5 py-0.5 text-[9.5px] font-bold uppercase text-white shadow-sm">
                       -{discountPct}%
                     </span>
                   )}
@@ -320,7 +320,7 @@ export function FeaturedProductsGrid({
                   type="button"
                   onClick={(e) => handleToggleFav(item, e)}
                   aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-400 transition hover:bg-white hover:text-[#ff4a68] hover:shadow-sm"
+                  className="flex h-7 w-7 items-center justify-center bg-stone-100 text-stone-400 transition hover:bg-white hover:text-[#ff4a68] hover:shadow-sm"
                 >
                   <Heart className={`h-4 w-4 ${fav ? "fill-[#ff4a68] text-[#ff4a68]" : ""}`} />
                 </button>
@@ -328,7 +328,7 @@ export function FeaturedProductsGrid({
 
               {/* Product Image Link with Hover to Setup View */}
               <Link href={`/shop/${item.id}`} className="mt-3 block group/img">
-                <div className="relative flex h-48 w-full items-center justify-center rounded-xl bg-[#f7f9fa] p-3 transition group-hover/img:bg-[#edf4f7]">
+                <div className="relative flex h-48 w-full items-center justify-center bg-[#f7f9fa] p-3 transition group-hover/img:bg-[#edf4f7]">
                   <ProductHoverThumb
                     photos={item.photos}
                     alt={item.name}
@@ -372,7 +372,7 @@ export function FeaturedProductsGrid({
                   <button
                     type="button"
                     onClick={(e) => handleAdd(item, e)}
-                    className="flex h-8 items-center gap-1.5 rounded-lg bg-[#1D5D8B] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#16486B] active:scale-95"
+                    className="flex h-8 items-center gap-1.5 bg-[#1D5D8B] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#16486B] active:scale-95"
                   >
                     {isAdded ? (
                       <>

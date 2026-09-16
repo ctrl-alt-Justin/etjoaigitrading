@@ -7,7 +7,7 @@ import {
   type ItemStatus,
 } from "@/db/schema";
 import { brandTier, computeFloor, round50, valuate } from "@/lib/valuation";
-import { checklistFor, refPhotoFor, SOLD_CHANNELS, WAREHOUSE_LOCATIONS } from "@/lib/taxonomy-data";
+import { checklistFor, refPhotoFor, REAL_SETUP_PHOTO, SOLD_CHANNELS, WAREHOUSE_LOCATIONS } from "@/lib/taxonomy-data";
 
 /* Deterministic pseudo-random for stable seed data */
 function mulberry32(seed: number) {
@@ -330,6 +330,9 @@ export async function seedIfEmpty() {
             : []),
           ...(grade === "C" || grade === "D"
             ? [{ slot: "detail", label: "Defects & wear", url: refPhotoFor(spec.cat) }]
+            : []),
+          ...(chance(0.65)
+            ? [{ slot: "setup", label: "Styled / room setup", url: REAL_SETUP_PHOTO }]
             : []),
         ];
 

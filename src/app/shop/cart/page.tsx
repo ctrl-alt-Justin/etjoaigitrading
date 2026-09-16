@@ -131,7 +131,7 @@ export default function ShopCartPage() {
             {/* Left: Cart Items List */}
             <div>
               {/* Table Controls */}
-              <div className="mb-4 flex items-center justify-between rounded-xl bg-white px-5 py-3 border border-[#d8e2e7] shadow-sm">
+              <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 border border-[#d8e2e7] shadow-sm">
                 <button
                   type="button"
                   onClick={toggleSelectAll}
@@ -157,7 +157,7 @@ export default function ShopCartPage() {
               </div>
 
               {/* Items List */}
-              <div className="divide-y divide-[#d8e2e7] rounded-2xl border border-[#d8e2e7] bg-white shadow-sm overflow-hidden">
+              <div className="divide-y divide-[#d8e2e7] border border-[#d8e2e7] bg-white shadow-sm overflow-hidden">
                 {items.map((item) => {
                   const isChecked = selectedIds.has(item.id);
                   return (
@@ -184,7 +184,7 @@ export default function ShopCartPage() {
                       {/* Photo Thumbnail */}
                       <Link
                         href={`/shop/${item.id}`}
-                        className="relative block h-24 w-28 overflow-hidden rounded-xl border border-stone-200 bg-[#f3f5f1] transition hover:opacity-90"
+                        className="relative block h-24 w-28 overflow-hidden border border-stone-200 bg-[#f3f5f1] transition hover:opacity-90"
                       >
                         <Thumb
                           url={item.photo}
@@ -220,12 +220,12 @@ export default function ShopCartPage() {
                       {/* Quantity & Actions */}
                       <div className="flex flex-row items-center justify-between gap-4 sm:flex-col sm:items-end">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-9 items-center rounded-xl border border-[#d8e2e7] bg-[#FCFDF8] px-2 shadow-inner">
+                          <div className="flex h-9 items-center border border-[#d8e2e7] bg-[#FCFDF8] px-2 shadow-inner">
                             <button
                               type="button"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
                               aria-label="Decrease quantity"
-                              className="flex h-6 w-6 items-center justify-center rounded text-stone-600 hover:bg-stone-200"
+                              className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-200"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
@@ -236,7 +236,7 @@ export default function ShopCartPage() {
                               type="button"
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               aria-label="Increase quantity"
-                              className="flex h-6 w-6 items-center justify-center rounded text-stone-600 hover:bg-stone-200"
+                              className="flex h-6 w-6 items-center justify-center text-stone-600 hover:bg-stone-200"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
@@ -246,7 +246,7 @@ export default function ShopCartPage() {
                             type="button"
                             onClick={() => removeFromCart(item.id)}
                             aria-label={`Remove ${item.name} from cart`}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            className="flex h-9 w-9 items-center justify-center text-stone-400 transition hover:bg-rose-50 hover:text-rose-600"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -264,7 +264,7 @@ export default function ShopCartPage() {
 
             {/* Right: Order Summary */}
             <div>
-              <div className="sticky top-24 rounded-3xl border border-[#8edce8]/50 bg-white p-6 shadow-sm">
+              <div className="sticky top-24 border border-[#8edce8]/50 bg-white p-6 shadow-sm">
                 <h2 className="font-display text-xl font-black uppercase tracking-tight text-[#1D5D8B]">
                   Order Summary
                 </h2>
@@ -276,45 +276,33 @@ export default function ShopCartPage() {
                       {fmtMoney(selectedSubtotal)}
                     </span>
                   </div>
-
                   <div className="flex justify-between">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-[#16c4df]" /> Muntinlupa Pickup
-                    </span>
-                    <span className="font-bold text-emerald-700">FREE</span>
+                    <span>Showroom Handling & QC</span>
+                    <span className="font-bold text-emerald-700">INCLUDED</span>
                   </div>
-
                   <div className="flex justify-between">
-                    <span>Metro Manila Delivery</span>
-                    <span className="font-semibold text-[#557287]">Calculated on Inquiry</span>
+                    <span>Metro Manila Freight</span>
+                    <span className="text-stone-500">Calculated upon booking</span>
                   </div>
+                </div>
 
-                  <div className="border-t border-[#d8e2e7] pt-4">
-                    <div className="flex items-baseline justify-between">
-                      <span className="font-display text-sm font-bold text-[#17364b]">
-                        Estimated Total
-                      </span>
-                      <span className="font-display text-2xl font-black text-[#1D5D8B]">
-                        {fmtMoney(selectedSubtotal)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-[#557287]">
-                      *Prices in Philippine Pesos (PHP). Final logistics arranged upon reservation.
-                    </p>
-                  </div>
+                <div className="mt-5 border-t border-[#8edce8]/40 pt-4 flex justify-between items-baseline">
+                  <span className="text-xs font-bold text-[#17364b]">Est. Total</span>
+                  <span className="font-display text-2xl font-black text-[#1D5D8B]">
+                    {fmtMoney(selectedSubtotal)}
+                  </span>
                 </div>
 
                 <button
                   type="button"
                   disabled={selectedCount === 0}
                   onClick={() => setCheckoutModalOpen(true)}
-                  className="mt-6 flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-[#16c4df] text-xs font-extrabold uppercase tracking-wider text-[#17364b] shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#70e2ef] hover:shadow-lg disabled:opacity-40 disabled:pointer-events-none"
+                  className="mt-6 flex w-full h-12 items-center justify-center gap-2 bg-[#16c4df] text-xs font-extrabold uppercase tracking-wider text-[#17364b] shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#70e2ef] hover:shadow-lg disabled:opacity-40 disabled:pointer-events-none"
                 >
-                  Proceed to Inquire ({selectedCount})
+                  <Mail className="h-4 w-4" /> Reserve Selected ({selectedCount})
                 </button>
 
-                {/* Trust guarantee card */}
-                <div className="mt-6 rounded-2xl bg-[#FCFDF8] p-4 border border-[#e4f4f4] space-y-2 text-[11px] text-[#3f6175]">
+                <div className="mt-6 bg-[#FCFDF8] p-4 border border-[#e4f4f4] space-y-2 text-[11px] text-[#3f6175]">
                   <div className="flex items-center gap-2 font-bold text-[#1D5D8B]">
                     <ShieldCheck className="h-4 w-4 text-[#16c4df]" /> Transparent Inspection
                   </div>
@@ -331,10 +319,10 @@ export default function ShopCartPage() {
       {/* Inquiry / Reservation Modal */}
       {checkoutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in-50">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-stone-200 sm:p-8">
+          <div className="w-full max-w-lg bg-white p-6 shadow-2xl border border-stone-200 sm:p-8">
             {inquirySent ? (
               <div className="text-center py-6">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center bg-emerald-50 text-emerald-600">
                   <CheckCircle className="h-10 w-10" />
                 </div>
                 <h3 className="mt-4 font-display text-2xl font-black text-[#17364b]">
@@ -351,7 +339,7 @@ export default function ShopCartPage() {
                       setInquirySent(false);
                       clearCart();
                     }}
-                    className="rounded-xl bg-[#1D5D8B] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#16486B]"
+                    className="bg-[#1D5D8B] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#16486B]"
                   >
                     Done & Return to Shop
                   </button>
@@ -372,7 +360,7 @@ export default function ShopCartPage() {
                   </button>
                 </div>
 
-                <div className="mt-4 rounded-xl bg-[#FCFDF8] p-3 border border-stone-100 text-xs">
+                <div className="mt-4 bg-[#FCFDF8] p-3 border border-stone-100 text-xs">
                   <div className="font-bold text-[#17364b] mb-1">
                     {selectedCount} pieces selected ({fmtMoney(selectedSubtotal)})
                   </div>
@@ -418,13 +406,13 @@ export default function ShopCartPage() {
                     <button
                       type="button"
                       onClick={() => setCheckoutModalOpen(false)}
-                      className="rounded-xl px-4 py-2 text-xs font-semibold text-[#557287] hover:bg-stone-100"
+                      className="px-4 py-2 text-xs font-semibold text-[#557287] hover:bg-stone-100"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#16c4df] px-5 py-2.5 text-xs font-bold text-[#17364b] shadow-sm hover:bg-[#70e2ef]"
+                      className="inline-flex items-center gap-1.5 bg-[#16c4df] px-5 py-2.5 text-xs font-bold text-[#17364b] shadow-sm hover:bg-[#70e2ef]"
                     >
                       <Mail className="h-3.5 w-3.5" /> Submit Reservation
                     </button>

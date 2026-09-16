@@ -153,7 +153,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
       </div>
 
       {/* Asking price section */}
-      <div className="mt-6 rounded-2xl border border-[#d8e2e7] bg-white p-5 shadow-sm">
+      <div className="mt-6 border border-[#d8e2e7] bg-white p-5 shadow-sm">
         <div className="flex items-baseline justify-between">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#557287]">
@@ -164,7 +164,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
             </div>
           </div>
           {item.benchmarkPrice && item.listedPrice && item.listedPrice < item.benchmarkPrice && (
-            <div className="rounded-xl bg-emerald-50 px-3 py-1.5 text-right border border-emerald-200">
+            <div className="bg-emerald-50 px-3 py-1.5 text-right border border-emerald-200">
               <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                 Below Retail
               </div>
@@ -186,13 +186,13 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
         {/* Quantity and Add to Cart */}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
           {/* Quantity Selector */}
-          <div className="flex h-12 w-32 items-center justify-between rounded-xl border border-[#d8e2e7] bg-[#FCFDF8] px-2 shadow-inner">
+          <div className="flex h-12 w-32 items-center justify-between border border-[#d8e2e7] bg-[#FCFDF8] px-2 shadow-inner">
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
               disabled={quantity <= 1}
               aria-label="Decrease quantity"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 transition hover:bg-stone-200 disabled:opacity-40"
+              className="flex h-8 w-8 items-center justify-center text-stone-600 transition hover:bg-stone-200 disabled:opacity-40"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -201,7 +201,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
               aria-label="Increase quantity"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 transition hover:bg-stone-200"
+              className="flex h-8 w-8 items-center justify-center text-stone-600 transition hover:bg-stone-200"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -211,7 +211,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
           <button
             type="button"
             onClick={handleAddToCart}
-            className={`flex flex-1 h-12 items-center justify-center gap-2.5 rounded-xl px-6 font-bold text-sm shadow-md transition duration-200 ${
+            className={`flex flex-1 h-12 items-center justify-center gap-2.5 px-6 font-bold text-sm shadow-md transition duration-200 ${
               added
                 ? "bg-emerald-600 text-white shadow-emerald-200"
                 : "bg-[#16c4df] text-[#17364b] hover:bg-[#70e2ef] hover:shadow-lg hover:-translate-y-0.5"
@@ -276,7 +276,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
         {/* Tab 1: Specifications */}
         {activeTab === "specs" && (
           <div className="mt-4 animate-in fade-in-50 duration-200">
-            <dl className="grid grid-cols-2 gap-x-5 gap-y-4 rounded-2xl border border-[#d8e2e7] bg-white p-5 sm:grid-cols-3">
+            <dl className="grid grid-cols-2 gap-x-5 gap-y-4 border border-[#d8e2e7] bg-white p-5 sm:grid-cols-3">
               {specs.map(([key, value]) => (
                 <div key={key}>
                   <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#557287]">
@@ -295,7 +295,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
         {activeTab === "before_state" && (
           <div className="mt-4 space-y-4 animate-in fade-in-50 duration-200">
             {/* Condition Notes summary */}
-            <div className="rounded-2xl border border-[#d8e2e7] bg-white p-5">
+            <div className="border border-[#d8e2e7] bg-white p-5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#1D5D8B]">
                 Intake Condition & Assessment
               </h3>
@@ -306,7 +306,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
 
             {/* Checklist items */}
             {item.checklist && item.checklist.length > 0 && (
-              <div className="rounded-2xl border border-[#d8e2e7] bg-white p-5">
+              <div className="border border-[#d8e2e7] bg-white p-5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#1D5D8B]">
                   Pre-Listing Inspection Checklist
                 </h3>
@@ -314,7 +314,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                   {item.checklist.map((check, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between rounded-xl bg-[#FCFDF8] px-3.5 py-2 text-xs border border-stone-100"
+                      className="flex items-center justify-between bg-[#FCFDF8] px-3.5 py-2 text-xs border border-stone-100"
                     >
                       <span className="font-semibold text-[#294e65]">{check.label}</span>
                       {check.status === "pass" ? (
@@ -338,7 +338,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
         {activeTab === "reviews" && (
           <div className="mt-4 space-y-5 animate-in fade-in-50 duration-200">
             {/* Rating summary bar */}
-            <div className="flex flex-col gap-4 rounded-2xl border border-[#d8e2e7] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 border border-[#d8e2e7] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="font-display text-4xl font-black text-[#17364b]">
                   {avgRating.toFixed(1)}
@@ -365,7 +365,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
               <button
                 type="button"
                 onClick={() => setReviewFormOpen(!reviewFormOpen)}
-                className="inline-flex items-center gap-1.5 self-start rounded-xl bg-[#1D5D8B] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#16486B]"
+                className="inline-flex items-center gap-1.5 self-start bg-[#1D5D8B] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#16486B]"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 {reviewFormOpen ? "Cancel" : "Write a Review"}
@@ -373,7 +373,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
             </div>
 
             {reviewMessage && (
-              <div className="rounded-xl bg-emerald-50 p-3.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
+              <div className="bg-emerald-50 p-3.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
                 {reviewMessage}
               </div>
             )}
@@ -382,7 +382,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
             {reviewFormOpen && (
               <form
                 onSubmit={handleSubmitReview}
-                className="rounded-2xl border border-[#16c4df]/50 bg-[#eefaff] p-5 animate-in fade-in-50"
+                className="border border-[#16c4df]/50 bg-[#eefaff] p-5 animate-in fade-in-50"
               >
                 <h4 className="text-sm font-bold text-[#17364b]">Share Your Feedback</h4>
                 
@@ -439,14 +439,14 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                   <button
                     type="button"
                     onClick={() => setReviewFormOpen(false)}
-                    className="rounded-xl px-4 py-2 text-xs font-semibold text-[#557287] hover:bg-stone-100"
+                    className="px-4 py-2 text-xs font-semibold text-[#557287] hover:bg-stone-100"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingReview}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#16c4df] px-4 py-2 text-xs font-bold text-[#17364b] transition hover:bg-[#70e2ef] disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 bg-[#16c4df] px-4 py-2 text-xs font-bold text-[#17364b] transition hover:bg-[#70e2ef] disabled:opacity-50"
                   >
                     <Send className="h-3 w-3" />
                     {isSubmittingReview ? "Submitting..." : "Submit Review"}
@@ -457,7 +457,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
 
             {/* Review List */}
             {reviews.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#d8e2e7] bg-white p-8 text-center">
+              <div className="border border-dashed border-[#d8e2e7] bg-white p-8 text-center">
                 <Sparkles className="mx-auto h-8 w-8 text-[#16c4df]" />
                 <h4 className="mt-2 text-sm font-bold text-[#17364b]">No reviews yet</h4>
                 <p className="mt-1 text-xs text-[#557287]">
@@ -469,7 +469,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                 {reviews.map((rev) => (
                   <div
                     key={rev.id}
-                    className="rounded-2xl border border-[#d8e2e7] bg-white p-4 transition hover:border-[#16c4df]/50"
+                    className="border border-[#d8e2e7] bg-white p-4 transition hover:border-[#16c4df]/50"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -507,7 +507,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
       </div>
 
       {/* Muntinlupa viewing card */}
-      <div className="mt-8 rounded-2xl bg-[#123D5B] p-5 text-white shadow-sm">
+      <div className="mt-8 bg-[#123D5B] p-5 text-white shadow-sm">
         <div className="flex items-start gap-3">
           <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#16c4df]" />
           <div>
@@ -519,7 +519,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
         </div>
         <a
           href={`mailto:hello@etjoaigi.com?subject=Furniture%20Inquiry%3A%20${encodeURIComponent(item.name)}%20(${item.sku ?? "Item"})`}
-          className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl bg-[#FCFDF8] px-4 text-xs font-bold text-[#1D5D8B] transition hover:bg-white"
+          className="mt-4 inline-flex h-9 items-center gap-2 bg-[#FCFDF8] px-4 text-xs font-bold text-[#1D5D8B] transition hover:bg-white"
         >
           <Mail className="h-3.5 w-3.5" /> Contact ETJOAIGI
         </a>

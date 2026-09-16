@@ -161,13 +161,13 @@ export default async function ShopHomePage() {
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <Link
                   href="/shop/catalog"
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#16c4df] px-6 py-3.5 text-sm font-black text-[#17364b] shadow-[0_8px_30px_rgba(22,196,223,0.35)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#68e0ee] active:scale-95"
+                  className="inline-flex items-center gap-2 bg-[#16c4df] px-6 py-3.5 text-sm font-black text-[#17364b] shadow-[0_8px_30px_rgba(22,196,223,0.35)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#68e0ee] active:scale-95"
                 >
                   Explore Catalog <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/shop/offers"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition duration-200 hover:bg-white/20 hover:border-white/40"
+                  className="inline-flex items-center gap-2 border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition duration-200 hover:bg-white/20 hover:border-white/40"
                 >
                   Today&apos;s Drops & Offers
                 </Link>
@@ -196,7 +196,7 @@ export default async function ShopHomePage() {
                 {spotlightItem ? (
                   <HeroSpotlightCard item={spotlightItem} />
                 ) : (
-                  <div className="rounded-3xl border border-white/20 bg-white/10 p-8 text-center backdrop-blur">
+                  <div className="border border-white/20 bg-white/10 p-8 text-center backdrop-blur">
                     <Armchair className="mx-auto h-24 w-24 text-[#16c4df]" strokeWidth={1} />
                     <div className="mt-4 font-display text-2xl font-bold text-white">Curated Selection</div>
                     <p className="mt-1 text-xs text-white/70">Top ergonomic brands tested and priced for immediate use.</p>
@@ -335,9 +335,9 @@ export default async function ShopHomePage() {
           {/* 3 Tier Grading Cards */}
           <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
             {/* Grade A */}
-            <div className="rounded-2xl border-2 border-emerald-300 bg-white p-6 shadow-sm">
+            <div className="border-2 border-emerald-300 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+                <span className="bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
                   Grade A · Like New
                 </span>
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -362,9 +362,9 @@ export default async function ShopHomePage() {
             </div>
 
             {/* Grade B */}
-            <div className="rounded-2xl border border-sky-200 bg-white p-6 shadow-sm">
+            <div className="border border-sky-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-800">
+                <span className="bg-sky-100 px-3 py-1 text-xs font-black text-sky-800">
                   Grade B · Good Condition
                 </span>
                 <CheckCircle2 className="h-5 w-5 text-sky-600" />
@@ -389,9 +389,9 @@ export default async function ShopHomePage() {
             </div>
 
             {/* Grade C */}
-            <div className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+            <div className="border border-amber-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
+                <span className="bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
                   Grade C · Fair / Deep Value
                 </span>
                 <CheckCircle2 className="h-5 w-5 text-amber-600" />
@@ -434,7 +434,7 @@ export default async function ShopHomePage() {
             {TESTIMONIALS.map((t, idx) => (
               <div
                 key={idx}
-                className="flex flex-col justify-between rounded-2xl border border-stone-200/90 bg-[#fbfdfd] p-6 shadow-sm transition hover:shadow-md"
+                className="flex flex-col justify-between border border-stone-200/90 bg-[#fbfdfd] p-6 shadow-sm transition hover:shadow-md"
               >
                 <div>
                   <div className="flex items-center gap-1 text-amber-500">
@@ -450,7 +450,7 @@ export default async function ShopHomePage() {
                 <div className="mt-6 border-t border-stone-100 pt-4">
                   <div className="font-bold text-stone-900 text-sm">{t.name}</div>
                   <div className="text-xs text-stone-500">{t.role}</div>
-                  <div className="mt-1.5 inline-block rounded bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-[#1D5D8B]">
+                  <div className="mt-1.5 inline-block bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-[#1D5D8B]">
                     Purchased: {t.item}
                   </div>
                 </div>
@@ -495,7 +495,7 @@ export default async function ShopHomePage() {
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link
                   href="/shop/catalog"
-                  className="rounded-xl bg-[#16c4df] px-6 py-3 text-xs font-black text-[#17364b] transition hover:bg-[#6be2ee]"
+                  className="bg-[#16c4df] px-6 py-3 text-xs font-black text-[#17364b] transition hover:bg-[#6be2ee]"
                 >
                   Browse Available Stock
                 </Link>
@@ -503,7 +503,7 @@ export default async function ShopHomePage() {
                   href="https://maps.google.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl border border-white/30 bg-white/10 px-6 py-3 text-xs font-bold text-white transition hover:bg-white/20"
+                  className="border border-white/30 bg-white/10 px-6 py-3 text-xs font-bold text-white transition hover:bg-white/20"
                 >
                   Get Driving Directions ↗
                 </a>
@@ -511,24 +511,24 @@ export default async function ShopHomePage() {
             </div>
 
             {/* Warehouse Visual Feature Box */}
-            <div className="rounded-3xl border border-white/15 bg-white/5 p-8 backdrop-blur-sm">
+            <div className="border border-white/15 bg-white/5 p-8 backdrop-blur-sm">
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-5 text-center">
+                <div className="border border-white/10 bg-white/10 p-5 text-center">
                   <div className="font-display text-3xl font-black text-[#16c4df]">100%</div>
                   <div className="mt-1 text-xs font-bold text-white">Pre-Inspected</div>
                   <div className="mt-1 text-[10.5px] text-white/70">Checklist logged before listing</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-5 text-center">
+                <div className="border border-white/10 bg-white/10 p-5 text-center">
                   <div className="font-display text-3xl font-black text-[#16c4df]">24-48h</div>
                   <div className="mt-1 text-xs font-bold text-white">Metro Delivery</div>
                   <div className="mt-1 text-[10.5px] text-white/70">Handled by furniture couriers</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-5 text-center">
+                <div className="border border-white/10 bg-white/10 p-5 text-center">
                   <div className="font-display text-3xl font-black text-[#16c4df]">Up to 65%</div>
                   <div className="mt-1 text-xs font-bold text-white">Below Retail</div>
                   <div className="mt-1 text-[10.5px] text-white/70">Enterprise-grade furnishings</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-5 text-center">
+                <div className="border border-white/10 bg-white/10 p-5 text-center">
                   <div className="font-display text-3xl font-black text-[#16c4df]">0 Hidden</div>
                   <div className="mt-1 text-xs font-bold text-white">Flaws or Surprises</div>
                   <div className="mt-1 text-[10.5px] text-white/70">Photographed down to minor scuffs</div>

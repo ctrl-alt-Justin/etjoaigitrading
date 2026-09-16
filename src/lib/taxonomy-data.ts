@@ -141,34 +141,43 @@ export function calculateAutoGrade(checks: Record<number, "pass" | "flag" | "fai
 
 export const MIN_CLEANING_COST = 350;
 
-/** Reference photography per leaf category slug. */
+/** Real reference photography per leaf category slug for development and catalog display */
 export const REF_PHOTOS: Record<string, string> = {
-  "task-chairs": "/images/reference-furniture.svg",
-  "executive-chairs": "/images/reference-furniture.svg",
-  "conference-chairs": "/images/reference-furniture.svg",
-  "lounge-chairs": "/images/reference-furniture.svg",
-  "standing-desks": "/images/reference-furniture.svg",
-  "executive-desks": "/images/reference-furniture.svg",
-  "bench-desks": "/images/reference-furniture.svg",
-  "conference-tables": "/images/reference-furniture.svg",
-  "training-tables": "/images/reference-furniture.svg",
-  "side-tables": "/images/reference-furniture.svg",
-  "filing-cabinets": "/images/reference-furniture.svg",
-  "bookcases": "/images/reference-furniture.svg",
-  "credenzas": "/images/reference-furniture.svg",
-  "lockers": "/images/reference-furniture.svg",
-  "cubicle-panels": "/images/reference-furniture.svg",
-  "acoustic-panels": "/images/reference-furniture.svg",
-  "reception-desks": "/images/reference-furniture.svg",
-  "sofas": "/images/reference-furniture.svg",
+  "task-chairs": "https://images.unsplash.com/photo-1581539250439-c96689b516dd?auto=format&fit=crop&w=800&q=80",
+  "executive-chairs": "https://images.unsplash.com/photo-1505797149-43b0069ec26b?auto=format&fit=crop&w=800&q=80",
+  "conference-chairs": "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&w=800&q=80",
+  "lounge-chairs": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=800&q=80",
+  "standing-desks": "https://images.unsplash.com/photo-1505843513577-22bb7d21e455?auto=format&fit=crop&w=800&q=80",
+  "executive-desks": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=800&q=80",
+  "bench-desks": "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+  "conference-tables": "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&q=80",
+  "training-tables": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80",
+  "side-tables": "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=800&q=80",
+  "filing-cabinets": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=800&q=80",
+  "bookcases": "https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=800&q=80",
+  "credenzas": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=800&q=80",
+  "lockers": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=800&q=80",
+  "cubicle-panels": "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=80",
+  "acoustic-panels": "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=80",
+  "reception-desks": "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=800&q=80",
+  "sofas": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
 };
 
+export const REAL_SETUP_PHOTO = "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80";
+
 export function refPhotoFor(leafSlug: string): string {
-  return REF_PHOTOS[leafSlug] ?? "/images/reference-furniture.svg";
+  return REF_PHOTOS[leafSlug] ?? "https://images.unsplash.com/photo-1581539250439-c96689b516dd?auto=format&fit=crop&w=800&q=80";
 }
 
 export function normalizeRefPhoto(url: string): string {
-  return url.startsWith("/images/ref-") ? "/images/reference-furniture.svg" : url;
+  if (!url) return url;
+  if (url === "/images/reference-furniture.svg" || url.startsWith("/images/ref-")) {
+    return "https://images.unsplash.com/photo-1581539250439-c96689b516dd?auto=format&fit=crop&w=800&q=80";
+  }
+  if (url === "/images/reference-setup.svg") {
+    return REAL_SETUP_PHOTO;
+  }
+  return url;
 }
 
 export const SOLD_CHANNELS = [

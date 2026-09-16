@@ -55,7 +55,7 @@ export default async function ShopOffersPage() {
     return (
       <article
         key={item.id}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#d8e2e7] bg-white transition duration-300 hover:border-[#16c4df] hover:shadow-lg"
+        className="group relative flex flex-col justify-between overflow-hidden border border-[#d8e2e7] bg-white transition duration-300 hover:border-[#16c4df] hover:shadow-lg"
       >
         <Link href={`/shop/${item.id}`} className="block">
           <div className="relative h-56 w-full overflow-hidden bg-[#f3f5f1]">
@@ -66,13 +66,13 @@ export default async function ShopOffersPage() {
             />
             {badge && (
               <span
-                className={`absolute left-3 top-3 rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-sm ${badge.tone}`}
+                className={`absolute left-3 top-3 z-10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-sm ${badge.tone}`}
               >
                 {badge.label}
               </span>
             )}
             {savings != null && (
-              <span className="absolute right-3 top-3 rounded-md bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+              <span className="absolute right-3 top-3 z-10 bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
                 Save {fmtMoney(savings)}
               </span>
             )}
@@ -132,9 +132,9 @@ export default async function ShopOffersPage() {
 
       <main className="mx-auto max-w-[1480px] px-5 pb-24 pt-6 sm:px-8">
         {/* Banner Section */}
-        <section className="relative mb-12 overflow-hidden rounded-3xl bg-gradient-to-r from-[#1D5D8B] to-[#123D5B] p-8 text-white shadow-md sm:p-12">
+        <section className="relative mb-12 overflow-hidden bg-gradient-to-r from-[#1D5D8B] to-[#123D5B] p-8 text-white shadow-md sm:p-12">
           <div className="relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#16c4df]/30 bg-[#16c4df]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#a9e4f1]">
+            <div className="inline-flex items-center gap-2 border border-[#16c4df]/30 bg-[#16c4df]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#a9e4f1]">
               <Sparkles className="h-3 w-3 text-[#16c4df]" /> Special Deals & Curations
             </div>
             <h1 className="mt-4 font-display text-4xl font-black tracking-tight sm:text-6xl">
@@ -146,19 +146,19 @@ export default async function ShopOffersPage() {
             <div className="mt-6 flex flex-wrap gap-4">
               <a
                 href="#featured"
-                className="rounded-xl bg-[#16c4df] px-5 py-2.5 text-xs font-bold text-[#17364b] shadow-sm transition hover:bg-[#70e2ef]"
+                className="bg-[#16c4df] px-5 py-2.5 text-xs font-bold text-[#17364b] shadow-sm transition hover:bg-[#70e2ef]"
               >
                 Featured Picks
               </a>
               <a
                 href="#below-retail"
-                className="rounded-xl bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
               >
                 Below Retail Value
               </a>
               <a
                 href="#latest-arrivals"
-                className="rounded-xl bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="bg-white/10 px-5 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
               >
                 Latest Drops
               </a>

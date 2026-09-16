@@ -64,7 +64,7 @@ export type SoldRef = {
 
 export type SupplierLite = { id: number; name: string; channel: string };
 
-const STEPS = ["Media & photos", "Category", "Sourcing", "Identity", "Inspection", "Pricing & publish"];
+const STEPS = ["Media & photos", "Sourcing", "Category / Identity", "Inspection", "Pricing & publish"];
 
 function parseInitialDims(raw?: string | null): { l: string; w: string; h: string; unit: DimensionUnit } {
   if (!raw) return { l: "", w: "", h: "", unit: "cm" };
@@ -608,7 +608,7 @@ export function IntakeWizard({
       const data = await res.json().catch(() => ({}));
       if (res.status === 409 && data.error === "BELOW_FLOOR") {
         setError(`Price floor enforced — the ask must be at least ${fmtMoney(data.floor)} for this unit.`);
-        setStep(5);
+        setStep(4);
       } else if (!res.ok) {
         setError(data.error === "DATABASE_MIGRATION_REQUIRED"
           ? "The database needs the draft-item migration. Run supabase/draft-items.sql in Supabase SQL Editor, then try again."
@@ -754,46 +754,78 @@ export function IntakeWizard({
                       );
 
                       return (
-                        <div key={s.slot} className={cn("overflow-hidden rounded-2xl border", url ? "border-[var(--line)]" : "border-dashed border-stone-300")}>
+                        <div key={s.slot} className={cn("overflow-hidden rounded-2xl border transition-all", url ? "border-[var(--line)] shadow-sm bg-white" : "border-dashed border-stone-300 bg-stone-50/60")}>
                           {url ? (
-                            <div className="relative">
+                            <div className="relative group">
                               {url.startsWith("data:video/") ? (
                                 <video src={url} controls className="aspect-[4/3] w-full object-cover" />
                               ) : (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
                               )}
+
+                              {/* Timestamp Badge */}
                               {photoTimestamps[s.slot] && (
                                 <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-medium text-white backdrop-blur shadow-sm">
                                   <Clock className="h-3 w-3 text-amber-400" />
                                   {photoTimestamps[s.slot]}
                                 </div>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPhotos((p) => ({ ...p, [s.slot]: null }));
-                                  setPhotoTimestamps((t) => {
-                                    const next = { ...t };
-                                    delete next[s.slot];
-                                    return next;
-                                  });
-                                }}
-                                className="absolute right-2.5 top-2.5 rounded-full bg-stone-950/60 p-1.5 text-white backdrop-blur transition hover:bg-stone-950/80"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                              <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
-                                <span>{s.label}</span>
-                                {isAfterSlot && (
-                                  <span className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-extrabold text-amber-800 uppercase">
-                                    After Refurb
-                                  </span>
+
+                              {/* Top-Right Action Controls: Change Photo & Delete */}
+                              <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => fileRefs.current[s.slot]?.click()}
+                                  className="flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-stone-900 shadow-sm"
+                                  title={`Change ${s.label}`}
+                                >
+                                  <Camera className="h-3.5 w-3.5 text-stone-300" />
+                                  <span>Change</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPhotos((p) => ({ ...p, [s.slot]: null }));
+                                    setPhotoTimestamps((t) => {
+                                      const next = { ...t };
+                                      delete next[s.slot];
+                                      return next;
+                                    });
+                                  }}
+                                  className="flex items-center justify-center rounded-full bg-rose-600/90 p-1.5 text-white backdrop-blur transition hover:bg-rose-700 shadow-sm"
+                                  title={`Delete ${s.label}`}
+                                  aria-label={`Delete ${s.label}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Bottom Slot Label & Switch-to-Reference Button */}
+                              <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
+                                  <span>{s.label}</span>
+                                  {isAfterSlot && (
+                                    <span className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-extrabold text-amber-800 uppercase">
+                                      After Refurb
+                                    </span>
+                                  )}
+                                </div>
+
+                                {leaf && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
+                                    className="rounded-full bg-white/95 px-2.5 py-1 text-[10.5px] font-semibold text-[#1D5D8B] backdrop-blur shadow-sm transition hover:bg-white hover:underline"
+                                    title="Switch to reference photo"
+                                  >
+                                    Use reference
+                                  </button>
                                 )}
                               </div>
                             </div>
                           ) : (
-                            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 bg-stone-50/60 p-5 text-center">
+                            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 p-5 text-center">
                               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-stone-400 shadow-sm">
                                 <Camera className="h-5 w-5" strokeWidth={1.8} />
                               </div>
@@ -822,7 +854,10 @@ export function IntakeWizard({
                             type="file"
                             accept="image/*,video/*"
                             className="hidden"
-                            onChange={(e) => onFile(s.slot, e.target.files?.[0])}
+                            onChange={(e) => {
+                              onFile(s.slot, e.target.files?.[0]);
+                              e.target.value = "";
+                            }}
                           />
                         </div>
                       );
@@ -935,98 +970,8 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 1 · CATEGORY ---------------- */}
+            {/* ---------------- STEP 1 · SOURCING ---------------- */}
             {step === 1 && (
-              <div className="card p-5">
-                <h3 className="font-display text-xl font-semibold text-stone-900">What is it?</h3>
-                <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                  One controlled taxonomy for the whole company. Pick the leaf category, or fuzzy-search the tree.
-                </p>
-                <input
-                  className="input"
-                  placeholder="Search the taxonomy — e.g. “stand desk”, “filing”…"
-                  value={catQuery}
-                  onChange={(e) => setCatQuery(e.target.value)}
-                />
-                {catQuery.trim() ? (
-                  <div className="mt-3 divide-y divide-stone-100">
-                    {catFuse.search(catQuery.trim()).slice(0, 8).map(({ item }) => (
-                      <button
-                        key={item.c.id}
-                        onClick={() => setLeafId(item.c.id)}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 py-2.5 text-left",
-                          leafId === item.c.id ? "text-amber-800" : "text-stone-700 hover:text-stone-900"
-                        )}
-                      >
-                        <span className="text-[13.5px]">
-                          <span className="text-stone-400">{item.path.split(" › ").slice(0, -1).join(" › ")} › </span>
-                          <span className="font-semibold">{item.c.name}</span>
-                        </span>
-                        {item.c.baseValue ? (
-                          <span className="text-[11px] text-stone-400 tabular-nums">ref {fmtMoney(item.c.baseValue)}</span>
-                        ) : null}
-                      </button>
-                    ))}
-                    {catFuse.search(catQuery.trim()).length === 0 && (
-                      <p className="py-4 text-[13px] text-stone-400">No category matches — extend the tree from the Taxonomy desk.</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1 rounded-xl border border-[var(--line)] p-1.5">
-                      {roots.map((r) => (
-                        <button
-                          key={r.id}
-                          onClick={() => setRootId(r.id)}
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[13.5px] font-medium transition",
-                            rootId === r.id ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
-                          )}
-                        >
-                          {r.name}
-                          <ChevronRight className={cn("h-4 w-4", rootId === r.id ? "text-amber-300" : "text-stone-300")} />
-                        </button>
-                      ))}
-                    </div>
-                    <div className="space-y-1 rounded-xl border border-[var(--line)] bg-stone-50/50 p-1.5">
-                      {rootId == null ? (
-                        <p className="px-3 py-8 text-center text-[12.5px] text-stone-400">Select a family to see its categories</p>
-                      ) : (
-                        (childrenOf.get(rootId) ?? [byId.get(rootId)!]).map((c) => (
-                          <button
-                            key={c.id}
-                            onClick={() => setLeafId(c.id)}
-                            className={cn(
-                              "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[13.5px] transition",
-                              leafId === c.id
-                                ? "bg-amber-600 font-semibold text-white"
-                                : "text-stone-700 hover:bg-white"
-                            )}
-                          >
-                            {c.name}
-                            {c.baseValue ? (
-                              <span className={cn("text-[11px] tabular-nums", leafId === c.id ? "text-amber-100" : "text-stone-400")}>
-                                ref {fmtMoney(c.baseValue)}
-                              </span>
-                            ) : null}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-                {leaf && (
-                  <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
-                    <CircleDot className="h-4 w-4 text-amber-600" />
-                    <span className="font-semibold">{pathOfLeaf(leaf)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ---------------- STEP 2 · SOURCING ---------------- */}
-            {step === 2 && (
               <div className="space-y-4">
                 <div className="card p-5">
                   <h3 className="font-display text-xl font-semibold text-stone-900">Sourcing & acquisition</h3>
@@ -1130,9 +1075,96 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 3 · IDENTITY ---------------- */}
-            {step === 3 && (
+            {/* ---------------- STEP 2 · CATEGORY & IDENTITY ---------------- */}
+            {step === 2 && (
               <div className="space-y-4">
+                <div className="card p-5">
+                  <h3 className="font-display text-xl font-semibold text-stone-900">What is it?</h3>
+                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
+                    One controlled taxonomy for the whole company. Pick the leaf category, or fuzzy-search the tree.
+                  </p>
+                  <input
+                    className="input"
+                    placeholder="Search the taxonomy — e.g. “stand desk”, “filing”…"
+                    value={catQuery}
+                    onChange={(e) => setCatQuery(e.target.value)}
+                  />
+                  {catQuery.trim() ? (
+                    <div className="mt-3 divide-y divide-stone-100">
+                      {catFuse.search(catQuery.trim()).slice(0, 8).map(({ item }) => (
+                        <button
+                          key={item.c.id}
+                          onClick={() => setLeafId(item.c.id)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 py-2.5 text-left",
+                            leafId === item.c.id ? "text-amber-800" : "text-stone-700 hover:text-stone-900"
+                          )}
+                        >
+                          <span className="text-[13.5px]">
+                            <span className="text-stone-400">{item.path.split(" › ").slice(0, -1).join(" › ")} › </span>
+                            <span className="font-semibold">{item.c.name}</span>
+                          </span>
+                          {item.c.baseValue ? (
+                            <span className="text-[11px] text-stone-400 tabular-nums">ref {fmtMoney(item.c.baseValue)}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                      {catFuse.search(catQuery.trim()).length === 0 && (
+                        <p className="py-4 text-[13px] text-stone-400">No category matches — extend the tree from the Taxonomy desk.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1 rounded-xl border border-[var(--line)] p-1.5">
+                        {roots.map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => setRootId(r.id)}
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[13.5px] font-medium transition",
+                              rootId === r.id ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
+                            )}
+                          >
+                            {r.name}
+                            <ChevronRight className={cn("h-4 w-4", rootId === r.id ? "text-amber-300" : "text-stone-300")} />
+                          </button>
+                        ))}
+                      </div>
+                      <div className="space-y-1 rounded-xl border border-[var(--line)] bg-stone-50/50 p-1.5">
+                        {rootId == null ? (
+                          <p className="px-3 py-8 text-center text-[12.5px] text-stone-400">Select a family to see its categories</p>
+                        ) : (
+                          (childrenOf.get(rootId) ?? [byId.get(rootId)!]).map((c) => (
+                            <button
+                              key={c.id}
+                              onClick={() => setLeafId(c.id)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[13.5px] transition",
+                                leafId === c.id
+                                  ? "bg-amber-600 font-semibold text-white"
+                                  : "text-stone-700 hover:bg-white"
+                              )}
+                            >
+                              {c.name}
+                              {c.baseValue ? (
+                                <span className={cn("text-[11px] tabular-nums", leafId === c.id ? "text-amber-100" : "text-stone-400")}>
+                                  ref {fmtMoney(c.baseValue)}
+                                </span>
+                              ) : null}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {leaf && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
+                      <CircleDot className="h-4 w-4 text-amber-600" />
+                      <span className="font-semibold">{pathOfLeaf(leaf)}</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="card p-5">
                   <h3 className="font-display text-xl font-semibold text-stone-900">Identity & specifications</h3>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1280,8 +1312,8 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 4 · INSPECTION ---------------- */}
-            {step === 4 && (
+            {/* ---------------- STEP 3 · INSPECTION ---------------- */}
+            {step === 3 && (
               <div className="space-y-4">
                 {/* 1. Categorized Checklist at the top */}
                 <div className="card p-5">
@@ -1478,8 +1510,8 @@ export function IntakeWizard({
               </div>
             )}
 
-            {/* ---------------- STEP 5 · PRICING & PUBLISH ---------------- */}
-            {step === 5 && (
+            {/* ---------------- STEP 4 · PRICING & PUBLISH ---------------- */}
+            {step === 4 && (
               <div className="grid gap-4 xl:grid-cols-2">
                 <div className="space-y-4">
                   <div className="card p-5">
