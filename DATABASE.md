@@ -51,7 +51,7 @@ Furniture sources and their contact details, channel, and notes.
 
 The inventory record. It stores identifying details, category and supplier links,
 flexible JSON attributes, condition/checklist/photos, acquisition and pricing
-values, sales data, status, location, and lifecycle timestamps.
+values, sales data, status, location, featured flag (`is_featured`), and lifecycle timestamps.
 
 ### `price_events`
 
@@ -61,6 +61,11 @@ Append-only price history for an item, such as listing, markdown, or sale events
 
 Customer-facing share links for items. Each row has a unique token, optional offer
 price and remarks, active state, and timestamps.
+
+### `reviews`
+
+Customer ratings and reviews for individual items. Contains `item_id` (foreign key to `items`),
+`rating` (1–5 scale), `author_name`, `content`, and timestamp `created_at`. Indexed by `item_id`.
 
 ## PostgreSQL-specific details
 

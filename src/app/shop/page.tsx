@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getAllData } from "@/lib/queries";
-import { Logo } from "@/components/shell";
 import { normalizeRefPhoto } from "@/lib/taxonomy-data";
+import { ShopHeader } from "@/components/shop-header";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 export const dynamic = "force-dynamic";
 
@@ -34,25 +35,7 @@ export default async function ShopHomePage() {
 
   return (
     <div className="min-h-screen bg-[#FCFDF8] text-[#17364b] antialiased">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[#8ab7d2]/30 bg-[#1D5D8B]/95 backdrop-blur-md text-[#FCFDF8]">
-        <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-5 px-5 py-3.5 sm:px-8">
-          <Logo light subtitle="Furnitures" />
-          <nav className="hidden items-center gap-8 text-[13px] font-bold tracking-wide sm:flex">
-            <Link href="/shop/catalog" className="transition-colors hover:text-[#16c4df]">Catalogs</Link>
-            <a href="#offers" className="transition-colors hover:text-[#16c4df]">Offers</a>
-          </nav>
-          <div className="flex items-center gap-4">
-            <button aria-label="Favorites" className="relative p-2 text-[#FCFDF8] transition hover:text-[#16c4df] hover:scale-105">
-              <Heart className="h-5 w-5" strokeWidth={2} />
-              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#16c4df] text-[9px] font-bold text-[#17364b]">0</span>
-            </button>
-            <button aria-label="Shopping bag" className="p-2 text-[#FCFDF8] transition hover:text-[#16c4df] hover:scale-105">
-              <ShoppingBag className="h-5 w-5" strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <ShopHeader />
 
       <main className="mx-auto max-w-[1480px]">
         {/* Hero Section */}
@@ -183,6 +166,7 @@ export default async function ShopHomePage() {
           </div>
         </div>
       </footer>
+      <ScrollToTop />
     </div>
   );
 }

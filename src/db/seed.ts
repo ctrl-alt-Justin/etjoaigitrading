@@ -283,6 +283,17 @@ export async function seedIfEmpty() {
 
   type EventSeed = { itemId: number; kind: string; price: number | null; note?: string; createdAt: Date };
   const eventSeeds: EventSeed[] = [];
+  type ReviewSeed = { itemId: number; rating: number; authorName: string; content: string; createdAt: Date };
+  const reviewSeeds: ReviewSeed[] = [];
+
+  const SAMPLE_REVIEWS = [
+    { rating: 5, authorName: "Marco D.", content: "Exceptional condition! You can barely tell it was pre-owned. The ergonomics on this chair have transformed my workspace." },
+    { rating: 5, authorName: "Patricia S.", content: "Smooth viewing and pickup in Muntinlupa. Exactly as described in the condition checklist." },
+    { rating: 4, authorName: "Rafael C.", content: "Very solid piece. Minor scuff on the base as clearly noted in the inspection photos, but mechanically 100% flawless." },
+    { rating: 5, authorName: "Liza T.", content: "Superb value compared to brand new retail! Will definitely look here first for future office furniture." },
+    { rating: 4, authorName: "Carlo M.", content: "Sturdy and high quality. The team assisted with loading into our vehicle during pickup." },
+    { rating: 5, authorName: "Bea A.", content: "Top notch quality control. Everything functions like brand new, highly recommended." },
+  ];
 
   for (const [ix, spec] of specs.entries()) {
     const status = pool[ix];
@@ -354,6 +365,7 @@ export async function seedIfEmpty() {
     }
 
     const supplierId = pick(supIds);
+    const isFeatured = (status === "listed" && chance(0.35)) || chance(0.12);
     const { data: row, error: itemError } = await supabase
       .from("items")
       .insert(snakeizeRow({
@@ -381,6 +393,7 @@ export async function seedIfEmpty() {
         status,
         supplierId,
         location: pick(WAREHOUSE_LOCATIONS),
+        isFeatured,
         intakeAt,
         listedAt,
         soldAt,
@@ -411,6 +424,21 @@ export async function seedIfEmpty() {
     if (soldAt && soldPrice != null) {
       eventSeeds.push({ itemId: row.id, kind: "sold", price: soldPrice, note: soldChannel ?? undefined, createdAt: soldAt });
     }
+
+    if ((status === "listed" || status === "sold") && chance(0.7)) {
+      const numReviews = Math.floor(between(1, 4));
+      for (let r = 0; r < numReviews; r++) {
+        const sample = pick(SAMPLE_REVIEWS);
+        const reviewDate = daysAgo(Math.floor(between(1, 45)));
+        reviewSeeds.push({
+          itemId: row.id,
+          rating: sample.rating,
+          authorName: sample.authorName,
+          content: sample.content,
+          createdAt: reviewDate,
+        });
+      }
+    }
   }
 
   const { error: eventError } = await supabase.from("price_events").insert(
@@ -418,5 +446,15 @@ export async function seedIfEmpty() {
   );
   if (eventError) throw eventError;
 
-  return { seeded: true as const, items: specs.length, categories: 6 + LEAVES.length, suppliers: 6 };
+  if (reviewSeeds.length > 0) {
+    const { error: reviewError } = await supabase.from("reviews").insert(
+      reviewSeeds.map((r) => snakeizeRow({ itemId: r.itemId, rating: r.rating, authorName: r.authorName, content: r.content, createdAt: r.createdAt }))
+    );
+    if (reviewError) {
+      // Gracefully log if reviews table isn't migrated yet
+      console.warn("Could not insert reviews in seed:", reviewError.message);
+    }
+  }
+
+  return { seeded: true as const, items: specs.length, categories: 6 + LEAVES.length, suppliers: 6, reviews: reviewSeeds.length };
 }

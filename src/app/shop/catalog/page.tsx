@@ -1,123 +1,131 @@
-import { ArrowLeft, Search, Heart, ShoppingBag } from "lucide-react";
-import Link from "next/link";
 import { getAllData } from "@/lib/queries";
 import { CustomerCatalog } from "@/components/customer-catalog";
-import { Logo } from "@/components/shell";
+import { ShopHeader } from "@/components/shop-header";
+import { ScrollToTop } from "@/components/scroll-to-top";
 import { normalizeRefPhoto } from "@/lib/taxonomy-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function ShopCatalogPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+export default async function ShopCatalogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; q?: string }>;
+}) {
   const { items, categories } = await getAllData();
   const { category } = await searchParams;
   const selectedCategory = categories.find((item) => item.slug === category)?.id;
-  const forSale = items.filter((item) => item.status === "listed" && item.listedPrice != null);
+  const forSale = items.filter(
+    (item) => item.status === "listed" && item.listedPrice != null
+  );
   const heroPhoto = forSale.find((item) => item.photos?.[0]?.url)?.photos?.[0]?.url;
 
   return (
     <div className="min-h-screen bg-[#FCFDF8] text-[#17364b] antialiased">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[#8ab7d2]/30 bg-[#1D5D8B]/95 backdrop-blur-md text-[#FCFDF8]">
-        <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-5 px-5 py-3.5 sm:px-8">
-          <Link href="/shop" className="transition duration-200 hover:opacity-90">
-            <Logo light />
-          </Link>
-          <nav className="hidden items-center gap-8 text-[13px] font-bold tracking-wide sm:flex">
-            <Link href="/shop/catalog" className="text-[#16c4df]">Catalogs</Link>
-            <Link href="/shop#offers" className="transition-colors hover:text-[#16c4df]">Offers</Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <button aria-label="Favorites" className="relative p-2 text-[#FCFDF8] transition hover:text-[#16c4df] hover:scale-105">
-              <Heart className="h-5 w-5" strokeWidth={2} />
-              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#16c4df] text-[9px] font-bold text-[#17364b]">0</span>
-            </button>
-            <button aria-label="Shopping bag" className="p-2 text-[#FCFDF8] transition hover:text-[#16c4df] hover:scale-105">
-              <ShoppingBag className="h-5 w-5" strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <ShopHeader />
 
       <main className="mx-auto max-w-[1480px] pb-24">
-        {/* Collection Banner Header */}
-        <section className="relative h-[180px] overflow-hidden bg-[#1D5D8B] sm:h-[240px]">
+        {/* Promotional Hero Banner Matching Mockups */}
+        <section className="relative h-[220px] overflow-hidden bg-gradient-to-r from-[#0b2b47] via-[#103d63] to-[#0c6b8c] sm:h-[280px]">
           {heroPhoto && (
-            <div 
-              className="absolute inset-0 bg-cover bg-center opacity-30 scale-105" 
-              style={{ backgroundImage: `url(${normalizeRefPhoto(heroPhoto)})` }} 
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay scale-105"
+              style={{ backgroundImage: `url(${normalizeRefPhoto(heroPhoto)})` }}
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1D5D8B] via-[#1D5D8B]/70 to-[#1D5D8B]/40" />
-          
-          <div className="relative flex h-full items-end justify-between px-6 pb-8 sm:px-12">
-            <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-[#a9e4f1]">
-                ETJOAIGI COLLECTION
+          {/* Subtle sofa visual effect overlay */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(22,196,223,0.3),transparent_70%)]" />
+
+          <div className="relative flex h-full flex-col justify-between px-6 py-8 sm:px-12">
+            {/* Top Product Note */}
+            <div className="text-left">
+              <div className="font-display text-xs font-black uppercase tracking-wider text-white sm:text-sm">
+                LANDSKRONA
               </div>
-              <h1 className="mt-2 font-display text-4xl font-black uppercase tracking-tight text-white sm:text-6xl">
-                New Drops
-              </h1>
+              <div className="text-[11px] font-medium text-stone-200">
+                2-seat sofa, dark blue velvet.
+              </div>
+              <div className="mt-0.5 text-xs font-bold text-white">4799</div>
             </div>
-            <div className="hidden text-right text-xs font-semibold leading-relaxed text-[#d5e8f2] sm:block">
-              Inspected pre-loved pieces<br />ready for their next home
+
+            {/* Bottom Big Drop Text */}
+            <div className="text-right">
+              <div className="font-display text-2xl font-black tracking-tight text-[#ff4a68] sm:text-4xl">
+                09/14/26
+              </div>
+              <div className="font-display text-5xl font-black uppercase tracking-tight text-[#16c4df] drop-shadow-[0_4px_12px_rgba(22,196,223,0.4)] sm:text-8xl">
+                NEW DROP
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Filter Breadcrumb Bar */}
-        <div className="flex items-center justify-between border-b border-[#8edce8]/40 px-6 py-6 sm:px-12">
-          <div className="flex items-center gap-2.5 text-lg font-extrabold text-[#1D5D8B]">
-            <span className="text-2xl text-[#16c4df]">/</span> 
-            <span>All Products</span>
-            <span className="ml-1 rounded-full bg-[#e4f4f4] px-2.5 py-0.5 text-xs font-bold text-[#1D5D8B]">
-              {forSale.length}
-            </span>
-          </div>
-          <Link 
-            href="/shop" 
-            className="group flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#1d5d8b] transition-all hover:text-[#16c4df]"
-          >
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> 
-            Shop Home
-          </Link>
-        </div>
-
-        {/* Catalog Grid Area */}
+        {/* Catalog Main Body (Toolbar + Filters + Grid/List) */}
         <div className="px-6 pt-8 sm:px-12">
-          <CustomerCatalog items={forSale} categories={categories} initialCategory={selectedCategory == null ? "all" : String(selectedCategory)} />
+          <CustomerCatalog
+            items={forSale}
+            categories={categories}
+            initialCategory={selectedCategory == null ? "all" : String(selectedCategory)}
+          />
         </div>
       </main>
 
-      {/* Footer */}
-      <footer id="offers" className="border-t border-[#8ab7d2]/30 bg-white">
+      {/* Footer Matching Mockup */}
+      <footer className="border-t border-[#8ab7d2]/30 bg-white">
         <div className="mx-auto grid max-w-[1480px] gap-8 px-6 py-12 text-sm text-[#294e65] sm:grid-cols-[1.5fr_1fr_1fr_1fr] sm:px-8">
           <div>
-            <div className="font-display text-3xl font-black tracking-tight text-[#1D5D8B]">ETJOAIGI</div>
+            <div className="font-display text-3xl font-black tracking-tight text-[#1D5D8B]">
+              ETJOAIGI
+            </div>
+            <div className="mt-1 text-xs font-bold text-[#16c4df]">
+              Affordable Finds, Furniture You Can Trust
+            </div>
             <p className="mt-2 max-w-xs text-xs leading-relaxed text-[#4e6d82]">
-              Affordable finds, furniture you can trust. Curated with quality in mind to elevate modern living spaces.
+              Bring your dream space to life with stylish furniture, trusted service, and designs made for your lifestyle.
             </p>
+            <div className="mt-6 text-[10px] text-stone-400">
+              All Rights Reserved © 2023 Eve
+            </div>
           </div>
+
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">Customer service</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
+              CUSTOMER SERVICE
+            </div>
             <div className="mt-3 space-y-2 text-xs">
-              <p className="cursor-pointer hover:underline">Contact us</p>
+              <p className="cursor-pointer hover:underline">Contact Us</p>
               <p className="cursor-pointer hover:underline">FAQs</p>
-              <p className="cursor-pointer hover:underline">Viewing & delivery</p>
+              <p className="cursor-pointer hover:underline">Return & Refund</p>
             </div>
           </div>
+
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">Company</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
+              COMPANY
+            </div>
             <div className="mt-3 space-y-2 text-xs">
-              <p className="cursor-pointer hover:underline">About ETJOAIGI</p>
-              <p className="cursor-pointer hover:underline">Terms & conditions</p>
+              <p className="cursor-pointer hover:underline">About Us</p>
+              <p className="cursor-pointer hover:underline">Terms & Conditions</p>
+              <p className="cursor-pointer hover:underline">Privacy Policy</p>
             </div>
           </div>
+
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">Follow us</div>
-            <p className="mt-3 text-xs text-[#4e6d82]">Join our social drops and fresh showroom arrivals.</p>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#17364b]">
+              FOLLOW US
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded border border-stone-800 text-xs font-bold text-stone-900 cursor-pointer hover:bg-stone-100">
+                f
+              </div>
+              <div className="flex h-7 w-7 items-center justify-center rounded border border-stone-800 text-xs font-bold text-stone-900 cursor-pointer hover:bg-stone-100">
+                d
+              </div>
+            </div>
           </div>
         </div>
       </footer>
+
+      <ScrollToTop />
     </div>
   );
 }

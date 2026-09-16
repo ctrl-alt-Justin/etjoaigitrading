@@ -79,6 +79,7 @@ export type DbItem = {
   status: ItemStatus;
   supplierId: number | null;
   location: string | null;
+  isFeatured?: boolean;
   intakeAt: string;
   listedAt: string | null;
   soldAt: string | null;
@@ -105,3 +106,13 @@ export type DbItemShare = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type DbReview = {
+  id: number;
+  itemId: number;
+  rating: number;
+  authorName: string;
+  content: string | null;
+  createdAt: string;
+};
+

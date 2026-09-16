@@ -3,7 +3,6 @@
  * Pages query through here; client components receive plain serialized data.
  */
 import { supabase } from "@/lib/supabase";
-import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { camelizeRows, camelizeRow } from "@/db/records";
 import {
@@ -12,6 +11,7 @@ import {
   type DbItem,
   type DbItemShare,
   type DbPriceEvent,
+  type DbReview,
   type DbSupplier,
   type Grade,
 } from "@/db/schema";
@@ -40,32 +40,86 @@ export async function getLatestShareForItem(itemId: number): Promise<DbItemShare
   return data[0] ? camelizeRow<DbItemShare>(data[0]) : null;
 }
 
-const getCachedAllData = unstable_cache(
-  async () => {
-  const [itemRows, catRows, attrRows, supRows, eventRows] = await Promise.all([
-    supabase.from("items").select("*"),
-    supabase.from("categories").select("*"),
-    supabase.from("category_attributes").select("*"),
-    supabase.from("suppliers").select("*"),
-    supabase.from("price_events").select("*"),
-  ]);
-  for (const result of [itemRows, catRows, attrRows, supRows, eventRows]) {
-    if (result.error) throw result.error;
+export async function getItemReviews(itemId: number): Promise<DbReview[]> {
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn("Could not query reviews:", error.message);
+      return [];
+    }
+    return camelizeRows<DbReview>(data);
+  } catch (err) {
+    console.warn("Failed to fetch reviews:", err);
+    return [];
   }
-  return {
-    items: camelizeRows<DbItem>(itemRows.data),
-    categories: camelizeRows<DbCategory>(catRows.data),
-    attributes: camelizeRows<DbCategoryAttribute>(attrRows.data),
-    suppliers: camelizeRows<DbSupplier>(supRows.data),
-    events: camelizeRows<DbPriceEvent>(eventRows.data),
-  };
-  },
-  ["inventory-all-data"],
-  { revalidate: 10, tags: ["inventory-data"] }
-);
+}
 
-/** Shared layout and page queries reuse one request and a short-lived server cache. */
-export const getAllData = cache(() => getCachedAllData());
+let memoryCache: {
+  data: {
+    items: DbItem[];
+    categories: DbCategory[];
+    attributes: DbCategoryAttribute[];
+    suppliers: DbSupplier[];
+    events: DbPriceEvent[];
+  };
+  expires: number;
+} | null = null;
+
+let inflightPromise: Promise<{
+  items: DbItem[];
+  categories: DbCategory[];
+  attributes: DbCategoryAttribute[];
+  suppliers: DbSupplier[];
+  events: DbPriceEvent[];
+}> | null = null;
+
+export function invalidateAllDataCache() {
+  memoryCache = null;
+  inflightPromise = null;
+}
+
+async function fetchAllData() {
+  const now = Date.now();
+  if (memoryCache && memoryCache.expires > now) {
+    return memoryCache.data;
+  }
+  if (inflightPromise) {
+    return inflightPromise;
+  }
+  inflightPromise = (async () => {
+    try {
+      const [itemRows, catRows, attrRows, supRows, eventRows] = await Promise.all([
+        supabase.from("items").select("*"),
+        supabase.from("categories").select("*"),
+        supabase.from("category_attributes").select("*"),
+        supabase.from("suppliers").select("*"),
+        supabase.from("price_events").select("*"),
+      ]);
+      for (const result of [itemRows, catRows, attrRows, supRows, eventRows]) {
+        if (result.error) throw result.error;
+      }
+      const data = {
+        items: camelizeRows<DbItem>(itemRows.data),
+        categories: camelizeRows<DbCategory>(catRows.data),
+        attributes: camelizeRows<DbCategoryAttribute>(attrRows.data),
+        suppliers: camelizeRows<DbSupplier>(supRows.data),
+        events: camelizeRows<DbPriceEvent>(eventRows.data),
+      };
+      memoryCache = { data, expires: Date.now() + 15000 };
+      return data;
+    } finally {
+      inflightPromise = null;
+    }
+  })();
+  return inflightPromise;
+}
+
+/** Shared layout and page queries reuse one request and an in-memory cache. */
+export const getAllData = cache(() => fetchAllData());
 
 /* ------------------------------------------------------------------ */
 /* Category tree helpers                                               */

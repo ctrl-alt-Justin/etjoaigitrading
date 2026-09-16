@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter, Manrope } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
+import { CartProvider } from "@/components/cart-provider";
+import { FavoritesProvider } from "@/components/favorites-provider";
 import "./globals.css";
 
 const display = Manrope({
@@ -24,7 +26,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <body className="antialiased">
-        {children}
+        <CartProvider>
+          <FavoritesProvider>
+            {children}
+          </FavoritesProvider>
+        </CartProvider>
         <Analytics />
       </body>
     </html>
