@@ -8,9 +8,9 @@ import { useCart } from "@/components/cart-provider";
 import { useFavorites } from "@/components/favorites-provider";
 import { fmtMoney } from "@/lib/format";
 import { Thumb } from "@/components/ui";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 
-export function ShopHeader() {
+function ShopHeaderInner() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -330,5 +330,25 @@ export function ShopHeader() {
         </div>
       )}
     </header>
+  );
+}
+
+export function ShopHeader() {
+  return (
+    <Suspense
+      fallback={
+        <header className="sticky top-0 z-40 h-[68px] w-full border-b border-[#164e75] bg-[#1D5D8B]">
+          <div className="mx-auto flex h-full max-w-[1480px] items-center justify-between px-4 sm:px-8">
+            <Link href="/shop" className="flex items-center gap-3">
+              <span className="font-display text-2xl font-black tracking-tight text-[#FCFDF8]">
+                ETJOAIGI
+              </span>
+            </Link>
+          </div>
+        </header>
+      }
+    >
+      <ShopHeaderInner />
+    </Suspense>
   );
 }

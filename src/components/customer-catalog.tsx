@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { 
@@ -100,7 +100,7 @@ function getItemBadge(item: DbItem, index: number): { label: string; isDiscount:
   return null;
 }
 
-export function CustomerCatalog({ items, categories, initialCategory = "all" }: Props) {
+function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Props) {
   const searchParams = useSearchParams();
   const urlQuery = searchParams?.get("q") ?? "";
 
@@ -1076,5 +1076,13 @@ export function CustomerCatalog({ items, categories, initialCategory = "all" }: 
         </div>
       )}
     </div>
+  );
+}
+
+export function CustomerCatalog(props: Props) {
+  return (
+    <Suspense fallback={<div className="py-12 text-center text-sm text-stone-400">Loading catalog...</div>}>
+      <CustomerCatalogInner {...props} />
+    </Suspense>
   );
 }
