@@ -2,6 +2,9 @@ export type Grade = "A" | "B" | "C" | "D";
 export type ItemStatus =
   | "intake"
   | "draft"
+  | "for_cleaning"
+  | "for_refurb"
+  | "for_refurbishing"
   | "in_stock"
   | "listed"
   | "reserved"
@@ -12,6 +15,7 @@ export type ChecklistEntry = {
   key: string;
   label: string;
   status: "pass" | "flag" | "fail";
+  category?: "surface" | "structure" | "function" | "completeness";
   note?: string;
 };
 
@@ -19,6 +23,7 @@ export type ItemPhoto = {
   slot: string;
   label: string;
   url: string;
+  timestamp?: string;
 };
 
 export type DbCategory = {

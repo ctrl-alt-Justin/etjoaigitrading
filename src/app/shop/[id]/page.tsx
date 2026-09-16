@@ -39,7 +39,14 @@ export default async function ShopItemPage({ params }: PageProps) {
     ["Model", item.model],
     ["Color", item.color],
     ["Material", item.material],
-    ["Dimensions", item.dimensions],
+    [
+      "Dimensions",
+      item.dimensions
+        ? /(cm|mm|inch|in|meters|m)$/i.test(item.dimensions.trim())
+          ? item.dimensions
+          : `${item.dimensions} cm`
+        : null,
+    ],
     ...Object.entries(item.attributes ?? {}).map(([key, value]) => [key, value] as [string, string | null]),
   ];
 

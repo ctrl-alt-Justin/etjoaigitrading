@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Fuse from "fuse.js";
@@ -13,15 +13,20 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  CheckSquare,
   ChevronRight,
   CircleDot,
+  Clock,
   Factory,
   ImageIcon,
+  Layers,
   Loader2,
   Plus,
+  Settings,
   ShieldCheck,
   Sparkles,
   Trash2,
+  Video,
   X,
 } from "lucide-react";
 import type { DbCategory, DbCategoryAttribute, DbItem, Grade } from "@/db/schema";
@@ -32,7 +37,16 @@ import {
   computeFloor,
   valuate,
 } from "@/lib/valuation";
-import { PHOTO_SLOTS, WAREHOUSE_LOCATIONS, checklistFor, refPhotoFor } from "@/lib/taxonomy-data";
+import {
+  PHOTO_SLOTS,
+  WAREHOUSE_LOCATIONS,
+  categorizedChecklistFor,
+  CHECKLIST_CATEGORIES,
+  calculateAutoGrade,
+  MIN_CLEANING_COST,
+  refPhotoFor,
+  type ChecklistCategory,
+} from "@/lib/taxonomy-data";
 import { cn, fmtMoney, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { GradeChip, Thumb } from "./ui";
 
@@ -49,41 +63,86 @@ export type SoldRef = {
 
 export type SupplierLite = { id: number; name: string; channel: string };
 
-const STEPS = ["Photos", "Category", "Identity", "Inspection", "Pricing & publish"];
+const STEPS = ["Media & photos", "Category", "Sourcing", "Identity", "Inspection", "Pricing & publish"];
+
+function parseInitialDims(raw?: string | null): { l: string; w: string; h: string; unit: DimensionUnit } {
+  if (!raw) return { l: "", w: "", h: "", unit: "cm" };
+  const trimmed = raw.trim();
+  let unit: DimensionUnit = "cm";
+  const unitMatch = trimmed.match(/(mm|cm|inch|in|meters|m)$/i);
+  if (unitMatch) {
+    const matched = unitMatch[1].toLowerCase();
+    unit = matched === "inch" ? "in" : matched === "meters" ? "m" : (matched as DimensionUnit);
+  }
+  const numbers = trimmed.match(/\d+(?:\.\d+)?/g);
+  return {
+    l: numbers?.[0] ?? "",
+    w: numbers?.[1] ?? "",
+    h: numbers?.[2] ?? "",
+    unit,
+  };
+}
 
 const COLORS = [
   "Black", "Graphite", "White", "Grey", "Walnut", "Oak", "Birch", "Cherry",
   "Maple", "Beige", "Navy", "Burgundy", "Forest", "Tan", "Aluminium",
 ];
 
+export const DEFAULT_MATERIALS = [
+  "Mesh",
+  "Pellicle Mesh",
+  "Leather",
+  "Fabric / Upholstery",
+  "Walnut Veneer",
+  "Oak Veneer",
+  "Laminate",
+  "High-Pressure Laminate",
+  "Steel",
+  "Die-Cast Aluminum",
+  "Polypropylene",
+  "Molded Foam",
+  "Solid Wood",
+  "Tempered Glass",
+  "Acoustic PET Felt",
+  "Vinyl",
+];
+
+const MATERIAL_STORAGE_KEY = "etjoaigi_material_frequencies";
+
 /* ------------------------------------------------------------------ */
 
 function ComboInput({
   value,
   onChange,
+  onSelect,
   suggestions,
+  frequencies,
   placeholder,
   icon: Icon,
+  headerLabel = "Suggestions",
 }: {
   value: string;
   onChange: (v: string) => void;
+  onSelect?: (v: string) => void;
   suggestions: string[];
+  frequencies?: Record<string, number>;
   placeholder?: string;
-  icon?: typeof Factory;
+  icon?: React.ComponentType<{ className?: string }>;
+  headerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const filtered = useMemo(() => {
     const q = value.trim().toLowerCase();
     const list = q ? suggestions.filter((s) => s.toLowerCase().includes(q)) : suggestions;
-    return list.filter((s) => s.toLowerCase() !== q).slice(0, 7);
+    return list.filter((s) => s.toLowerCase() !== q).slice(0, 8);
   }, [value, suggestions]);
   return (
     <div className="relative">
       {Icon && (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+        <Icon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
       )}
       <input
-        className={cn("input", Icon && "pl-9")}
+        className={cn("input", Icon && "pl-10")}
         value={value}
         placeholder={placeholder}
         onChange={(e) => {
@@ -91,28 +150,40 @@ function ComboInput({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 140)}
+        onBlur={() => setTimeout(() => setOpen(false), 160)}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl">
-          <div className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">
-            Suggestions
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">
+            <span>{headerLabel}</span>
+            {frequencies && <span className="text-[9px] font-medium text-stone-400 normal-case">Most frequent first</span>}
           </div>
-          {filtered.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(s);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-stone-700 transition hover:bg-amber-50"
-            >
-              <Sparkles className="h-3 w-3 text-stone-300" />
-              {s}
-            </button>
-          ))}
+          {filtered.map((s) => {
+            const count = frequencies?.[s];
+            return (
+              <button
+                key={s}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(s);
+                  onSelect?.(s);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] text-stone-700 transition hover:bg-amber-50"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Sparkles className="h-3 w-3 shrink-0 text-stone-300" />
+                  <span className="truncate">{s}</span>
+                </div>
+                {count && count > 0 ? (
+                  <span className="shrink-0 rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[9.5px] font-bold text-amber-800">
+                    {count}× used
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -200,35 +271,140 @@ export function IntakeWizard({
   const [attrVals, setAttrVals] = useState<Record<string, string>>(initialItem?.attributes ?? {});
   const [color, setColor] = useState(initialItem?.color ?? "");
   const [material, setMaterial] = useState(initialItem?.material ?? "");
+  const [materialFreqs, setMaterialFreqs] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MATERIAL_STORAGE_KEY);
+      if (raw) {
+        setMaterialFreqs(JSON.parse(raw));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const recordMaterialUsage = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return;
+    setMaterialFreqs((prev) => {
+      const matchKey = Object.keys(prev).find((k) => k.toLowerCase() === trimmed.toLowerCase()) || trimmed;
+      const next = { ...prev, [matchKey]: (prev[matchKey] || 0) + 1 };
+      try {
+        localStorage.setItem(MATERIAL_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const materialSuggestions = useMemo(() => {
+    const combined = Array.from(new Set([...Object.keys(materialFreqs), ...DEFAULT_MATERIALS]));
+    return combined.sort((a, b) => {
+      const freqA = materialFreqs[a] || 0;
+      const freqB = materialFreqs[b] || 0;
+      if (freqB !== freqA) return freqB - freqA;
+      const defA = DEFAULT_MATERIALS.indexOf(a);
+      const defB = DEFAULT_MATERIALS.indexOf(b);
+      if (defA !== -1 && defB !== -1) return defA - defB;
+      if (defA !== -1) return -1;
+      if (defB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [materialFreqs]);
+  const initialParsedDims = useMemo(() => parseInitialDims(initialItem?.dimensions), [initialItem?.dimensions]);
+  const [dimL, setDimL] = useState(initialParsedDims.l);
+  const [dimW, setDimW] = useState(initialParsedDims.w);
+  const [dimH, setDimH] = useState(initialParsedDims.h);
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>(initialParsedDims.unit);
   const [dimensions, setDimensions] = useState(initialItem?.dimensions ?? "");
-  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>("cm");
   const [sups, setSups] = useState<SupplierLite[]>(suppliers);
   const [supplierId, setSupplierId] = useState<number | "">(initialItem?.supplierId ?? "");
   const [newSup, setNewSup] = useState<{ open: boolean; name: string; channel: string; contact: string; busy: boolean }>({ open: false, name: "", channel: "Direct", contact: "", busy: false });
   const [location, setLocation] = useState(initialItem?.location ?? WAREHOUSE_LOCATIONS[0]);
   const [acq, setAcq] = useState(initialItem?.acquisitionCost ? String(initialItem.acquisitionCost) : "");
   const [refurb, setRefurb] = useState(initialItem?.refurbCost ? String(initialItem.refurbCost) : "");
+  const [cleaning, setCleaning] = useState(
+    initialItem?.attributes?.cleaning_cost ? String(initialItem.attributes.cleaning_cost) : String(MIN_CLEANING_COST)
+  );
 
+  const updateDims = (l: string, w: string, h: string, u: DimensionUnit) => {
+    setDimL(l);
+    setDimW(w);
+    setDimH(h);
+    setDimensionUnit(u);
+    if (l.trim() && w.trim() && h.trim()) {
+      setDimensions(`L ${l.trim()} × W ${w.trim()} × H ${h.trim()} ${u}`);
+    } else if (l.trim() || w.trim() || h.trim()) {
+      setDimensions([l.trim(), w.trim(), h.trim()].filter(Boolean).join(" x "));
+    } else {
+      setDimensions("");
+    }
+  };
+
+  const [checks, setChecks] = useState<Record<number, "pass" | "flag" | "fail">>(() =>
+    Object.fromEntries((initialItem?.checklist ?? []).map((entry, index) => [index, entry.status]))
+  );
+  const autoGrade = useMemo(() => calculateAutoGrade(checks), [checks]);
+  const [gradeOverridden, setGradeOverridden] = useState(initialItem?.grade != null);
   const [grade, setGrade] = useState<Grade | null>(initialItem?.grade ?? null);
-  const [checks, setChecks] = useState<Record<number, "pass" | "flag" | "fail">>(() => Object.fromEntries((initialItem?.checklist ?? []).map((entry, index) => [index, entry.status])));
+  const effectiveGrade = grade ?? autoGrade;
+
+  const handleCheck = (ix: number, s: "pass" | "flag" | "fail") => {
+    const next = { ...checks, [ix]: s };
+    setChecks(next);
+    if (!gradeOverridden) {
+      setGrade(calculateAutoGrade(next));
+    }
+  };
+
+  const handleMarkAllPass = (totalCount: number) => {
+    const next = Object.fromEntries(Array.from({ length: totalCount }, (_, ix) => [ix, "pass" as const]));
+    setChecks(next);
+    if (!gradeOverridden) {
+      setGrade("A");
+    }
+  };
+
+  const handleSelectGrade = (g: Grade) => {
+    setGrade(g);
+    setGradeOverridden(true);
+  };
+
   const [notes, setNotes] = useState(initialItem?.conditionNotes ?? "");
 
-  const [photos, setPhotos] = useState<Record<string, string | null>>(() => Object.fromEntries((initialItem?.photos ?? []).map((photo) => [photo.slot, photo.url])));
+  const [photos, setPhotos] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries((initialItem?.photos ?? []).map((photo) => [photo.slot, photo.url]))
+  );
+  const [photoTimestamps, setPhotoTimestamps] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (initialItem?.photos ?? []).filter((p) => p.timestamp).map((p) => [p.slot, p.timestamp!])
+    )
+  );
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const [listMode, setListMode] = useState<"intake" | "stock" | "listed">(initialItem?.status === "listed" ? "listed" : "stock");
+  const [listMode, setListMode] = useState<"intake" | "stock" | "listed" | "for_cleaning" | "for_refurb">(
+    initialItem?.status === "listed"
+      ? "listed"
+      : initialItem?.status === "for_cleaning"
+      ? "for_cleaning"
+      : initialItem?.status === "for_refurb"
+      ? "for_refurb"
+      : "stock"
+  );
   const [price, setPrice] = useState(initialItem?.listedPrice == null ? "" : String(initialItem.listedPrice));
   const [priceTouched, setPriceTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ id: number; sku: string; status: "draft" | "in_stock" | "listed" } | null>(null);
+  const [result, setResult] = useState<{ id: number; sku: string; status: string } | null>(null);
 
   /* ---- derived ---- */
   const leaf = leafId != null ? byId.get(leafId) ?? null : null;
   const root = leafId != null ? rootOf(leafId) : null;
   const rootSlug = root?.slug ?? "";
   const baseValue = leafId != null ? baseOf(leafId) : null;
-  const checkList = useMemo(() => checklistFor(rootSlug), [rootSlug]);
+  const categorizedChecklist = useMemo(() => categorizedChecklistFor(rootSlug), [rootSlug]);
   const catAttrs = useMemo(() => {
     if (!leafId) return [] as DbCategoryAttribute[];
     const chain: number[] = [];
@@ -240,11 +416,12 @@ export function IntakeWizard({
     return attributes.filter((a) => chain.includes(a.categoryId));
   }, [leafId, attributes, byId]);
 
-  const v = useMemo(() => valuate({ baseValue, brand, grade }), [baseValue, brand, grade]);
+  const v = useMemo(() => valuate({ baseValue, brand, grade: effectiveGrade }), [baseValue, brand, effectiveGrade]);
   const tier = brandTier(brand);
   const acqNum = Number(acq) || 0;
   const refurbNum = Number(refurb) || 0;
-  const floor = computeFloor(acqNum, refurbNum);
+  const cleaningNum = Number(cleaning) || 0;
+  const floor = computeFloor(acqNum, refurbNum + cleaningNum);
   const suggested = v.suggested ? Math.max(floor, v.suggested) : floor || null;
   const priceNum = Number(price) || 0;
 
@@ -255,7 +432,7 @@ export function IntakeWizard({
         let score = 0;
         if (leafId && r.categoryId === leafId) score += 2;
         if (brand && r.brand && r.brand.toLowerCase() === brand.toLowerCase()) score += 2;
-        if (grade && r.grade === grade) score += 1;
+        if (effectiveGrade && r.grade === effectiveGrade) score += 1;
         return { r, score };
       })
       .filter((x) => x.score >= 3)
@@ -268,7 +445,7 @@ export function IntakeWizard({
       min: prices.length ? Math.min(...prices) : null,
       max: prices.length ? Math.max(...prices) : null,
     };
-  }, [soldRefs, rootSlug, leafId, brand, grade]);
+  }, [soldRefs, rootSlug, leafId, brand, effectiveGrade]);
 
   const catFuse = useMemo(
     () =>
@@ -281,11 +458,22 @@ export function IntakeWizard({
   );
 
   /* ---- gating ---- */
-  const answered = checkList.filter((_, ix) => checks[ix] != null).length;
-  const requiredPhotos = PHOTO_SLOTS.filter((s) => s.required);
+  const answered = categorizedChecklist.filter((_, ix) => checks[ix] != null).length;
+  const isGradeA = effectiveGrade === "A";
+  const requiredPhotos = PHOTO_SLOTS.filter((s) => s.required && !(s.slot === "after" && isGradeA));
   const photosOk = requiredPhotos.every((s) => photos[s.slot]);
   const mustAttrsOk = catAttrs.filter((a) => a.required).every((a) => (attrVals[a.name] ?? "").trim() !== "");
-  const listingReady = leafId != null && name.trim().length > 1 && dimensions.trim().length > 0 && acqNum > 0 && mustAttrsOk && grade != null && answered === checkList.length && photosOk && priceNum >= floor && priceNum > 0;
+  const listingReady =
+    leafId != null &&
+    name.trim().length > 1 &&
+    dimensions.trim().length > 0 &&
+    acqNum > 0 &&
+    mustAttrsOk &&
+    effectiveGrade != null &&
+    answered === categorizedChecklist.length &&
+    photosOk &&
+    priceNum >= floor &&
+    priceNum > 0;
   const canContinue = true;
 
   const syncName = (b: string, m: string) => {
@@ -294,9 +482,33 @@ export function IntakeWizard({
 
   const onFile = (slot: string, f: File | undefined) => {
     if (!f) return;
+    const nowStr = new Date().toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
     const reader = new FileReader();
-    reader.onload = () => setPhotos((p) => ({ ...p, [slot]: String(reader.result) }));
+    reader.onload = () => {
+      setPhotos((p) => ({ ...p, [slot]: String(reader.result) }));
+      setPhotoTimestamps((t) => ({ ...t, [slot]: nowStr }));
+    };
     reader.readAsDataURL(f);
+  };
+
+  const onUseReference = (slot: string, url: string) => {
+    const nowStr = new Date().toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    setPhotos((p) => ({ ...p, [slot]: url }));
+    setPhotoTimestamps((t) => ({ ...t, [slot]: nowStr }));
   };
 
   const addSupplier = async () => {
@@ -322,6 +534,17 @@ export function IntakeWizard({
     setError(null);
     try {
       const editing = initialItem != null;
+      const statusToSave =
+        listMode === "for_cleaning"
+          ? "for_cleaning"
+          : listMode === "for_refurb"
+          ? "for_refurb"
+          : listMode === "listed" && listingReady
+          ? "listed"
+          : listMode === "stock" && listingReady
+          ? "in_stock"
+          : "draft";
+
       const res = await fetch(editing ? `/api/items/${initialItem.id}` : "/api/items", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -331,22 +554,46 @@ export function IntakeWizard({
           brand: brand.trim() || null,
           model: model.trim() || null,
           categoryId: leafId,
-          attributes: attrVals,
+          attributes: { ...attrVals, cleaning_cost: String(cleaningNum) },
           color: color.trim() || null,
           material: material.trim() || null,
           dimensions: normalizeDimensions(dimensions, dimensionUnit) || null,
-          grade,
-          checklist: checkList.map((label, ix) => ({ key: `c${ix}`, label, status: checks[ix] })),
-          photos: PHOTO_SLOTS.filter((s) => photos[s.slot]).map((s) => ({
-            slot: s.slot,
-            label: s.label,
-            url: photos[s.slot]!,
+          grade: effectiveGrade,
+          checklist: categorizedChecklist.map((item, ix) => ({
+            key: `c${ix}`,
+            label: item.label,
+            category: item.category,
+            status: checks[ix] ?? "pass",
           })),
+          photos: [
+            ...PHOTO_SLOTS.filter((s) => photos[s.slot]).map((s) => ({
+              slot: s.slot,
+              label: s.label,
+              url: photos[s.slot]!,
+              timestamp: photoTimestamps[s.slot] || undefined,
+            })),
+            ...(photos["video"]
+              ? [
+                  {
+                    slot: "video",
+                    label: "Condition walkaround video",
+                    url: photos["video"],
+                    timestamp: photoTimestamps["video"] || undefined,
+                  },
+                ]
+              : []),
+          ],
           conditionNotes: notes.trim() || null,
           acquisitionCost: acqNum,
           refurbCost: refurbNum,
-          listedPrice: listMode === "listed" && listingReady ? priceNum : listMode === "stock" && listingReady ? priceNum || null : null,
-          status: listMode === "listed" && listingReady ? "listed" : listMode === "stock" && listingReady ? "in_stock" : "draft",
+          cleaningCost: cleaningNum,
+          listedPrice:
+            statusToSave === "listed"
+              ? priceNum
+              : statusToSave === "in_stock" || statusToSave === "for_cleaning" || statusToSave === "for_refurb"
+              ? priceNum || null
+              : null,
+          status: statusToSave,
           supplierId: supplierId === "" ? null : supplierId,
           location,
         }),
@@ -354,17 +601,18 @@ export function IntakeWizard({
       const data = await res.json().catch(() => ({}));
       if (res.status === 409 && data.error === "BELOW_FLOOR") {
         setError(`Price floor enforced — the ask must be at least ${fmtMoney(data.floor)} for this unit.`);
-        setStep(4);
+        setStep(5);
       } else if (!res.ok) {
         setError(data.error === "DATABASE_MIGRATION_REQUIRED"
           ? "The database needs the draft-item migration. Run supabase/draft-items.sql in Supabase SQL Editor, then try again."
           : data.message ?? data.error ?? "Could not save the item. Please try again.");
       } else {
+        if (material.trim()) recordMaterialUsage(material.trim());
         if (editing) {
           router.push(`/inventory/${initialItem.id}`);
           router.refresh();
         } else {
-          setResult({ id: data.id, sku: data.sku, status: listMode === "listed" && listingReady ? "listed" : listMode === "stock" && listingReady ? "in_stock" : "draft" });
+          setResult({ id: data.id, sku: data.sku, status: statusToSave });
         }
       }
     } catch {
@@ -380,8 +628,10 @@ export function IntakeWizard({
     setLeafId(null);
     setBrand(""); setModel(""); setName(""); setNameTouched(false);
     setAttrVals({}); setColor(""); setMaterial(""); setDimensions(""); setDimensionUnit("cm");
-    setSupplierId(""); setAcq(""); setRefurb(""); setGrade(null);
-    setChecks({}); setNotes(""); setPhotos({}); setListMode("stock");
+    setDimL(""); setDimW(""); setDimH("");
+    setSupplierId(""); setAcq(""); setRefurb(""); setGrade(null); setGradeOverridden(false);
+    setCleaning(String(MIN_CLEANING_COST));
+    setChecks({}); setNotes(""); setPhotos({}); setPhotoTimestamps({}); setListMode("stock");
     setPrice(""); setPriceTouched(false); setResult(null); setError(null);
   };
 
@@ -398,7 +648,13 @@ export function IntakeWizard({
           <BadgeCheck className="h-7 w-7" />
         </div>
         <h2 className="mt-5 font-display text-[26px] font-semibold tracking-tight text-stone-900">
-          {result.status === "draft" ? "Saved as a draft" : "Logged into the book"}
+          {result.status === "draft"
+            ? "Saved as a draft"
+            : result.status === "for_cleaning"
+            ? "Queued for cleaning"
+            : result.status === "for_refurb"
+            ? "Queued for refurbishing"
+            : "Logged into the book"}
         </h2>
         <p className="mt-1.5 text-sm text-stone-500">
           <span className="font-semibold text-stone-800">{name || "Information required"}</span> is now tracked as{" "}
@@ -464,6 +720,214 @@ export function IntakeWizard({
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
+            {/* ---------------- STEP 0 · MEDIA & PHOTOS ---------------- */}
+            {step === 0 && (
+              <div className="space-y-4">
+                <div className="card p-5">
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Photo capture</h3>
+                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
+                    Start with what you have. Add photos or a short video now, then complete the record and listing details later.
+                  </p>
+                  <div className="grid gap-3.5 sm:grid-cols-2">
+                    {PHOTO_SLOTS.map((s) => {
+                      const url = photos[s.slot];
+                      const isAfterSlot = s.slot === "after";
+                      const slotBadge = isAfterSlot ? (
+                        isGradeA ? (
+                          <span className="font-semibold text-emerald-600">(optional for Grade A)</span>
+                        ) : effectiveGrade != null ? (
+                          <span className="font-semibold text-amber-600">(expected for Grade {effectiveGrade})</span>
+                        ) : (
+                          <span className="font-medium text-stone-400">(optional for Grade A)</span>
+                        )
+                      ) : s.required ? (
+                        <span className="text-rose-500">*</span>
+                      ) : (
+                        <span className="font-medium text-stone-400">(optional)</span>
+                      );
+
+                      return (
+                        <div key={s.slot} className={cn("overflow-hidden rounded-2xl border", url ? "border-[var(--line)]" : "border-dashed border-stone-300")}>
+                          {url ? (
+                            <div className="relative">
+                              {url.startsWith("data:video/") ? (
+                                <video src={url} controls className="aspect-[4/3] w-full object-cover" />
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
+                              )}
+                              {photoTimestamps[s.slot] && (
+                                <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-medium text-white backdrop-blur shadow-sm">
+                                  <Clock className="h-3 w-3 text-amber-400" />
+                                  {photoTimestamps[s.slot]}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPhotos((p) => ({ ...p, [s.slot]: null }));
+                                  setPhotoTimestamps((t) => {
+                                    const next = { ...t };
+                                    delete next[s.slot];
+                                    return next;
+                                  });
+                                }}
+                                className="absolute right-2.5 top-2.5 rounded-full bg-stone-950/60 p-1.5 text-white backdrop-blur transition hover:bg-stone-950/80"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur shadow-sm">
+                                <span>{s.label}</span>
+                                {isAfterSlot && (
+                                  <span className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-extrabold text-amber-800 uppercase">
+                                    After Refurb
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 bg-stone-50/60 p-5 text-center">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-stone-400 shadow-sm">
+                                <Camera className="h-5 w-5" strokeWidth={1.8} />
+                              </div>
+                              <div className="text-[13px] font-bold text-stone-700">
+                                {s.label} {slotBadge}
+                              </div>
+                              <p className="text-[11.5px] leading-snug text-stone-400">{s.hint}</p>
+                              <div className="mt-1 flex gap-2">
+                                <button type="button" onClick={() => fileRefs.current[s.slot]?.click()} className="btn-ghost h-9 px-3 text-[12.5px]">
+                                  <ImageIcon className="h-4 w-4" /> Upload
+                                </button>
+                                {leaf && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUseReference(s.slot, refPhotoFor(leaf.slug))}
+                                    className="btn-soft h-9 px-3 text-[12.5px]"
+                                  >
+                                    Use reference
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <input
+                            ref={(el) => { fileRefs.current[s.slot] = el; }}
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => onFile(s.slot, e.target.files?.[0])}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Video Upload Section */}
+                <div className="card p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="flex items-center gap-2 font-display text-xl font-semibold text-stone-900">
+                        <Video className="h-5 w-5 text-amber-600" />
+                        Condition & walkaround video
+                      </h3>
+                      <p className="mt-1 text-[13px] text-stone-500">
+                        Upload a video walkaround showing mechanical functions, 360° overview, or condition details.
+                      </p>
+                    </div>
+                    {photos["video"] && (
+                      <div className="flex items-center gap-2">
+                        {photoTimestamps["video"] && (
+                          <span className="flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-600">
+                            <Clock className="h-3 w-3 text-amber-500" />
+                            {photoTimestamps["video"]}
+                          </span>
+                        )}
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-700">
+                          Video attached
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4">
+                    {photos["video"] ? (
+                      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-stone-950">
+                        <video
+                          src={photos["video"]}
+                          controls
+                          className="aspect-video max-h-[380px] w-full object-contain"
+                        />
+                        <div className="flex items-center justify-between border-t border-stone-800 bg-stone-900/90 px-4 py-2.5 backdrop-blur">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] font-medium text-stone-300">Walkaround condition video</span>
+                            {photoTimestamps["video"] && (
+                              <span className="flex items-center gap-1 text-[11px] text-stone-400">
+                                <Clock className="h-3 w-3 text-amber-400" />
+                                {photoTimestamps["video"]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => fileRefs.current["video"]?.click()}
+                              className="rounded-lg bg-stone-800 px-3 py-1.5 text-[12px] font-semibold text-stone-200 transition hover:bg-stone-700"
+                            >
+                              Replace video
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPhotos((p) => ({ ...p, video: null }));
+                                setPhotoTimestamps((t) => {
+                                  const next = { ...t };
+                                  delete next["video"];
+                                  return next;
+                                });
+                              }}
+                              className="flex items-center gap-1.5 rounded-lg bg-rose-900/40 px-3 py-1.5 text-[12px] font-semibold text-rose-300 transition hover:bg-rose-900/60"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileRefs.current["video"]?.click()}
+                        className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50/70 p-8 text-center transition hover:border-amber-400 hover:bg-amber-50/20"
+                      >
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-amber-600 shadow-sm">
+                          <Video className="h-7 w-7" strokeWidth={1.8} />
+                        </div>
+                        <div>
+                          <div className="text-[14px] font-bold text-stone-800">Upload walkaround video</div>
+                          <p className="mt-1 text-[12px] text-stone-500">
+                            Drag and drop or click to browse. Supports MP4, WebM, MOV.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); fileRefs.current["video"]?.click(); }}
+                          className="btn-soft mt-1 h-9 px-4 text-[13px]"
+                        >
+                          <Video className="h-4 w-4" /> Select video file
+                        </button>
+                      </div>
+                    )}
+                    <input
+                      ref={(el) => { fileRefs.current["video"] = el; }}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(e) => onFile("video", e.target.files?.[0])}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ---------------- STEP 1 · CATEGORY ---------------- */}
             {step === 1 && (
               <div className="card p-5">
@@ -549,21 +1013,121 @@ export function IntakeWizard({
                   <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
                     <CircleDot className="h-4 w-4 text-amber-600" />
                     <span className="font-semibold">{pathOfLeaf(leaf)}</span>
-                    {baseValue && (
-                      <span className="ml-auto text-[12px] tabular-nums">
-                        valuation reference <span className="font-bold">{fmtMoney(baseValue)}</span>
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ---------------- STEP 2 · IDENTITY ---------------- */}
+            {/* ---------------- STEP 2 · SOURCING ---------------- */}
             {step === 2 && (
               <div className="space-y-4">
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Identity & acquisition</h3>
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Sourcing & acquisition</h3>
+                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
+                    Track the supplier, channel provenance, and initial purchase cost of this unit.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="label">Source / supplier</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="input"
+                          value={supplierId}
+                          onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
+                        >
+                          <option value="">— unassigned —</option>
+                          {sups.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} · {s.channel}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setNewSup((s) => ({ ...s, open: !s.open }))}
+                          className="btn-ghost shrink-0 px-3"
+                          title="Add supplier"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {newSup.open && (
+                        <div className="mt-2.5 space-y-2 rounded-xl border border-[var(--line)] bg-stone-50/70 p-3">
+                          <input
+                            className="input"
+                            placeholder="Supplier name"
+                            value={newSup.name}
+                            onChange={(e) => setNewSup((s) => ({ ...s, name: e.target.value }))}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              className="input"
+                              value={newSup.channel}
+                              onChange={(e) => setNewSup((s) => ({ ...s, channel: e.target.value }))}
+                            >
+                              {["Liquidation", "Downsizing", "Auction", "Lease return", "Direct", "Institutional"].map((c) => (
+                                <option key={c}>{c}</option>
+                              ))}
+                            </select>
+                            <input
+                              className="input"
+                              placeholder="Contact person"
+                              value={newSup.contact}
+                              onChange={(e) => setNewSup((s) => ({ ...s, contact: e.target.value }))}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={addSupplier}
+                            disabled={newSup.busy || !newSup.name.trim()}
+                            className="btn-soft h-9 w-full text-[13px]"
+                          >
+                            {newSup.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save supplier
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="label">
+                        Acquisition cost <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                        <input
+                          className="input pl-8"
+                          type="number"
+                          min={0}
+                          value={acq}
+                          onChange={(e) => setAcq(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-stone-400">
+                        Initial purchase / buyout price paid for this unit.
+                      </p>
+                    </div>
+                  </div>
+
+                  {floor > 0 && (
+                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 text-[12.5px] text-amber-900">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span>
+                        Estimated price floor:{" "}
+                        <span className="font-bold text-stone-900">{fmtMoney(floor)}</span>{" "}
+                        <span className="text-stone-500">(effective cost × 1.18)</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ---------------- STEP 3 · IDENTITY ---------------- */}
+            {step === 3 && (
+              <div className="space-y-4">
+                <div className="card p-5">
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Identity & specifications</h3>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="label">Brand</label>
@@ -602,22 +1166,70 @@ export function IntakeWizard({
                     </div>
                     <div>
                       <label className="label">Material</label>
-                      <input className="input" value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Mesh, veneer, steel…" />
+                      <ComboInput
+                        value={material}
+                        onChange={setMaterial}
+                        onSelect={(val) => recordMaterialUsage(val)}
+                        suggestions={materialSuggestions}
+                        frequencies={materialFreqs}
+                        placeholder="Mesh, veneer, steel…"
+                        icon={Layers}
+                        headerLabel="Suggested materials"
+                      />
                     </div>
-                    <div>
-                      <label className="label">Dimensions <span className="text-rose-500">*</span></label>
-                      <div className="flex gap-2">
-                        <input className="input" style={{ minWidth: 0, flex: "1 1 auto" }} value={dimensions} onChange={(e) => setDimensions(e.target.value)} onBlur={() => setDimensions((value) => normalizeDimensions(value, dimensionUnit))} placeholder="25 62 40" />
-                        <select className="input" style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }} value={dimensionUnit} onChange={(e) => setDimensionUnit(e.target.value as DimensionUnit)} aria-label="Dimension unit">
-                          <option value="mm">mm</option>
+                    <div className="sm:col-span-2">
+                      <label className="label">
+                        Dimensions <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            className="input text-center font-medium"
+                            placeholder="L"
+                            value={dimL}
+                            onChange={(e) => updateDims(e.target.value, dimW, dimH, dimensionUnit)}
+                            aria-label="Length"
+                          />
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">L</span>
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
+                        <div className="relative flex-1">
+                          <input
+                            className="input text-center font-medium"
+                            placeholder="W"
+                            value={dimW}
+                            onChange={(e) => updateDims(dimL, e.target.value, dimH, dimensionUnit)}
+                            aria-label="Width"
+                          />
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">W</span>
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
+                        <div className="relative flex-1">
+                          <input
+                            className="input text-center font-medium"
+                            placeholder="H"
+                            value={dimH}
+                            onChange={(e) => updateDims(dimL, dimW, e.target.value, dimensionUnit)}
+                            aria-label="Height"
+                          />
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">H</span>
+                        </div>
+                        <select
+                          className="input"
+                          style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }}
+                          value={dimensionUnit}
+                          onChange={(e) => updateDims(dimL, dimW, dimH, e.target.value as DimensionUnit)}
+                          aria-label="Dimension unit"
+                        >
                           <option value="cm">cm</option>
+                          <option value="mm">mm</option>
                           <option value="in">inch</option>
                           <option value="m">meters</option>
                         </select>
                       </div>
-                      <p className="mt-1.5 text-[11px] text-stone-400">Enter length, width, height in that order.</p>
+                      <p className="mt-1.5 text-[11px] text-stone-400">Length × Width × Height (e.g. 120 × 60 × 75 cm)</p>
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="label">Storage location</label>
                       <select className="input" value={location} onChange={(e) => setLocation(e.target.value)}>
                         {WAREHOUSE_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
@@ -658,72 +1270,137 @@ export function IntakeWizard({
                     </Fragment>
                   )}
                 </div>
-
-                <div className="card p-5">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="label">Source / supplier</label>
-                      <div className="flex gap-2">
-                        <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}>
-                          <option value="">— unassigned —</option>
-                          {sups.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.channel}</option>)}
-                        </select>
-                        <button type="button" onClick={() => setNewSup((s) => ({ ...s, open: !s.open }))} className="btn-ghost shrink-0 px-3" title="Add supplier">
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                      {newSup.open && (
-                        <div className="mt-2.5 space-y-2 rounded-xl border border-[var(--line)] bg-stone-50/70 p-3">
-                          <input className="input" placeholder="Supplier name" value={newSup.name} onChange={(e) => setNewSup((s) => ({ ...s, name: e.target.value }))} />
-                          <div className="grid grid-cols-2 gap-2">
-                            <select className="input" value={newSup.channel} onChange={(e) => setNewSup((s) => ({ ...s, channel: e.target.value }))}>
-                              {["Liquidation", "Downsizing", "Auction", "Lease return", "Direct", "Institutional"].map((c) => <option key={c}>{c}</option>)}
-                            </select>
-                            <input className="input" placeholder="Contact person" value={newSup.contact} onChange={(e) => setNewSup((s) => ({ ...s, contact: e.target.value }))} />
-                          </div>
-                          <button type="button" onClick={addSupplier} disabled={newSup.busy || !newSup.name.trim()} className="btn-soft h-9 w-full text-[13px]">
-                            {newSup.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save supplier
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="label">Acquisition cost *</label>
-                        <input className="input" type="number" min={0} value={acq} onChange={(e) => setAcq(e.target.value)} placeholder="0" />
-                      </div>
-                      <div>
-                        <label className="label">Refurb budget</label>
-                        <input className="input" type="number" min={0} value={refurb} onChange={(e) => setRefurb(e.target.value)} placeholder="0" />
-                      </div>
-                    </div>
-                  </div>
-                  {floor > 0 && (
-                    <p className="mt-3 flex items-center gap-1.5 text-[12px] text-stone-500">
-                      <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
-                      Price floor will be enforced at <span className="font-semibold text-stone-800">{fmtMoney(floor)}</span> (effective cost × 1.18)
-                    </p>
-                  )}
-                </div>
               </div>
             )}
 
-            {/* ---------------- STEP 3 · INSPECTION ---------------- */}
-            {step === 3 && (
+            {/* ---------------- STEP 4 · INSPECTION ---------------- */}
+            {step === 4 && (
               <div className="space-y-4">
+                {/* 1. Categorized Checklist at the top */}
                 <div className="card p-5">
-                  <h3 className="font-display text-xl font-semibold text-stone-900">Condition grade</h3>
-                  <p className="mb-4 mt-1 text-[13px] text-stone-500">One scale for the whole company — no more “looks fine to me”.</p>
-                  <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-xl font-semibold text-stone-900">Inspection checklist</h3>
+                      <p className="mt-1 text-[13px] text-stone-500">
+                        {root?.name ?? "Item"} standard · {answered}/{categorizedChecklist.length} inspected
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkAllPass(categorizedChecklist.length)}
+                      className="btn-ghost h-9 text-[12.5px]"
+                    >
+                      <Check className="h-4 w-4" /> Mark all pass
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {CHECKLIST_CATEGORIES.map((cat) => {
+                      const catKey = cat.key;
+                      const itemsInCat = categorizedChecklist
+                        .map((item, ix) => ({ ...item, ix }))
+                        .filter((entry) => (entry.category ?? "surface") === catKey);
+                      if (!itemsInCat.length) return null;
+                      const passedInCat = itemsInCat.filter((x) => checks[x.ix] === "pass").length;
+                      const flaggedInCat = itemsInCat.filter((x) => checks[x.ix] === "flag").length;
+                      const failedInCat = itemsInCat.filter((x) => checks[x.ix] === "fail").length;
+                      return (
+                        <div key={catKey} className="rounded-2xl border border-stone-200/80 bg-stone-50/40 p-3.5 sm:p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
+                            <div>
+                              <div className="flex items-center gap-2 font-display text-[15px] font-bold text-stone-900">
+                                {catKey === "surface" && <Layers className="h-4 w-4 text-amber-600" />}
+                                {catKey === "structure" && <ShieldCheck className="h-4 w-4 text-blue-600" />}
+                                {catKey === "function" && <Settings className="h-4 w-4 text-emerald-600" />}
+                                {catKey === "completeness" && <CheckSquare className="h-4 w-4 text-purple-600" />}
+                                {cat.label}
+                              </div>
+                              <p className="text-[11.5px] text-stone-500">{cat.desc}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                              <span className="rounded-md bg-emerald-100/70 px-1.5 py-0.5 text-emerald-800">{passedInCat} pass</span>
+                              {flaggedInCat > 0 && <span className="rounded-md bg-amber-100/70 px-1.5 py-0.5 text-amber-800">{flaggedInCat} flag</span>}
+                              {failedInCat > 0 && <span className="rounded-md bg-rose-100/70 px-1.5 py-0.5 text-rose-800">{failedInCat} fail</span>}
+                            </div>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {itemsInCat.map(({ ix, label }) => {
+                              const cur = checks[ix];
+                              return (
+                                <div key={ix} className="flex flex-wrap items-center gap-3 rounded-xl border border-stone-100 bg-white px-3.5 py-2.5 shadow-sm">
+                                  <span className="flex-1 text-[13.5px] text-stone-700">{label}</span>
+                                  <div className="flex overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
+                                    {(["pass", "flag", "fail"] as const).map((s) => (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => handleCheck(ix, s)}
+                                        className={cn(
+                                          "px-3 py-1.5 text-[12px] font-semibold capitalize transition",
+                                          cur === s
+                                            ? s === "pass"
+                                              ? "bg-emerald-600 text-white shadow-sm"
+                                              : s === "flag"
+                                              ? "bg-amber-500 text-white shadow-sm"
+                                              : "bg-rose-600 text-white shadow-sm"
+                                            : "text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                                        )}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Condition Grade (Follows Checklist & Auto-Graded) */}
+                <div className="card p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-xl font-semibold text-stone-900">Condition grade</h3>
+                      <p className="mt-1 text-[13px] text-stone-500">
+                        One scale for the whole company — auto-evaluated from your inspection checklist.
+                      </p>
+                    </div>
+                    {gradeOverridden ? (
+                      <div className="flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[12px] text-amber-800">
+                        <span>Manual grade · auto was <strong>Grade {autoGrade}</strong></span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGradeOverridden(false);
+                            setGrade(autoGrade);
+                          }}
+                          className="font-bold underline hover:text-amber-900"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-800">
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                        Auto-graded: Grade {effectiveGrade}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
                     {GRADE_ORDER.map((g) => {
                       const meta = GRADE_META[g];
-                      const active = grade === g;
+                      const active = effectiveGrade === g;
                       return (
                         <button
                           key={g}
-                          onClick={() => setGrade(g)}
+                          type="button"
+                          onClick={() => handleSelectGrade(g)}
                           className={cn(
-                            "rounded-2xl border p-3.5 text-left transition",
+                            "rounded-2xl border p-3.5 text-left transition relative",
                             active
                               ? "border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40"
                               : "border-[var(--line)] bg-white hover:border-stone-300"
@@ -744,130 +1421,58 @@ export function IntakeWizard({
                   </div>
                 </div>
 
+                {/* 3. Refurbishment & Repair Budget */}
                 <div className="card p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-display text-xl font-semibold text-stone-900">Refurbishment & repair budget</h3>
+                  <p className="mb-4 mt-1 text-[13px] text-stone-500">
+                    Estimated cost for steam cleaning, parts replacement, upholstery, re-veneering, or technician labor.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <h3 className="font-display text-xl font-semibold text-stone-900">Inspection checklist</h3>
-                      <p className="mt-1 text-[13px] text-stone-500">
-                        {root?.name ?? "Item"} standard · {answered}/{checkList.length} inspected
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setChecks(Object.fromEntries(checkList.map((_, ix) => [ix, "pass"])))}
-                      className="btn-ghost h-9 text-[12.5px]"
-                    >
-                      <Check className="h-4 w-4" /> Mark all pass
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {checkList.map((label, ix) => {
-                      const cur = checks[ix];
-                      return (
-                        <div key={label} className="flex flex-wrap items-center gap-3 rounded-xl border border-stone-100 bg-stone-50/50 px-3.5 py-2.5">
-                          <span className="flex-1 text-[13.5px] text-stone-700">{label}</span>
-                          <div className="flex overflow-hidden rounded-lg border border-stone-200 bg-white">
-                            {(["pass", "flag", "fail"] as const).map((s) => (
-                              <button
-                                key={s}
-                                onClick={() => setChecks((c) => ({ ...c, [ix]: s }))}
-                                className={cn(
-                                  "px-3 py-1.5 text-[12px] font-semibold capitalize transition",
-                                  cur === s
-                                    ? s === "pass" ? "bg-emerald-600 text-white" : s === "flag" ? "bg-amber-500 text-white" : "bg-rose-600 text-white"
-                                    : "text-stone-400 hover:bg-stone-50"
-                                )}
-                              >
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4">
-                    <label className="label">Condition notes</label>
-                    <textarea
-                      className="input"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Anything a buyer should know — scratches, replaced parts, wobble…"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ---------------- STEP 0 · PHOTOS ---------------- */}
-            {step === 0 && (
-              <div className="card p-5">
-                <h3 className="font-display text-xl font-semibold text-stone-900">Photo capture</h3>
-                <p className="mb-4 mt-1 text-[13px] text-stone-500">
-                  Start with what you have. Add photos or a short video now, then complete the record and listing details later.
-                </p>
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  {PHOTO_SLOTS.map((s) => {
-                    const url = photos[s.slot];
-                    return (
-                      <div key={s.slot} className={cn("overflow-hidden rounded-2xl border", url ? "border-[var(--line)]" : "border-dashed border-stone-300")}>
-                        {url ? (
-                          <div className="relative">
-                            {url.startsWith("data:video/") ? (
-                              <video src={url} controls className="aspect-[4/3] w-full object-cover" />
-                            ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
-                            )}
-                            <button
-                              onClick={() => setPhotos((p) => ({ ...p, [s.slot]: null }))}
-                              className="absolute right-2.5 top-2.5 rounded-full bg-stone-950/60 p-1.5 text-white backdrop-blur transition hover:bg-stone-950/80"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                            <div className="absolute bottom-2.5 left-2.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-stone-800 backdrop-blur">
-                              {s.label}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2.5 bg-stone-50/60 p-5 text-center">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-stone-400 shadow-sm">
-                              <Camera className="h-5 w-5" strokeWidth={1.8} />
-                            </div>
-                            <div className="text-[13px] font-bold text-stone-700">
-                              {s.label} {s.required ? <span className="text-rose-500">*</span> : <span className="font-medium text-stone-400">(optional)</span>}
-                            </div>
-                            <p className="text-[11.5px] leading-snug text-stone-400">{s.hint}</p>
-                            <div className="mt-1 flex gap-2">
-                              <button onClick={() => fileRefs.current[s.slot]?.click()} className="btn-ghost h-9 px-3 text-[12.5px]">
-                                <ImageIcon className="h-4 w-4" /> Upload
-                              </button>
-                              {leaf && (
-                                <button
-                                  onClick={() => setPhotos((p) => ({ ...p, [s.slot]: refPhotoFor(leaf.slug) }))}
-                                  className="btn-soft h-9 px-3 text-[12.5px]"
-                                >
-                                  Use reference
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                      <label className="label">Refurb budget</label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
                         <input
-                          ref={(el) => { fileRefs.current[s.slot] = el; }}
-                          type="file"
-                          accept="image/*,video/*"
-                          className="hidden"
-                          onChange={(e) => onFile(s.slot, e.target.files?.[0])}
+                          className="input pl-8"
+                          type="number"
+                          min={0}
+                          value={refurb}
+                          onChange={(e) => setRefurb(e.target.value)}
+                          placeholder="0"
                         />
                       </div>
-                    );
-                  })}
+                      <p className="mt-1.5 text-[11px] text-stone-400">Added to floor cost calculation (1.18× multiplier).</p>
+                    </div>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total invested unit cost</div>
+                      <div className="mt-1 font-display text-2xl font-bold tabular-nums text-stone-900">
+                        {fmtMoney(acqNum + refurbNum + cleaningNum)}
+                      </div>
+                      <div className="mt-1 text-[11.5px] text-stone-500">
+                        Acquisition ({fmtMoney(acqNum)}) + Refurb ({fmtMoney(refurbNum)}) + Cleaning ({fmtMoney(cleaningNum)})
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Condition Notes */}
+                <div className="card p-5">
+                  <label className="label font-display text-base font-semibold text-stone-900">Condition notes</label>
+                  <p className="mb-2 text-[12.5px] text-stone-500">
+                    Anything a buyer or warehouse technician should know — scratches, replaced parts, wobble, or touch-ups needed.
+                  </p>
+                  <textarea
+                    className="input min-h-[90px]"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Anything a buyer should know — scratches, replaced parts, wobble…"
+                  />
                 </div>
               </div>
             )}
 
-            {/* ---------------- STEP 4 · PRICING ---------------- */}
-            {step === 4 && (
+            {/* ---------------- STEP 5 · PRICING & PUBLISH ---------------- */}
+            {step === 5 && (
               <div className="grid gap-4 xl:grid-cols-2">
                 <div className="space-y-4">
                   <div className="card p-5">
@@ -876,7 +1481,7 @@ export function IntakeWizard({
                       {[
                         ["Category reference (new)", baseValue ? fmtMoney(baseValue) : "—", false],
                         [`Brand tier · ${tier.name}`, `× ${tier.multiplier}`, false],
-                        [`Grade band · ${grade ?? "—"}`, v.band ? `${Math.round(v.band[0] * 100)}–${Math.round(v.band[1] * 100)}%` : "—", false],
+                        [`Grade band · ${effectiveGrade ?? "—"}`, v.band ? `${Math.round(v.band[0] * 100)}–${Math.round(v.band[1] * 100)}%` : "—", false],
                       ].map(([l, r]) => (
                         <div key={String(l)} className="flex items-center justify-between border-b border-dashed border-stone-100 pb-2">
                           <span className="text-stone-500">{l}</span>
@@ -933,7 +1538,10 @@ export function IntakeWizard({
                 <div className="space-y-4">
                   <div className="card p-5">
                     <h3 className="font-display text-xl font-semibold text-stone-900">Margin calculator</h3>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <p className="mt-1 text-[12.5px] text-stone-500">
+                      Total unit cost basis includes initial acquisition, technician refurbishing, and cleaning.
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
                       <div>
                         <label className="label">Acquisition</label>
                         <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600">{fmtMoney(acqNum)}</div>
@@ -942,7 +1550,29 @@ export function IntakeWizard({
                         <label className="label">Refurb</label>
                         <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600">{fmtMoney(refurbNum)}</div>
                       </div>
+                      <div>
+                        <label className="label flex items-center justify-between">
+                          <span>Cleaning</span>
+                          <span className="text-[10px] text-stone-400">Min ₱{MIN_CLEANING_COST}</span>
+                        </label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                          <input
+                            className="input pl-8"
+                            type="number"
+                            min={MIN_CLEANING_COST}
+                            value={cleaning}
+                            onChange={(e) => setCleaning(e.target.value)}
+                            placeholder={String(MIN_CLEANING_COST)}
+                          />
+                        </div>
+                      </div>
                     </div>
+                    {cleaningNum < MIN_CLEANING_COST && (
+                      <p className="mt-1.5 text-[11px] text-amber-600">
+                        * Note: Minimum service cost for professional cleaning is ₱{MIN_CLEANING_COST}.
+                      </p>
+                    )}
                     <div className="mt-3">
                       <label className="label">Ask price</label>
                       <div className="flex gap-2">
@@ -964,8 +1594,8 @@ export function IntakeWizard({
                     {priceNum > 0 && (
                       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                         {[
-                          ["Margin", acqNum + refurbNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum) - 1) * 100)}%` : "—"],
-                          ["Gross profit", fmtMoney(priceNum - acqNum - refurbNum)],
+                          ["Margin", acqNum + refurbNum + cleaningNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum + cleaningNum) - 1) * 100)}%` : "—"],
+                          ["Gross profit", fmtMoney(priceNum - acqNum - refurbNum - cleaningNum)],
                           ["vs benchmark", v.benchmark ? `${priceNum >= v.benchmark ? "+" : ""}${Math.round((priceNum / v.benchmark - 1) * 100)}%` : "—"],
                         ].map(([l, r]) => (
                           <div key={l} className="rounded-xl bg-stone-50 px-2 py-2.5">
@@ -984,24 +1614,64 @@ export function IntakeWizard({
                   </div>
 
                   <div className="card p-5">
-                    <h3 className="font-display text-xl font-semibold text-stone-900">Publish</h3>
+                    <h3 className="font-display text-xl font-semibold text-stone-900">Publish & routing</h3>
                     <div className="mt-3 space-y-2">
                       {([
-                        { k: "listed", t: "List for sale now", d: listingReady ? "Goes live on the book at the ask price above." : "Information is still required — this will be saved as a draft instead." },
-                        { k: "stock", t: "Save to stock", d: "Priced and ready — list later from the item page." },
-                        { k: "intake", t: "Keep in intake queue", d: "Park it; pricing can be finished by the desk later." },
+                        {
+                          k: "listed",
+                          t: "List for sale now",
+                          d: listingReady ? "Goes live on the book at the ask price above." : "Information is still required — this will be saved as a draft instead.",
+                          rec: false,
+                          recLabel: "",
+                        },
+                        {
+                          k: "stock",
+                          t: "Save to stock",
+                          d: "Priced and ready — list later from the item page.",
+                          rec: false,
+                          recLabel: "",
+                        },
+                        {
+                          k: "for_cleaning",
+                          t: "For cleaning",
+                          d: "Route to cleaning team for steam cleaning, wipe-down, and sanitization before sale.",
+                          rec: effectiveGrade === "A" || effectiveGrade === "B",
+                          recLabel: "Recommended for Grade A & B",
+                        },
+                        {
+                          k: "for_refurb",
+                          t: "For cleaning & refurbishing",
+                          d: "Route to technician queue for mechanical repairs, part replacement, and refurbishing.",
+                          rec: effectiveGrade === "B" || effectiveGrade === "C",
+                          recLabel: "Recommended for Grade B & C",
+                        },
+                        {
+                          k: "intake",
+                          t: "Keep in intake queue (Draft)",
+                          d: "Park it; pricing, photos, or inspection details can be finished later.",
+                          rec: false,
+                          recLabel: "",
+                        },
                       ] as const).map((o) => (
                         <button
                           key={o.k}
+                          type="button"
                           onClick={() => setListMode(o.k)}
                           className={cn(
                             "flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition",
                             listMode === o.k ? "border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/40" : "border-[var(--line)] hover:border-stone-300"
                           )}
                         >
-                          <span className={cn("mt-0.5 h-3.5 w-3.5 rounded-full border-2", listMode === o.k ? "border-amber-600 bg-amber-600" : "border-stone-300")} />
-                          <span>
-                            <span className="block text-[13.5px] font-semibold text-stone-900">{o.t}</span>
+                          <span className={cn("mt-0.5 h-3.5 w-3.5 rounded-full border-2 shrink-0", listMode === o.k ? "border-amber-600 bg-amber-600" : "border-stone-300")} />
+                          <span className="flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="block text-[13.5px] font-semibold text-stone-900">{o.t}</span>
+                              {o.rec && (
+                                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                                  {o.recLabel}
+                                </span>
+                              )}
+                            </span>
                             <span className="mt-0.5 block text-[12px] leading-snug text-stone-500">{o.d}</span>
                           </span>
                         </button>
@@ -1015,12 +1685,27 @@ export function IntakeWizard({
                       </div>
                     )}
 
+                    {/* Picture thumbnail here: using uploaded after photos */}
                     <div className="mt-4 flex items-center gap-3 rounded-xl bg-stone-50 p-3">
-                      <Thumb url={photos.front} alt="" className="h-12 w-16 rounded-lg border border-stone-200" />
+                      <div className="relative shrink-0">
+                        <Thumb url={photos.after || photos.front} alt="" className="h-12 w-16 rounded-lg border border-stone-200 object-cover" />
+                        {photos.after && (
+                          <span className="absolute -bottom-1 -right-1 rounded bg-amber-600 px-1 py-0.5 text-[8.5px] font-black uppercase text-white shadow">
+                            After
+                          </span>
+                        )}
+                      </div>
                       <div className="min-w-0 text-[12.5px]">
                         <div className="truncate font-semibold text-stone-900">{name || "Unnamed item"}</div>
                         <div className="mt-0.5 truncate text-stone-500">{leaf ? pathOfLeaf(leaf) : "—"}</div>
-                        <div className="mt-1 flex items-center gap-1.5"><GradeChip grade={grade} /></div>
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <GradeChip grade={effectiveGrade} />
+                          {photos.after ? (
+                            <span className="text-[11px] font-medium text-emerald-700">• After photo ready</span>
+                          ) : (
+                            <span className="text-[11px] text-stone-400">• Front photo</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

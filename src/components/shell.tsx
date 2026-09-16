@@ -8,6 +8,8 @@ import {
   LayoutDashboard,
   PackagePlus,
   Scale,
+  ShoppingBag,
+  ArrowUpRight,
 } from "lucide-react";
 import { cn } from "@/lib/format";
 
@@ -96,9 +98,20 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
     <>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col bg-[#123D5B] lg:flex">
-        <div className="px-5 pb-6 pt-6">
+        <div className="px-5 pb-5 pt-6">
           <Link href="/">
             <Logo light />
+          </Link>
+          <Link
+            href="/shop"
+            target="_blank"
+            className="mt-4 flex items-center justify-between rounded-xl border border-[#16c4df]/35 bg-[#16c4df]/15 px-3 py-2 text-xs font-bold text-[#16c4df] shadow-sm transition hover:bg-[#16c4df]/25 hover:border-[#16c4df]"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>Visit Shop Website</span>
+            </div>
+            <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
@@ -196,6 +209,15 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
         <div className="flex items-center justify-between px-4 py-2.5">
           <Link href="/">
             <Logo />
+          </Link>
+          <Link
+            href="/shop"
+            target="_blank"
+            className="flex items-center gap-1.5 rounded-full border border-[#16c4df]/50 bg-[#16c4df]/15 px-3 py-1 text-xs font-bold text-[#1D5D8B] transition hover:bg-[#16c4df]/25"
+          >
+            <ShoppingBag className="h-3.5 w-3.5 text-[#16c4df]" />
+            <span>Visit Shop</span>
+            <ArrowUpRight className="h-3 w-3 text-[#16c4df]" />
           </Link>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2">

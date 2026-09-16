@@ -151,8 +151,13 @@ textarea.input {
 .text-stone-500 { color: #3f6175 !important; }
 .text-stone-600 { color: #294e65 !important; }
 .text-stone-700 { color: #1f435c !important; }
-.placeholder\:text-stone-400::placeholder { color: #557287 !important; }
-.input.pl-10 { padding-left: 2.5rem !important; }
+/* Prevent default px-3 on .input from overriding left icon and prefix paddings */
+.input.pl-7, .input[class*="pl-7"] { padding-left: 2rem !important; }
+.input.pl-8, .input[class*="pl-8"] { padding-left: 2.25rem !important; }
+.input.pl-9, .input[class*="pl-9"] { padding-left: 2.5rem !important; }
+.input.pl-10, .input[class*="pl-10"] { padding-left: 2.75rem !important; }
+.input.pl-11, .input[class*="pl-11"] { padding-left: 3rem !important; }
+.input.pl-12, .input[class*="pl-12"] { padding-left: 3.25rem !important; }
 
 /* Dark navigation needs its own light text ramp. */
 aside .text-stone-400, aside .text-stone-500 { color: #a9c8da !important; }

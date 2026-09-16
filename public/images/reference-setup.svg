@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">Office Furniture Setup View</title>
+  <desc id="desc">Alternate staged view of office workspace setup.</desc>
+  <rect width="1200" height="900" fill="#dfdcd3"/>
+  <rect y="640" width="1200" height="260" fill="#baa993"/>
+  <!-- Table shadow -->
+  <ellipse cx="600" cy="650" rx="420" ry="24" fill="#000" opacity="0.08"/>
+  <!-- Desk surface -->
+  <rect x="220" y="320" width="760" height="42" rx="4" fill="#6d533b"/>
+  <!-- Desk legs -->
+  <rect x="270" y="362" width="36" height="295" fill="#2d2926"/>
+  <rect x="894" y="362" width="36" height="295" fill="#2d2926"/>
+  <!-- Staged lamp on desk -->
+  <path d="M340 320l30-90h40l-20 90z" fill="#1D5D8B"/>
+  <circle cx="390" cy="225" r="16" fill="#16c4df"/>
+  <rect x="330" y="316" width="30" height="5" rx="2" fill="#17364b"/>
+  <!-- Staged laptop / notebook -->
+  <rect x="520" y="306" width="160" height="15" rx="3" fill="#8d99ae"/>
+  <!-- Ergonomic chair angled -->
+  <path d="M620 440c0-60 48-110 108-110h24c60 0 108 50 108 110v120H620z" fill="#1D5D8B"/>
+  <!-- Chair mesh pattern lines -->
+  <line x1="640" y1="380" x2="840" y2="380" stroke="#16c4df" stroke-width="3" opacity="0.4"/>
+  <line x1="640" y1="420" x2="840" y2="420" stroke="#16c4df" stroke-width="3" opacity="0.4"/>
+  <line x1="640" y1="460" x2="840" y2="460" stroke="#16c4df" stroke-width="3" opacity="0.4"/>
+  <!-- Seat pan -->
+  <rect x="590" y="555" width="280" height="38" rx="8" fill="#16486B"/>
+  <!-- Cylinder & 5-star base -->
+  <rect x="716" y="593" width="28" height="75" fill="#2d2926"/>
+  <path d="M630 668l100-10 100 10-20 18h-160z" fill="#17364b"/>
+  <!-- Casters -->
+  <circle cx="634" cy="682" r="12" fill="#222"/>
+  <circle cx="806" cy="682" r="12" fill="#222"/>
+  <!-- Setup Badge Watermark -->
+  <rect x="940" y="60" width="200" height="36" rx="8" fill="#16c4df" opacity="0.85"/>
+  <text x="1040" y="84" fill="#17364b" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">SETUP VIEW</text>
+</svg>

@@ -18,6 +18,11 @@ export function GradeChip({ grade, className }: { grade?: Grade | null; classNam
 const STATUS_META: Record<string, { label: string; chip: string; dot: string }> = {
   draft: { label: "Information required", chip: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
   intake: { label: "Intake", chip: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500" },
+  for_cleaning: { label: "For cleaning", chip: "bg-teal-50 text-teal-700 border-teal-200", dot: "bg-teal-500" },
+  cleaning: { label: "For cleaning", chip: "bg-teal-50 text-teal-700 border-teal-200", dot: "bg-teal-500" },
+  for_refurb: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
+  for_refurbishing: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
+  refurbishing: { label: "For cleaning & refurbishing", chip: "bg-amber-50 text-amber-800 border-amber-300", dot: "bg-amber-500" },
   in_stock: { label: "In stock", chip: "bg-sky-50 text-sky-700 border-sky-200", dot: "bg-sky-500" },
   listed: { label: "Listed", chip: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
   reserved: { label: "Reserved", chip: "bg-indigo-50 text-indigo-700 border-indigo-200", dot: "bg-indigo-500" },
@@ -85,6 +90,82 @@ export function Thumb({
   return (
     <div className={cn("flex items-center justify-center bg-stone-100 text-stone-300", className)}>
       <Armchair className={cn("h-1/3 w-1/3", iconClassName)} strokeWidth={1.5} />
+    </div>
+  );
+}
+
+export function ProductHoverThumb({
+  photos,
+  alt = "",
+  className,
+  containerClassName,
+}: {
+  photos?: { url: string; slot?: string; label?: string }[] | null;
+  alt?: string;
+  className?: string;
+  containerClassName?: string;
+}) {
+  const primaryUrl = photos?.[0]?.url ? normalizeRefPhoto(photos[0].url) : null;
+  
+  // Find a secondary photo: after, back, setup, or simply the second photo in array
+  const secondaryItem = photos?.find(
+    (p, idx) => idx > 0 && p.url && (p.slot === "after" || p.slot === "back" || p.slot === "setup" || p.url !== photos[0]?.url)
+  ) || (photos && photos.length > 1 ? photos[1] : null);
+
+  let secondaryUrl = secondaryItem?.url ? normalizeRefPhoto(secondaryItem.url) : null;
+
+  // If primary and secondary point to the same mock ref photo, switch to alternate setup view SVG if item has multiple photos
+  if (primaryUrl && secondaryUrl === primaryUrl && photos && photos.length > 1) {
+    secondaryUrl = "/images/reference-setup.svg";
+  }
+
+  const hasSecondary = Boolean(secondaryUrl && secondaryUrl !== primaryUrl);
+
+  if (!primaryUrl) {
+    return (
+      <div className={cn("flex items-center justify-center bg-stone-100 text-stone-300", containerClassName || className)}>
+        <Armchair className="h-1/3 w-1/3" strokeWidth={1.5} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("relative h-full w-full flex items-center justify-center overflow-hidden", containerClassName)}>
+      {/* Primary Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={primaryUrl}
+        alt={alt}
+        className={cn(
+          "h-full w-full object-contain transition-all duration-500",
+          hasSecondary
+            ? "group-hover:opacity-0 group-hover/img:opacity-0 group-hover:scale-95 group-hover/img:scale-95"
+            : "group-hover:scale-105 group-hover/img:scale-105",
+          className
+        )}
+        loading="lazy"
+      />
+
+      {/* Secondary Image (Fades in on hover) */}
+      {hasSecondary && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={secondaryUrl!}
+          alt={`${alt} - alternate setup`}
+          className={cn(
+            "absolute inset-0 h-full w-full object-contain opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover/img:opacity-100 group-hover:scale-100 group-hover/img:scale-100",
+            className
+          )}
+          loading="lazy"
+        />
+      )}
+
+      {/* Visual pill indicating another setup view exists */}
+      {hasSecondary && (
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-black/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm opacity-70 transition-opacity duration-300 group-hover:opacity-0 group-hover/img:opacity-0 pointer-events-none">
+          +setup
+        </span>
+      )}
     </div>
   );
 }

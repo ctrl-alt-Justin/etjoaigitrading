@@ -29,8 +29,9 @@ type CreatePayload = {
   conditionNotes?: string;
   acquisitionCost?: number;
   refurbCost?: number;
+  cleaningCost?: number;
   listedPrice?: number | null;
-  status?: "draft" | "intake" | "in_stock" | "listed";
+  status?: "draft" | "intake" | "for_cleaning" | "for_refurb" | "in_stock" | "listed" | "reserved" | "sold" | "archived";
   supplierId?: number | null;
   location?: string;
 };
@@ -52,7 +53,8 @@ export async function POST(req: Request) {
   const acquisitionCost = num(body.acquisitionCost) ?? 0;
   if (acquisitionCost <= 0 && !isDraft)
     return NextResponse.json({ error: "Acquisition cost must be greater than zero" }, { status: 400 });
-  const refurbCost = num(body.refurbCost) ?? 0;
+  const cleaningCost = num(body.cleaningCost) ?? 0;
+  const refurbCost = (num(body.refurbCost) ?? 0) + cleaningCost;
   const floor = computeFloor(acquisitionCost, refurbCost);
 
   let listedPrice = num(body.listedPrice);
@@ -65,7 +67,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
   } else {
-    listedPrice = status === "in_stock" ? listedPrice : null;
+    listedPrice = (status === "in_stock" || status === "for_cleaning" || status === "for_refurb") ? listedPrice : null;
   }
 
   // Re-derive valuation server-side from the category tree.

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import type { DbCategory, DbItem, Grade } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
-import { Thumb } from "@/components/ui";
+import { Thumb, ProductHoverThumb } from "@/components/ui";
 import { useCart } from "@/components/cart-provider";
 import { useFavorites } from "@/components/favorites-provider";
 
@@ -353,89 +353,91 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
 
   return (
     <div className="w-full">
-      {/* Top Toolbar (Breadcrumb + Counter + View Switcher + Sort) */}
-      <div className="flex flex-col gap-4 border-b border-[#8edce8]/40 pb-5 sm:flex-row sm:items-center sm:justify-between">
-        {/* Left: Breadcrumb / Category Title */}
-        <div className="flex items-center gap-2 text-2xl font-black text-[#16c4df]">
-          <ChevronRight className="h-6 w-6 stroke-[3] text-[#17364b]" />
-          <h2 className="font-display tracking-tight text-[#16c4df]">
-            {currentCategoryTitle}
-          </h2>
-        </div>
-
-        {/* Right: Controls Toolbar */}
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-          {/* Showing Count */}
-          <span className="text-xs font-semibold text-[#557287]">
-            Showing {visible.length} Results
-          </span>
-
-          {/* View Switcher Icons */}
-          <div className="flex items-center gap-2">
-            {/* List View Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              aria-label="List view"
-              className={`p-1.5 transition ${
-                viewMode === "list"
-                  ? "text-[#16c4df]"
-                  : "text-stone-400 hover:text-stone-600"
-              }`}
-            >
-              <Menu className="h-5 w-5" strokeWidth={viewMode === "list" ? 2.5 : 1.8} />
-            </button>
-
-            {/* Block / Grid View Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              aria-label="Block grid view"
-              className={`p-1.5 transition ${
-                viewMode === "grid"
-                  ? "text-[#16c4df]"
-                  : "text-stone-400 hover:text-stone-600"
-              }`}
-            >
-              <LayoutGrid className="h-5 w-5" strokeWidth={viewMode === "grid" ? 2.5 : 1.8} />
-            </button>
+      {/* Sticky Top Toolbar (Category Title + Counter + View Switcher + Sort) */}
+      <div className="sticky top-[61px] z-30 -mx-6 px-6 sm:-mx-12 sm:px-12 bg-[#FCFDF8]/95 backdrop-blur-md border-b border-stone-200/80 py-3.5 shadow-sm transition-all">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Left: Breadcrumb / Category Title */}
+          <div className="flex items-center gap-2 text-2xl font-black text-[#16c4df]">
+            <ChevronRight className="h-6 w-6 stroke-[3] text-[#17364b]" />
+            <h2 className="font-display tracking-tight text-[#16c4df]">
+              {currentCategoryTitle}
+            </h2>
           </div>
 
-          {/* Mobile Filter Toggle */}
-          <button
-            type="button"
-            onClick={() => setSidebarMobileOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-bold text-[#1D5D8B] md:hidden"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-          </button>
+          {/* Right: Controls Toolbar */}
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            {/* Showing Count */}
+            <span className="text-xs font-semibold text-[#557287]">
+              Showing {visible.length} Results
+            </span>
 
-          {/* Sort Dropdown styled in cyan like in the mockup */}
-          <div className="relative inline-flex items-center">
-            <span className="mr-2 text-xs font-semibold text-[#557287]">Sort by</span>
-            <div className="relative">
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                aria-label="Sort catalog items"
-                className="cursor-pointer appearance-none rounded-md bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-bold text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
+            {/* View Switcher Icons */}
+            <div className="flex items-center gap-1.5 rounded-lg bg-stone-100 p-1 border border-stone-200/60">
+              {/* List View Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                aria-label="List view"
+                className={`rounded-md p-1.5 transition ${
+                  viewMode === "list"
+                    ? "bg-white text-[#16c4df] shadow-sm"
+                    : "text-stone-400 hover:text-stone-600"
+                }`}
               >
-                <option value="relevance" className="bg-white text-[#17364b]">Relevance</option>
-                <option value="price-low" className="bg-white text-[#17364b]">Price: low to high</option>
-                <option value="price-high" className="bg-white text-[#17364b]">Price: high to low</option>
-                <option value="newest" className="bg-white text-[#17364b]">New Drops</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white" />
+                <Menu className="h-4.5 w-4.5" strokeWidth={viewMode === "list" ? 2.5 : 1.8} />
+              </button>
+
+              {/* Block / Grid View Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                aria-label="Block grid view"
+                className={`rounded-md p-1.5 transition ${
+                  viewMode === "grid"
+                    ? "bg-white text-[#16c4df] shadow-sm"
+                    : "text-stone-400 hover:text-stone-600"
+                }`}
+              >
+                <LayoutGrid className="h-4.5 w-4.5" strokeWidth={viewMode === "grid" ? 2.5 : 1.8} />
+              </button>
+            </div>
+
+            {/* Mobile Filter Toggle */}
+            <button
+              type="button"
+              onClick={() => setSidebarMobileOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-bold text-[#1D5D8B] md:hidden"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+            </button>
+
+            {/* Sort Dropdown styled in cyan like in the mockup */}
+            <div className="relative inline-flex items-center">
+              <span className="mr-2 text-xs font-semibold text-[#557287]">Sort by</span>
+              <div className="relative">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort catalog items"
+                  className="cursor-pointer appearance-none rounded-md bg-[#16c4df] py-1.5 pl-3 pr-7 text-xs font-bold text-white shadow-sm outline-none transition hover:bg-[#13b0c9]"
+                >
+                  <option value="relevance" className="bg-white text-[#17364b]">Relevance</option>
+                  <option value="price-low" className="bg-white text-[#17364b]">Price: low to high</option>
+                  <option value="price-high" className="bg-white text-[#17364b]">Price: high to low</option>
+                  <option value="newest" className="bg-white text-[#17364b]">New Drops</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white" />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content Area (Sidebar + Product Grid/List) */}
-      <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[240px_1fr]">
-        {/* Left Sidebar Filter (Collapsible on mobile) */}
+      <div className="mt-6 grid grid-cols-1 items-start gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]">
+        {/* Left Sidebar Filter (Sticky on desktop, collapsible drawer on mobile) */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-72 bg-white p-6 shadow-2xl transition-transform md:static md:z-0 md:w-auto md:bg-transparent md:p-0 md:shadow-none ${
+          className={`fixed inset-y-0 left-0 z-50 w-72 bg-white p-6 shadow-2xl transition-transform md:static md:z-20 md:w-auto md:bg-transparent md:p-0 md:shadow-none md:sticky md:top-[128px] md:self-start md:max-h-[calc(100vh-142px)] md:overflow-y-auto pr-2 scrollbar-thin ${
             sidebarMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
         >
@@ -794,11 +796,11 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                             </span>
                           )}
 
-                          {/* Product Image */}
-                          <Thumb
-                            url={item.photos?.[0]?.url}
+                          {/* Product Image with Hover to Alternate Setup View */}
+                          <ProductHoverThumb
+                            photos={item.photos}
                             alt={item.name}
-                            className="h-44 w-full object-contain transition duration-500 group-hover/img:scale-105"
+                            className="h-44 w-full"
                           />
                         </div>
                       </Link>
@@ -896,12 +898,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     {/* Left: Product Image on Pure White Background */}
                     <Link
                       href={`/shop/${item.id}`}
-                      className="relative flex min-h-[260px] items-center justify-center p-6 bg-white border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200"
+                      className="group/img relative flex min-h-[260px] items-center justify-center p-6 bg-white border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200"
                     >
-                      <Thumb
-                        url={item.photos?.[0]?.url}
+                      <ProductHoverThumb
+                        photos={item.photos}
                         alt={item.name}
-                        className="h-56 w-full object-contain transition duration-500 hover:scale-105"
+                        className="h-56 w-full"
                       />
                     </Link>
 

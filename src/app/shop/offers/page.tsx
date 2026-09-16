@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Sparkles, Tag, Clock, ArrowRight, ArrowLeft, Building2 } from "lucide-react";
-import { getAllData } from "@/lib/queries";
+import { getShopCatalogData } from "@/lib/queries";
 import { ShopHeader } from "@/components/shop-header";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { QuickAddButton } from "@/components/quick-add-button";
-import { Thumb, GradeChip } from "@/components/ui";
+import { Thumb, GradeChip, ProductHoverThumb } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import type { DbItem, Grade } from "@/db/schema";
 
@@ -16,11 +16,7 @@ export const metadata = {
 };
 
 export default async function ShopOffersPage() {
-  const { items } = await getAllData();
-
-  const forSale = items.filter(
-    (item) => item.status === "listed" && item.listedPrice != null
-  );
+  const { items: forSale } = await getShopCatalogData();
 
   // 1. Featured items (where isFeatured is true; if none exist, fall back to top grade pieces)
   let featured = forSale.filter((item) => item.isFeatured === true);
@@ -63,10 +59,10 @@ export default async function ShopOffersPage() {
       >
         <Link href={`/shop/${item.id}`} className="block">
           <div className="relative h-56 w-full overflow-hidden bg-[#f3f5f1]">
-            <Thumb
-              url={item.photos?.[0]?.url}
+            <ProductHoverThumb
+              photos={item.photos}
               alt={item.name}
-              className="h-full w-full object-contain p-4 transition duration-500 group-hover:scale-105"
+              className="h-full w-full p-4"
             />
             {badge && (
               <span

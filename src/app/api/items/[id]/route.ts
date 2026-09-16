@@ -23,7 +23,7 @@ type Action =
       photos?: DbItem["photos"];
       attributes?: DbItem["attributes"];
       supplierId?: number | null;
-      status?: "draft" | "in_stock" | "listed";
+      status?: "draft" | "intake" | "for_cleaning" | "for_refurb" | "for_refurbishing" | "in_stock" | "listed" | "reserved" | "sold" | "archived";
       acquisitionCost?: number;
       refurbCost?: number;
       listedPrice?: number | null;

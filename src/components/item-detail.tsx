@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,6 +9,7 @@ import {
   BadgeDollarSign,
   Check,
   CheckCircle2,
+  Clock,
   History,
   ImagePlus,
   Loader2,
@@ -176,6 +177,24 @@ function MoneyModal({
   );
 }
 
+function parseInitialDims(raw?: string | null): { l: string; w: string; h: string; unit: DimensionUnit } {
+  if (!raw) return { l: "", w: "", h: "", unit: "cm" };
+  const trimmed = raw.trim();
+  let unit: DimensionUnit = "cm";
+  const unitMatch = trimmed.match(/(mm|cm|inch|in|meters|m)$/i);
+  if (unitMatch) {
+    const matched = unitMatch[1].toLowerCase();
+    unit = matched === "inch" ? "in" : matched === "meters" ? "m" : (matched as DimensionUnit);
+  }
+  const numbers = trimmed.match(/\d+(?:\.\d+)?/g);
+  return {
+    l: numbers?.[0] ?? "",
+    w: numbers?.[1] ?? "",
+    h: numbers?.[2] ?? "",
+    unit,
+  };
+}
+
 function EditItemModal({
   item,
   categories,
@@ -189,6 +208,12 @@ function EditItemModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const initialDims = useMemo(() => parseInitialDims(item.dimensions), [item.dimensions]);
+  const [dimL, setDimL] = useState(initialDims.l);
+  const [dimW, setDimW] = useState(initialDims.w);
+  const [dimH, setDimH] = useState(initialDims.h);
+  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>(initialDims.unit);
+
   const [form, setForm] = useState({
     name: item.name,
     brand: item.brand ?? "",
@@ -197,6 +222,7 @@ function EditItemModal({
     material: item.material ?? "",
     dimensions: item.dimensions ?? "",
     grade: item.grade ?? "",
+    status: item.status,
     conditionNotes: item.conditionNotes ?? "",
     acquisitionCost: String(item.acquisitionCost),
     refurbCost: String(item.refurbCost),
@@ -206,12 +232,26 @@ function EditItemModal({
   });
   const [checklist, setChecklist] = useState(item.checklist ?? []);
   const [afterPhotos, setAfterPhotos] = useState<ItemPhoto[]>(() => (item.photos ?? []).filter((photo) => photo.slot.startsWith("after-")));
-  const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>("cm");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!open) return null;
 
   const update = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  const updateDims = (l: string, w: string, h: string, u: DimensionUnit) => {
+    setDimL(l);
+    setDimW(w);
+    setDimH(h);
+    setDimensionUnit(u);
+    if (l.trim() && w.trim() && h.trim()) {
+      update("dimensions", `L ${l.trim()} × W ${w.trim()} × H ${h.trim()} ${u}`);
+    } else if (l.trim() || w.trim() || h.trim()) {
+      update("dimensions", [l.trim(), w.trim(), h.trim()].filter(Boolean).join(" x "));
+    } else {
+      update("dimensions", "");
+    }
+  };
+
   const editFloor = computeFloor(Number(form.acquisitionCost) || 0, Number(form.refurbCost) || 0);
   const priceSuggestions = [
     { label: "Floor", value: editFloor },
@@ -223,7 +263,9 @@ function EditItemModal({
   const addAfterMedia = (file: File | undefined) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result) }]);
+    const now = new Date();
+    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    reader.onload = () => setAfterPhotos((current) => [...current, { slot: `after-${Date.now()}-${current.length}`, label: file.type.startsWith("video/") ? "After video" : "After photo", url: String(reader.result), timestamp }]);
     reader.readAsDataURL(file);
   };
   const submit = async () => {
@@ -232,7 +274,7 @@ function EditItemModal({
     const res = await fetch(`/api/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "edit", ...form, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...beforePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
+      body: JSON.stringify({ action: "edit", ...form, status: form.status, dimensions: normalizeDimensions(form.dimensions, dimensionUnit), checklist, photos: [...beforePhotos, ...afterPhotos], categoryId: form.categoryId ? Number(form.categoryId) : null, acquisitionCost: Number(form.acquisitionCost), refurbCost: Number(form.refurbCost), listedPrice: form.listedPrice ? Number(form.listedPrice) : null, grade: form.grade || null }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -250,8 +292,69 @@ function EditItemModal({
         <div className="flex items-start justify-between gap-4"><div><h3 className="font-display text-xl font-semibold text-stone-900">Edit inventory entry</h3><p className="mt-1 text-[12.5px] text-stone-500">Update the record without changing its price history.</p></div><button onClick={onClose} className="btn-ghost px-3">Close</button></div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {([["name", "Item name"], ["brand", "Brand"], ["model", "Model"], ["color", "Color"], ["material", "Material"], ["location", "Location"]] as const).map(([key, label]) => <label key={key} className={key === "name" ? "sm:col-span-2" : ""}><span className="label">{label}</span><input className="input" value={form[key]} onChange={(event) => update(key, event.target.value)} /></label>)}
-          <label><span className="label">Dimensions</span><div className="flex gap-2"><input className="input" style={{ minWidth: 0, flex: "1 1 auto" }} value={form.dimensions} onChange={(event) => update("dimensions", event.target.value)} onBlur={() => update("dimensions", normalizeDimensions(form.dimensions, dimensionUnit))} placeholder="25 62 40" /><select className="input" style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }} value={dimensionUnit} onChange={(event) => setDimensionUnit(event.target.value as DimensionUnit)} aria-label="Dimension unit"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inch</option><option value="m">meters</option></select></div></label>
+          <div className="sm:col-span-2">
+            <span className="label">Dimensions</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  className="input text-center font-medium"
+                  placeholder="L"
+                  value={dimL}
+                  onChange={(e) => updateDims(e.target.value, dimW, dimH, dimensionUnit)}
+                  aria-label="Length"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">L</span>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
+              <div className="relative flex-1">
+                <input
+                  className="input text-center font-medium"
+                  placeholder="W"
+                  value={dimW}
+                  onChange={(e) => updateDims(dimL, e.target.value, dimH, dimensionUnit)}
+                  aria-label="Width"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">W</span>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
+              <div className="relative flex-1">
+                <input
+                  className="input text-center font-medium"
+                  placeholder="H"
+                  value={dimH}
+                  onChange={(e) => updateDims(dimL, dimW, e.target.value, dimensionUnit)}
+                  aria-label="Height"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-400">H</span>
+              </div>
+              <select
+                className="input"
+                style={{ width: "92px", minWidth: "92px", flex: "0 0 92px" }}
+                value={dimensionUnit}
+                onChange={(e) => updateDims(dimL, dimW, dimH, e.target.value as DimensionUnit)}
+                aria-label="Dimension unit"
+              >
+                <option value="cm">cm</option>
+                <option value="mm">mm</option>
+                <option value="in">inch</option>
+                <option value="m">meters</option>
+              </select>
+            </div>
+            <p className="mt-1 text-[11px] text-stone-400">Unit: {dimensionUnit === "cm" ? "centimeters" : dimensionUnit === "mm" ? "millimeters" : dimensionUnit === "in" ? "inches" : "meters"}</p>
+          </div>
           <label><span className="label">Category</span><select className="input" value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}><option value="">Uncategorized</option>{categories.filter((category) => category.parentId != null).sort((a, b) => a.name.localeCompare(b.name)).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label>
+            <span className="label">Product status</span>
+            <select className="input" value={form.status} onChange={(event) => update("status", event.target.value)}>
+              <option value="draft">Information required (Draft)</option>
+              <option value="intake">Intake</option>
+              <option value="for_cleaning">For cleaning</option>
+              <option value="for_refurb">For cleaning & refurbishing</option>
+              <option value="in_stock">In stock</option>
+              <option value="listed">Listed</option>
+              <option value="reserved">Reserved</option>
+            </select>
+          </label>
           <div className="sm:col-span-2"><span className="label">Condition grade</span><div className="grid grid-cols-4 gap-2">{GRADE_ORDER.map((grade) => { const active = form.grade === grade; const meta = GRADE_META[grade]; return <button key={grade} type="button" onClick={() => update("grade", active ? "" : grade)} className={cn("rounded-xl border px-2 py-2 text-left transition", active ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/30" : "border-[var(--line)] bg-white hover:border-amber-300")}><span className={cn("chip", meta.chip)}>{grade}</span><span className="mt-1 block truncate text-[10px] font-semibold text-stone-600">{meta.tagline}</span></button>; })}</div><p className="mt-1.5 text-[11px] text-stone-400">Select a grade to update the inspection record, or click the selected grade again to clear it.</p></div>
           <label><span className="label">Listed price — ₱</span><input className="input" type="number" min={0} value={form.listedPrice} onChange={(event) => update("listedPrice", event.target.value)} placeholder="Not listed" /></label>
           <label><span className="label">Acquisition cost — ₱</span><input className="input" type="number" min={0} value={form.acquisitionCost} onChange={(event) => update("acquisitionCost", event.target.value)} /></label>
@@ -389,6 +492,11 @@ export function ItemDetail({
   const flagN = checks.filter((c) => c.status === "flag").length;
   const failN = checks.filter((c) => c.status === "fail").length;
   const profit = item.soldPrice != null ? item.soldPrice - item.effectiveCost : null;
+  const isInformationRequired =
+    item.status === "draft" ||
+    item.name === "Information required" ||
+    !item.dimensions?.trim() ||
+    !item.grade;
 
   return (
     <div className="space-y-5">
@@ -412,16 +520,36 @@ export function ItemDetail({
           <div className="flex flex-wrap gap-2">
             <button onClick={() => item.status === "draft" ? router.push(`/inventory/new?edit=${item.id}`) : setEditOpen(true)} className="btn-ghost"><PencilLine className="h-4 w-4" /> Edit</button>
             {item.status !== "sold" && item.status !== "archived" && (
-              <button onClick={() => setShareOpen(true)} className="btn-ghost relative">
+              <button
+                onClick={() => isInformationRequired ? null : setShareOpen(true)}
+                disabled={isInformationRequired}
+                title={isInformationRequired ? "Complete required details before sharing" : undefined}
+                className={cn("btn-ghost relative", isInformationRequired && "opacity-40 cursor-not-allowed text-stone-400 pointer-events-none")}
+              >
                 <Share2 className="h-4 w-4" /> Share
                 {share?.active && (
                   <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white" />
                 )}
               </button>
             )}
-            {["draft", "intake", "in_stock"].includes(item.status) && (
-              <button onClick={() => setModal("list")} className="btn-accent">
+            {["draft", "intake", "in_stock", "for_cleaning", "for_refurb", "for_refurbishing", "cleaning", "refurbishing"].includes(item.status) && (
+              <button
+                onClick={() => isInformationRequired ? null : setModal("list")}
+                disabled={isInformationRequired}
+                title={isInformationRequired ? "Cannot list: complete required information first" : undefined}
+                className={cn("btn-accent", isInformationRequired && "opacity-40 cursor-not-allowed bg-stone-200 text-stone-400 hover:bg-stone-200 pointer-events-none")}
+              >
                 <Tag className="h-4 w-4" /> List for sale
+              </button>
+            )}
+            {item.status === "for_cleaning" && (
+              <button onClick={() => simpleAction("clean_done", { action: "edit", status: "in_stock" })} disabled={busyAction != null} className="btn-soft">
+                <Check className="h-4 w-4 text-emerald-600" /> Mark cleaned → To stock
+              </button>
+            )}
+            {item.status === "for_refurb" && (
+              <button onClick={() => simpleAction("to_cleaning", { action: "edit", status: "for_cleaning" })} disabled={busyAction != null} className="btn-soft">
+                <Check className="h-4 w-4 text-teal-600" /> Refurb done → To cleaning
               </button>
             )}
             {item.status === "listed" && (
@@ -473,11 +601,19 @@ export function ItemDetail({
           <div className="card overflow-hidden p-3">
             {photos.length ? (
               <>
-                <Thumb
-                  url={photos[Math.min(photo, photos.length - 1)]?.url}
-                  alt={item.name}
-                  className="aspect-[16/10] w-full rounded-xl"
-                />
+                <div className="relative overflow-hidden rounded-xl">
+                  <Thumb
+                    url={photos[Math.min(photo, photos.length - 1)]?.url}
+                    alt={item.name}
+                    className="aspect-[16/10] w-full"
+                  />
+                  {photos[Math.min(photo, photos.length - 1)]?.timestamp && (
+                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
+                      <Clock className="h-3 w-3 text-amber-400" />
+                      {photos[Math.min(photo, photos.length - 1)]?.timestamp}
+                    </div>
+                  )}
+                </div>
                 {photos.length > 1 && (
                   <div className="mt-3 grid grid-cols-4 gap-2.5">
                     {photos.map((p, ix) => (
@@ -546,7 +682,18 @@ export function ItemDetail({
               <Field label="Model">{item.model ?? "—"}</Field>
               <Field label="Color">{item.color ?? "—"}</Field>
               <Field label="Material">{item.material ?? "—"}</Field>
-              <Field label="Dimensions">{item.dimensions ?? "—"}</Field>
+              <Field label="Dimensions">
+                {item.dimensions ? (
+                  <span>
+                    {item.dimensions}
+                    {!/(cm|mm|inch|in|meters|m)$/i.test(item.dimensions.trim()) && (
+                      <span className="ml-1 text-stone-400 font-normal">(cm)</span>
+                    )}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </Field>
               <Field label="Location">{item.location ?? "—"}</Field>
               <Field label="Supplier">{item.supplierName ?? "Unassigned"}</Field>
               <Field label="Acquired">{fmtDateFull(item.intakeAt)}</Field>

@@ -10,10 +10,17 @@ export function ShareGallery({ photos, name }: { photos: ItemPhoto[]; name: stri
   if (photos.length === 0) {
     return <Thumb className="aspect-[4/3] w-full rounded-2xl" iconClassName="h-20 w-20" />;
   }
+  const current = photos[Math.min(ix, photos.length - 1)];
+  const isVideo = current?.slot === "video" || current?.url?.startsWith("data:video/") || /\.(mp4|webm|mov)(\?|$)/i.test(current?.url ?? "");
+
   return (
     <div>
       <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white shadow-sm">
-        <Thumb url={photos[Math.min(ix, photos.length - 1)].url} alt={name} className="aspect-[4/3] w-full" />
+        {isVideo ? (
+          <video src={current.url} controls className="aspect-[4/3] w-full bg-stone-950 object-contain" />
+        ) : (
+          <Thumb url={current.url} alt={name} className="aspect-[4/3] w-full" />
+        )}
       </div>
       {photos.length > 1 && (
         <div className="mt-3 grid grid-cols-4 gap-2.5">

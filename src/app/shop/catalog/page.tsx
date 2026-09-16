@@ -1,4 +1,4 @@
-import { getAllData } from "@/lib/queries";
+import { getShopCatalogData } from "@/lib/queries";
 import { CustomerCatalog } from "@/components/customer-catalog";
 import { ShopHeader } from "@/components/shop-header";
 import { ScrollToTop } from "@/components/scroll-to-top";
@@ -11,12 +11,9 @@ export default async function ShopCatalogPage({
 }: {
   searchParams: Promise<{ category?: string; q?: string }>;
 }) {
-  const { items, categories } = await getAllData();
+  const { items: forSale, categories } = await getShopCatalogData();
   const { category } = await searchParams;
   const selectedCategory = categories.find((item) => item.slug === category)?.id;
-  const forSale = items.filter(
-    (item) => item.status === "listed" && item.listedPrice != null
-  );
   const heroPhoto = forSale.find((item) => item.photos?.[0]?.url)?.photos?.[0]?.url;
 
   return (

@@ -75,13 +75,14 @@ function ShopHeaderInner() {
       <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 py-3 sm:px-8">
         {/* Left: Brand & Nav Links */}
         <div className="flex items-center gap-8">
-          <Link href="/shop" className="transition duration-200 hover:opacity-90">
+          <Link href="/shop" prefetch={true} className="transition duration-200 hover:opacity-90">
             <Logo light subtitle="Furnitures" />
           </Link>
 
           <nav className="hidden items-center gap-6 text-[13px] font-bold tracking-wide md:flex">
             <Link
               href="/shop/catalog"
+              prefetch={true}
               className={`transition-colors hover:text-[#16c4df] ${
                 isCatalog ? "text-[#16c4df]" : ""
               }`}
@@ -90,6 +91,7 @@ function ShopHeaderInner() {
             </Link>
             <Link
               href="/shop/offers"
+              prefetch={true}
               className={`transition-colors hover:text-[#16c4df] ${
                 isOffers ? "text-[#16c4df]" : ""
               }`}
@@ -218,6 +220,7 @@ function ShopHeaderInner() {
                 <div className="mt-3 border-t border-stone-100 pt-2.5 text-center">
                   <Link
                     href="/shop/favorites"
+                    prefetch={true}
                     onClick={() => setFavoritesOpen(false)}
                     className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1D5D8B] hover:text-[#16c4df] transition"
                   >
@@ -231,6 +234,7 @@ function ShopHeaderInner() {
           {/* Cart Icon */}
           <Link
             href="/shop/cart"
+            prefetch={true}
             aria-label="Shopping Cart"
             className={`relative p-2 text-[#FCFDF8] transition hover:scale-105 hover:text-[#16c4df] ${
               isCart ? "text-[#16c4df]" : ""

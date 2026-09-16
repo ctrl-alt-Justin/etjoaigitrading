@@ -1,9 +1,18 @@
+import type { Grade } from "@/db/schema";
+
 /**
  * Controlled taxonomy constants: required photo slots, per-family inspection
  * checklists and reference photography mapping.
  */
 
-export const PHOTO_SLOTS = [
+export type PhotoSlot = {
+  slot: "front" | "back" | "detail" | "after" | "label";
+  label: string;
+  hint: string;
+  required?: boolean;
+};
+
+export const PHOTO_SLOTS: PhotoSlot[] = [
   {
     slot: "front",
     label: "Front view",
@@ -23,69 +32,114 @@ export const PHOTO_SLOTS = [
     required: true,
   },
   {
+    slot: "after",
+    label: "After / finished photo",
+    hint: "Post-cleaning or refurbished condition (optional for Grade A)",
+    required: false,
+  },
+  {
     slot: "label",
     label: "Label / serial",
     hint: "Manufacturer tag, model sticker or serial plate",
     required: false,
   },
-] as const;
+];
 
-export const CHECKLISTS: Record<string, string[]> = {
+export type ChecklistCategory = "surface" | "structure" | "function" | "completeness";
+
+export type CategorizedChecklistItem = {
+  category: ChecklistCategory;
+  label: string;
+};
+
+export const CHECKLIST_CATEGORIES: { key: ChecklistCategory; label: string; desc: string }[] = [
+  { key: "surface", label: "Surface & Cosmetics", desc: "Finish, upholstery, edge banding, scratches" },
+  { key: "structure", label: "Structural Integrity", desc: "Frame, base, joints, stability" },
+  { key: "function", label: "Mechanical & Function", desc: "Hydraulics, motors, wheels, glides, locks" },
+  { key: "completeness", label: "Completeness & Hardware", desc: "Accessories, levelers, keys, connectors" },
+];
+
+export const CATEGORIZED_CHECKLISTS: Record<string, CategorizedChecklistItem[]> = {
   seating: [
-    "Casters & wheels roll smoothly",
-    "Gas lift & height adjustment hold",
-    "Tilt / recline mechanism works",
-    "Armrests intact and adjust",
-    "Upholstery / mesh free of tears",
-    "Base & frame stable, no wobble",
+    { category: "surface", label: "Upholstery & mesh clean, free of tears or deep stains" },
+    { category: "surface", label: "Arm pads, cushions & surface finish intact" },
+    { category: "structure", label: "Base, spine & frame solid with no wobble or hairline cracks" },
+    { category: "function", label: "Pneumatic cylinder & height adjustment hold firmly under load" },
+    { category: "function", label: "Tilt, recline tension & forward lock mechanisms operate smoothly" },
+    { category: "function", label: "Casters & wheels roll smoothly and pivot freely" },
+    { category: "completeness", label: "Armrests present, intact and lock at all adjustment heights" },
+    { category: "completeness", label: "All adjustment levers, knobs & caps complete" },
   ],
   desks: [
-    "Surface free of deep scratches & stains",
-    "Edge banding intact, no peeling",
-    "Frame & legs stable under load",
-    "Height-adjust motor runs (if electric)",
-    "Cable management present",
-    "Drawer glides smooth (if fitted)",
+    { category: "surface", label: "Desktop surface clean, free of deep gouges, burns & stains" },
+    { category: "surface", label: "Edge banding tight and seamless, no peeling or chipping" },
+    { category: "structure", label: "Legs, trestles & frame rock-solid under load without sway" },
+    { category: "function", label: "Height-adjust motor or lift mechanism runs smoothly & quietly" },
+    { category: "function", label: "Drawers, slides & keyboard trays glide freely without friction" },
+    { category: "completeness", label: "Cable management trays, grommet covers & power raceways present" },
+    { category: "completeness", label: "Leveling glides & foot pads complete on all legs" },
   ],
   tables: [
-    "Top surface condition acceptable",
-    "Edges & corners not chipped",
-    "Legs / base stable, no rocking",
-    "Folding or flip mechanism works (if any)",
-    "Levelers present and functional",
+    { category: "surface", label: "Tabletop surface clean and clear of laminate lifting or delamination" },
+    { category: "surface", label: "Beveled edges, corners & finish in good condition" },
+    { category: "structure", label: "Under-table frame, column & base sturdy, no rocking" },
+    { category: "function", label: "Flip-top, nesting, or folding mechanisms lock securely" },
+    { category: "completeness", label: "Table levelers present, functional, and adjust properly" },
+    { category: "completeness", label: "Ganging hardware & connector brackets included" },
   ],
   storage: [
-    "Doors / drawers glide on runners",
-    "Locks work, keys present",
-    "Hinges & handles secure",
-    "Shelves straight, no sagging",
-    "Carcass free of dents & rust",
+    { category: "surface", label: "Exterior paint or veneer clean, free of deep dents, chips & rust" },
+    { category: "surface", label: "Drawer fronts, handles & label holders clean and secure" },
+    { category: "structure", label: "Cabinet carcass square, joints true, no frame deflection" },
+    { category: "structure", label: "Shelves straight, fully supported, no sagging or bowing" },
+    { category: "function", label: "Drawers and tambour doors glide smoothly with soft-close/stops" },
+    { category: "function", label: "Lock cores turn smoothly, latch firmly, keys present" },
+    { category: "completeness", label: "Shelf clips, file hanging rails & interior dividers complete" },
   ],
   partitions: [
-    "Fabric / acoustic surface clean",
-    "Frame straight, not warped",
-    "Connectors & brackets included",
-    "Leveling feet present",
+    { category: "surface", label: "Acoustic fabric & glass tiles clean, free of rips, stains & odors" },
+    { category: "structure", label: "Extruded frame straight, true, not bent or warped" },
+    { category: "function", label: "Built-in wire raceways & conduit channels open and accessible" },
+    { category: "completeness", label: "Top caps, hinge connectors, brackets & trim strips complete" },
+    { category: "completeness", label: "Leveling glides and stabilization feet present" },
   ],
   reception: [
-    "Upholstery free of stains & tears",
-    "Frame & joints solid",
-    "Cushion foam still resilient",
-    "Surface finish acceptable",
-    "Legs & hardware complete",
+    { category: "surface", label: "Upholstery & cushion foam clean, resilient, free of stains or tears" },
+    { category: "surface", label: "Transaction countertop & greeting ledge finish intact" },
+    { category: "structure", label: "Main counter frame, desk module & return solid, no wobble" },
+    { category: "function", label: "Integrated drawers, cable pass-throughs & task lights work" },
+    { category: "completeness", label: "Modesty panels, standoff hardware & decorative brackets complete" },
   ],
 };
 
-const GENERIC_CHECKLIST = [
-  "Structure solid, no damage",
-  "Surfaces & finish acceptable",
-  "All moving parts functional",
-  "Hardware & fixings complete",
+export const GENERIC_CATEGORIZED_CHECKLIST: CategorizedChecklistItem[] = [
+  { category: "surface", label: "All external surfaces, finish & upholstery clean and acceptable" },
+  { category: "structure", label: "Structural frame, legs & load-bearing joints solid with no wobble" },
+  { category: "function", label: "All moving components, mechanisms & adjustments fully operational" },
+  { category: "completeness", label: "All hardware, fasteners, feet & original accessories complete" },
 ];
 
-export function checklistFor(rootSlug: string): string[] {
-  return CHECKLISTS[rootSlug] ?? GENERIC_CHECKLIST;
+export function categorizedChecklistFor(rootSlug: string): CategorizedChecklistItem[] {
+  return CATEGORIZED_CHECKLISTS[rootSlug] ?? GENERIC_CATEGORIZED_CHECKLIST;
 }
+
+export function checklistFor(rootSlug: string): string[] {
+  return categorizedChecklistFor(rootSlug).map((item) => item.label);
+}
+
+export function calculateAutoGrade(checks: Record<number, "pass" | "flag" | "fail">): Grade | null {
+  const entries = Object.values(checks);
+  if (entries.length === 0) return null;
+  const fails = entries.filter((s) => s === "fail").length;
+  const flags = entries.filter((s) => s === "flag").length;
+
+  if (fails >= 2) return "D";
+  if (fails === 1 || flags >= 3) return "C";
+  if (flags >= 1) return "B";
+  return "A";
+}
+
+export const MIN_CLEANING_COST = 350;
 
 /** Reference photography per leaf category slug. */
 export const REF_PHOTOS: Record<string, string> = {

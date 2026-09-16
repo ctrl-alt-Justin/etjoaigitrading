@@ -9,9 +9,11 @@ import { AgingChip, EmptyState, GradeChip, MarginPill, StatusChip, Thumb } from 
 import { cn, fmtInt, fmtMoney, relTime } from "@/lib/format";
 
 const STATUS_TABS: { key: string; label: string; match: (i: EnrichedItem) => boolean }[] = [
-  { key: "active", label: "Active", match: (i) => ["draft", "intake", "in_stock", "listed", "reserved"].includes(i.status) },
+  { key: "active", label: "Active", match: (i) => ["draft", "intake", "for_cleaning", "for_refurb", "for_refurbishing", "in_stock", "listed", "reserved"].includes(i.status) },
   { key: "draft", label: "Drafts", match: (i) => i.status === "draft" },
   { key: "intake", label: "Intake", match: (i) => i.status === "intake" },
+  { key: "for_cleaning", label: "For cleaning", match: (i) => i.status === "for_cleaning" },
+  { key: "for_refurb", label: "For cleaning & refurbishing", match: (i) => i.status === "for_refurb" || i.status === "for_refurbishing" },
   { key: "in_stock", label: "In stock", match: (i) => i.status === "in_stock" },
   { key: "listed", label: "Listed", match: (i) => i.status === "listed" },
   { key: "reserved", label: "Reserved", match: (i) => i.status === "reserved" },
@@ -86,12 +88,12 @@ export function InventoryTable({
       <div className="card p-3.5">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Fuzzy search — try “aern b grde” or a SKU…"
-              className="input pl-9"
+              className="input pl-10"
             />
           </div>
           <select value={grade} onChange={(e) => setGrade(e.target.value as typeof grade)} className="input h-10 w-auto">
@@ -156,19 +158,19 @@ export function InventoryTable({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] border-collapse text-sm">
+            <table className="w-full min-w-[840px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-[var(--line)] bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-stone-400">
-                  <th className="py-2.5 pl-4 pr-3">Item</th>
-                  <th className="px-3">Category</th>
-                  <th className="px-3">Grade</th>
-                  <th className="px-3">Acquired</th>
-                  <th className="px-3 text-right">Cost</th>
-                  <th className="px-3 text-right">Ask</th>
-                  <th className="px-3 text-center">Margin</th>
-                  <th className="px-3">Status</th>
-                  <th className="px-3 text-center">Listed age</th>
-                  <th className="pr-4" />
+                <tr className="border-b border-[var(--line)] bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-[0.08em] text-stone-400">
+                  <th className="py-2.5 pl-3.5 pr-2">Item</th>
+                  <th className="px-2">Category</th>
+                  <th className="px-2">Grade</th>
+                  <th className="px-2">Acquired</th>
+                  <th className="px-2 text-right">Cost</th>
+                  <th className="px-2 text-right">Ask</th>
+                  <th className="px-2 text-center">Margin</th>
+                  <th className="px-2">Status</th>
+                  <th className="px-2 text-center">Listed</th>
+                  <th className="w-8 pr-3 text-right" />
                 </tr>
               </thead>
               <tbody>
@@ -178,38 +180,38 @@ export function InventoryTable({
                     onClick={() => router.push(`/inventory/${i.id}`)}
                     className="cursor-pointer border-b border-stone-100 transition-colors last:border-0 hover:bg-amber-50/50"
                   >
-                    <td className="py-2.5 pl-4 pr-3">
-                      <div className="flex min-w-0 items-center gap-3">
+                    <td className="py-2 pl-3.5 pr-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <Thumb
                           url={i.photos?.[0]?.url}
                           alt={i.name}
-                          className="h-11 w-14 shrink-0 rounded-lg border border-stone-100"
+                          className="h-10 w-12 shrink-0 rounded-lg border border-stone-100"
                         />
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-stone-900">{i.name}</div>
-                          <div className="mt-0.5 truncate text-[11.5px] text-stone-400">
+                          <div className="truncate text-[13px] font-semibold text-stone-900">{i.name}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-stone-400">
                             {i.sku ?? "—"} · {i.brand ?? "Unknown brand"}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="max-w-[190px] truncate px-3 text-[12.5px] text-stone-500">{i.categoryPath}</td>
-                    <td className="px-3"><GradeChip grade={i.grade} /></td>
-                    <td className="px-3 text-[12.5px] text-stone-500">
+                    <td className="max-w-[130px] truncate px-2 text-[12px] text-stone-500">{i.categoryPath}</td>
+                    <td className="px-2 whitespace-nowrap"><GradeChip grade={i.grade} /></td>
+                    <td className="px-2 whitespace-nowrap text-[12px] text-stone-500">
                       {relTime(i.intakeAt)}
                       <span className="ml-1 text-stone-300">·</span>
                       <span className="text-stone-400 tabular-nums">{i.daysInStock}d</span>
                     </td>
-                    <td className="px-3 text-right tabular-nums text-stone-600">{fmtMoney(i.effectiveCost)}</td>
-                    <td className="px-3 text-right font-semibold tabular-nums text-stone-900">
+                    <td className="px-2 text-right tabular-nums whitespace-nowrap text-[12px] text-stone-600">{fmtMoney(i.effectiveCost)}</td>
+                    <td className="px-2 text-right font-semibold tabular-nums whitespace-nowrap text-[13px] text-stone-900">
                       {i.status === "sold" ? fmtMoney(i.soldPrice) : fmtMoney(i.listedPrice)}
                     </td>
-                    <td className="px-3 text-center">
+                    <td className="px-2 text-center whitespace-nowrap">
                       {i.status === "sold" ? <MarginPill margin={i.realizedMargin} /> : <MarginPill margin={i.listedMargin} />}
                     </td>
-                    <td className="px-3"><StatusChip status={i.status} /></td>
-                    <td className="px-3 text-center"><AgingChip days={i.daysListed} /></td>
-                    <td className="pr-4 text-right text-stone-300">
+                    <td className="px-2 whitespace-nowrap"><StatusChip status={i.status} /></td>
+                    <td className="px-2 text-center whitespace-nowrap"><AgingChip days={i.daysListed} /></td>
+                    <td className="w-8 pr-3 text-right text-stone-300">
                       <ArrowUpRight className="ml-auto h-4 w-4" />
                     </td>
                   </tr>
