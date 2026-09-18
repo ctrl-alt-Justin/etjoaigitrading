@@ -38,12 +38,6 @@ export const PHOTO_SLOTS: PhotoSlot[] = [
     required: false,
   },
   {
-    slot: "after",
-    label: "After / finished photo",
-    hint: "Post-cleaning or refurbished condition (optional for Grade A)",
-    required: false,
-  },
-  {
     slot: "label",
     label: "Label / serial",
     hint: "Manufacturer tag, model sticker or serial plate",

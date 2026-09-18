@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sliders,
+  Sparkles,
   TrendingDown,
 } from "lucide-react";
 import type { BenchmarkRow } from "@/lib/queries";
@@ -291,19 +292,25 @@ function MarginCalculator({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         
         {/* ================================================================= */}
-        {/* LEFT COLUMN (5 Cols): Inputs, Costs & Listing Actions              */}
+        {/* LEFT COLUMN (6 Cols): Required Inputs Outlined in Green Neon      */}
         {/* ================================================================= */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-6 space-y-4">
           
-          {/* Reference Brand New Price */}
-          <div className="rounded-xl border border-stone-200 bg-white p-4">
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-700 block mb-1">
-              Brand New Price ₱ (Retail Benchmark)
-            </label>
+          {/* Reference Brand New Price — Outlined with Green Neon */}
+          <div className="rounded-2xl border-2 border-[#00e676] shadow-[0_0_14px_rgba(0,230,118,0.35)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-1.5 transition-all">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                Brand New Price ₱ (Retail Benchmark)
+              </label>
+              <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
+                Required Input
+              </span>
+            </div>
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
               <input
-                className="input pl-8 h-10 text-sm font-bold tabular-nums"
+                style={{ paddingLeft: "2.2rem" }}
+                className="input h-11 text-base font-bold tabular-nums border-2 border-[#00e676]/70 focus:border-[#00e676]"
                 type="number"
                 min={0}
                 placeholder="e.g. 15000"
@@ -311,19 +318,21 @@ function MarginCalculator({
                 onChange={(e) => setBrandNew(e.target.value)}
               />
             </div>
-            <p className="mt-1.5 text-[11px] text-stone-500">
-              Sets Grade A ceiling: MaxA = Retail × (1 − {Math.round(config.retailGapPct * 100)}% Retail Gap)
+            <p className="text-[11px] text-stone-500">
+              Sets Grade A ceiling: MaxA = Retail × (1 − {Math.round(config.retailGapPct * 100)}% Retail Gap).
             </p>
           </div>
 
-          {/* Condition Grade Selector */}
-          <div className="rounded-xl border border-stone-200 bg-white p-4">
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center justify-between mb-2">
-              <span>Condition Grade</span>
-              <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                Multiplier: {formulaResult.grades.find((r) => r.grade === grade)?.gradeFactor.toFixed(2)}×
+          {/* Condition Grade Selector — Outlined with Green Neon */}
+          <div className="rounded-2xl border-2 border-[#00e676] shadow-[0_0_14px_rgba(0,230,118,0.35)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-2 transition-all">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                Condition Grade
+              </label>
+              <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
+                Active: Grade {grade} ({formulaResult.grades.find((r) => r.grade === grade)?.gradeFactor.toFixed(2)}×)
               </span>
-            </label>
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {(["A", "B", "C", "D"] as const).map((g) => {
                 const isSelected = grade === g;
@@ -340,15 +349,15 @@ function MarginCalculator({
                     className={cn(
                       "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border text-xs font-bold transition",
                       isSelected
-                        ? "border-amber-500 bg-amber-500 text-white shadow-sm"
+                        ? "border-emerald-500 bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400"
                         : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
                     )}
                   >
                     <span>Grade {g}</span>
-                    <span className={cn("text-[10px] mt-0.5 tabular-nums font-semibold", isSelected ? "text-amber-100" : "text-stone-400")}>
+                    <span className={cn("text-[10px] mt-0.5 tabular-nums font-semibold", isSelected ? "text-emerald-100" : "text-stone-400")}>
                       {factor.toFixed(2)}×
                     </span>
-                    <span className={cn("text-[9.5px]", isSelected ? "text-amber-100" : "text-stone-400")}>
+                    <span className={cn("text-[9.5px]", isSelected ? "text-emerald-100" : "text-stone-400")}>
                       {g === "A" ? "Like New" : g === "B" ? "Good" : g === "C" ? "Fair" : "Salvage"}
                     </span>
                   </button>
@@ -358,7 +367,7 @@ function MarginCalculator({
           </div>
 
           {/* Intake Costs (Acquisition, Refurb, Cleaning) */}
-          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-4 space-y-2.5">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 space-y-2.5">
             <div className="flex items-center justify-between text-xs font-bold">
               <span className="text-stone-700 uppercase tracking-wider text-[11px]">Item Intake Costs</span>
               <span className="text-stone-900 bg-white px-2.5 py-0.5 rounded-md border border-stone-200 tabular-nums font-black">
@@ -369,36 +378,48 @@ function MarginCalculator({
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-[10.5px] font-semibold text-stone-600 block">Acquisition</label>
-                <input
-                  className="input mt-1 h-9 text-xs font-semibold tabular-nums"
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={acq}
-                  onChange={(e) => setAcq(e.target.value)}
-                />
+                <div className="relative mt-1">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">₱</span>
+                  <input
+                    style={{ paddingLeft: "2.1rem" }}
+                    className="input h-9 text-xs font-semibold tabular-nums"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={acq}
+                    onChange={(e) => setAcq(e.target.value)}
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-[10.5px] font-semibold text-stone-600 block">Refurb</label>
-                <input
-                  className="input mt-1 h-9 text-xs font-semibold tabular-nums"
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={refurb}
-                  onChange={(e) => setRefurb(e.target.value)}
-                />
+                <div className="relative mt-1">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">₱</span>
+                  <input
+                    style={{ paddingLeft: "2.1rem" }}
+                    className="input h-9 text-xs font-semibold tabular-nums"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={refurb}
+                    onChange={(e) => setRefurb(e.target.value)}
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-[10.5px] font-semibold text-stone-600 block">Cleaning</label>
-                <input
-                  className="input mt-1 h-9 text-xs font-semibold tabular-nums"
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={cleaning}
-                  onChange={(e) => setCleaning(e.target.value)}
-                />
+                <div className="relative mt-1">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">₱</span>
+                  <input
+                    style={{ paddingLeft: "2.1rem" }}
+                    className="input h-9 text-xs font-semibold tabular-nums"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={cleaning}
+                    onChange={(e) => setCleaning(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
             <p className="text-[11px] text-stone-500 leading-tight">
@@ -406,38 +427,71 @@ function MarginCalculator({
             </p>
           </div>
 
-          {/* Enforced Ask Price & Save Action */}
-          <div className="rounded-xl border border-stone-200 bg-white p-4 space-y-3">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-stone-700 block mb-1">
+        </div>
+
+        {/* ================================================================= */}
+        {/* RIGHT COLUMN (6 Cols): Direct Formula Outcome & Listing Action     */}
+        {/* ================================================================= */}
+        <div className="lg:col-span-6 space-y-4">
+          
+          {/* Direct Formula Recommendation Card */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                Official Formula Recommendation
+              </span>
+              <span className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-md">
+                Grade {grade} Cap ({activeGradeRow?.gradeFactor.toFixed(2)}×)
+              </span>
+            </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
+              <div>
+                <div className="font-display text-3xl sm:text-4xl font-black text-emerald-950 tabular-nums">
+                  {fmtMoney(activeGradeRow?.finalListingPrice ?? 0)}
+                </div>
+                <p className="mt-1 text-xs text-emerald-700 font-medium">
+                  Formula: ₱{brandNewNum.toLocaleString()} (New) × (1 − {Math.round(config.retailGapPct * 100)}% Gap) × {activeGradeRow?.gradeFactor.toFixed(2)}
+                </p>
+              </div>
+              {activeGradeRow && (
+                <button
+                  type="button"
+                  onClick={() => handleApplyFinalPrice(activeGradeRow.finalListingPrice)}
+                  className="btn-accent h-10 shrink-0 px-4 text-xs sm:text-sm font-black shadow-sm"
+                >
+                  Use Formula Price
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Enforced Ask Price & Save Action — Outlined in Green Neon */}
+          <div className="rounded-2xl border-2 border-[#00e676] shadow-[0_0_15px_rgba(0,230,118,0.35)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-3 transition-all">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
                 Enforced Ask Price ₱
               </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
-                  <input
-                    className="input pl-8 h-10 text-base font-bold tabular-nums"
-                    type="number"
-                    min={0}
-                    placeholder={activeGradeRow ? String(activeGradeRow.finalListingPrice) : "0"}
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
-                </div>
-                {activeGradeRow && (
-                  <button
-                    type="button"
-                    onClick={() => handleApplyFinalPrice(activeGradeRow.finalListingPrice)}
-                    className="btn-soft h-10 shrink-0 px-3 text-xs font-bold whitespace-nowrap"
-                  >
-                    Use Cap ({fmtMoney(activeGradeRow.finalListingPrice)})
-                  </button>
-                )}
-              </div>
+              <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
+                Set Live Ask
+              </span>
+            </div>
+
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-semibold text-stone-400">₱</span>
+              <input
+                style={{ paddingLeft: "2.2rem" }}
+                className="input h-12 text-xl font-black tabular-nums border-2 border-[#00e676]/70 focus:border-[#00e676]"
+                type="number"
+                min={0}
+                placeholder={activeGradeRow ? String(activeGradeRow.finalListingPrice) : "0"}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
             </div>
 
             {/* Verdict Alert */}
-            <div className={cn("flex items-start gap-2 rounded-lg border px-3 py-2 text-xs font-medium", verdictTone[verdict.tone])}>
+            <div className={cn("flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-semibold", verdictTone[verdict.tone])}>
               {verdict.tone === "emerald" ? (
                 <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
               ) : verdict.tone === "rose" ? (
@@ -448,13 +502,35 @@ function MarginCalculator({
               <span>{verdict.text}</span>
             </div>
 
+            {/* Deal Performance Preview */}
+            <div className="grid grid-cols-3 gap-2 text-center pt-1">
+              <div className="rounded-xl bg-stone-50 p-2.5 border border-stone-200">
+                <div className="text-[10px] font-bold uppercase text-stone-400">Margin on Cost</div>
+                <div className={cn("mt-0.5 font-display text-base sm:text-lg font-black tabular-nums", (margin ?? 0) >= config.targetProfitMultiplier - 1 ? "text-emerald-600" : "text-amber-600")}>
+                  {margin != null ? `${Math.round(margin * 100)}%` : "—"}
+                </div>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-2.5 border border-stone-200">
+                <div className="text-[10px] font-bold uppercase text-stone-400">Gross Profit</div>
+                <div className="mt-0.5 font-display text-base sm:text-lg font-black tabular-nums text-stone-900">
+                  {fmtMoney(priceNum - totalCost)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-2.5 border border-stone-200">
+                <div className="text-[10px] font-bold uppercase text-stone-400">vs Retail Cap</div>
+                <div className={cn("mt-0.5 font-display text-base sm:text-lg font-black tabular-nums", (deltaVsCap ?? 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                  {deltaVsCap != null ? `${deltaVsCap > 0 ? "+" : ""}${Math.round(deltaVsCap * 100)}%` : "0%"}
+                </div>
+              </div>
+            </div>
+
             {/* Save to Item Button */}
             {selectedItemId && priceNum > 0 && (
               <button
                 type="button"
                 onClick={handleSaveToItem}
                 disabled={savingItem}
-                className="btn-accent h-10 w-full text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm"
+                className="btn-accent h-11 w-full text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-sm"
               >
                 {savingItem ? (
                   <>
@@ -472,167 +548,135 @@ function MarginCalculator({
               </button>
             )}
           </div>
-
         </div>
 
-        {/* ================================================================= */}
-        {/* RIGHT COLUMN (7 Cols): Formula Engine, Matrix Table & Stats       */}
-        {/* ================================================================= */}
-        <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
-          
-          {/* Top Formula KPI Cards (3 Cards) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                1. Cost Target ({config.targetProfitMultiplier}×)
-              </span>
-              <div className="mt-1 font-display text-xl font-black text-stone-900 tabular-nums">
-                {fmtMoney(formulaResult.targetPrice)}
-              </div>
-              <span className="text-[11px] text-stone-400">
-                ₱{totalCost.toLocaleString()} × {config.targetProfitMultiplier}
-              </span>
-            </div>
+      </div>
 
-            <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                2. MaxA Ceiling ({Math.round(config.retailGapPct * 100)}% Gap)
-              </span>
-              <div className="mt-1 font-display text-xl font-black text-stone-900 tabular-nums">
-                {fmtMoney(formulaResult.maxA)}
-              </div>
-              <span className="text-[11px] text-stone-400">
-                ₱{brandNewNum.toLocaleString()} × (1 - {config.retailGapPct})
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                3. Grade {grade} Cap ({activeGradeRow?.gradeFactor.toFixed(2)}×)
-              </span>
-              <div className="mt-1 font-display text-xl font-black text-amber-950 tabular-nums">
-                {fmtMoney(activeGradeRow?.maxAllowedCap ?? 0)}
-              </div>
-              <span className="text-[11px] text-amber-700 font-semibold">
-                Max Allowed Cap
-              </span>
-            </div>
-          </div>
-
-          {/* Condition Grade Pricing Matrix Table (Spacious & Clear) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-700">
+      {/* ================================================================= */}
+      {/* FULL-WIDTH CONDITION GRADE PRICING MATRIX TABLE                   */}
+      {/* ================================================================= */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black uppercase tracking-wider text-stone-900">
                 Condition Grade Pricing Matrix
-              </span>
-              <span className="text-[11px] font-medium text-stone-400">
-                Click any row to select grade & apply price
+              </h4>
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                Active Selection: Grade {grade}
               </span>
             </div>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Live mathematical breakdown across all grades based on retail benchmark {brandNewNum > 0 ? fmtMoney(brandNewNum) : "₱0"} and total cost {fmtMoney(totalCost)}.
+            </p>
+          </div>
+          <span className="text-[11px] font-semibold text-stone-500 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200 self-start sm:self-auto">
+            Click any row to select grade & apply price
+          </span>
+        </div>
 
-            <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="border-b border-stone-200 bg-stone-50/80 text-[10.5px] font-bold uppercase tracking-wider text-stone-500">
-                    <th className="py-2.5 px-3.5">Condition Grade</th>
-                    <th className="py-2.5 px-3">Grade Factor</th>
-                    <th className="py-2.5 px-3">Max Allowed Cap (Max Grade)</th>
-                    <th className="py-2.5 px-3">Cost + Profit Target</th>
-                    <th className="py-2.5 px-3.5 font-extrabold text-stone-900">Final Listing Price</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100 font-medium">
-                  {formulaResult.grades.map((r) => {
-                    const isActive = grade === r.grade;
-                    return (
-                      <tr
-                        key={r.grade}
-                        onClick={() => {
-                          setGrade(r.grade);
-                          handleApplyFinalPrice(r.finalListingPrice);
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-stone-200 bg-stone-50/90 text-[10.5px] font-extrabold uppercase tracking-wider text-stone-500">
+                <th className="py-3 px-3.5">Condition Grade</th>
+                <th className="py-3 px-2.5 text-center">Multiplier</th>
+                <th className="py-3 px-3 text-right">Retail Ceiling (Cap)</th>
+                <th className="py-3 px-3 text-right">Cost Target Hurdle</th>
+                <th className="py-3 px-3 text-center">Feasibility</th>
+                <th className="py-3 px-3 text-right">Margin on Cost</th>
+                <th className="py-3 px-4 text-right">Formula Ask Price</th>
+                <th className="py-3 pr-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {formulaResult.grades.map((row) => {
+                const isSelected = grade === row.grade;
+                const rowMargin = totalCost > 0 ? (row.finalListingPrice / totalCost) - 1 : null;
+                return (
+                  <tr
+                    key={row.grade}
+                    onClick={() => {
+                      setGrade(row.grade);
+                      setPrice(String(row.finalListingPrice));
+                    }}
+                    className={cn(
+                      "cursor-pointer transition-all hover:bg-emerald-50/50",
+                      isSelected ? "bg-emerald-50/80 font-semibold" : ""
+                    )}
+                  >
+                    <td className="py-3 px-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-lg text-xs font-black shadow-2xs",
+                          isSelected ? "bg-emerald-600 text-white" : "bg-stone-100 text-stone-700"
+                        )}>
+                          {row.grade}
+                        </span>
+                        <div>
+                          <div className="text-xs font-bold text-stone-900">Grade {row.grade}</div>
+                          <div className="text-[10.5px] text-stone-500">
+                            {row.grade === "A" ? "Like New · Pristine" : row.grade === "B" ? "Good · Minor Wear" : row.grade === "C" ? "Fair · Visible Scuffs" : "Salvage · Parts"}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-2.5 text-center tabular-nums text-stone-700 font-bold">
+                      {row.gradeFactor.toFixed(2)}×
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-stone-700 font-semibold">
+                      {fmtMoney(row.maxAllowedCap)}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums text-stone-500">
+                      {fmtMoney(row.targetPrice)}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {row.isTargetMet ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                          <Check className="h-3 w-3" /> Target Met
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold">
+                          <AlertTriangle className="h-3 w-3" /> Cap Constrained
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-right tabular-nums font-bold">
+                      {rowMargin != null ? (
+                        <span className={rowMargin >= config.targetProfitMultiplier - 1 ? "text-emerald-700" : "text-amber-700"}>
+                          +{Math.round(rowMargin * 100)}%
+                        </span>
+                      ) : (
+                        <span className="text-stone-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums font-black text-sm text-emerald-950">
+                      {fmtMoney(row.finalListingPrice)}
+                    </td>
+                    <td className="py-3 pr-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setGrade(row.grade);
+                          handleApplyFinalPrice(row.finalListingPrice);
                         }}
                         className={cn(
-                          "cursor-pointer transition-all",
-                          isActive
-                            ? "bg-amber-50/90 font-bold border-l-4 border-l-amber-500"
-                            : "hover:bg-stone-50/80"
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs",
+                          isSelected
+                            ? "bg-emerald-600 text-white ring-2 ring-emerald-400"
+                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
                         )}
                       >
-                        <td className="py-3 px-3.5">
-                          <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "h-2.5 w-2.5 rounded-full",
-                              r.grade === "A" ? "bg-amber-500" : r.grade === "B" ? "bg-emerald-500" : r.grade === "C" ? "bg-blue-500" : "bg-rose-500"
-                            )} />
-                            <span>Grade {r.grade}</span>
-                            {isActive && (
-                              <span className="rounded bg-amber-200/60 px-1.5 py-0.2 text-[10px] text-amber-900 font-extrabold">
-                                Active
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 tabular-nums text-stone-600 font-semibold">
-                          {r.gradeFactor.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 tabular-nums text-stone-800">
-                          ₱{formulaResult.maxA.toLocaleString()} × {r.gradeFactor.toFixed(2)} ={" "}
-                          <strong className="font-bold">{fmtMoney(r.maxAllowedCap)}</strong>
-                        </td>
-                        <td className="py-3 px-3 tabular-nums text-stone-600">
-                          {fmtMoney(formulaResult.targetPrice)}
-                        </td>
-                        <td className="py-3 px-3.5 tabular-nums text-stone-900">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-black text-sm">{fmtMoney(r.finalListingPrice)}</span>
-                            {r.isTargetMet ? (
-                              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                                Target Met
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                Margin Squeeze
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Deal Performance Preview Bar */}
-          <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3.5">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider text-stone-400 mb-2">
-              Performance Preview for {fmtMoney(priceNum || activeGradeRow?.finalListingPrice || 0)}
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-lg bg-white p-2.5 border border-stone-200">
-                <div className="text-[10px] font-bold uppercase text-stone-400">Margin on Cost</div>
-                <div className={cn("mt-0.5 font-display text-lg font-black tabular-nums", (margin ?? 0) >= config.targetProfitMultiplier - 1 ? "text-emerald-600" : "text-amber-600")}>
-                  {margin != null ? `${Math.round(margin * 100)}%` : "—"}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white p-2.5 border border-stone-200">
-                <div className="text-[10px] font-bold uppercase text-stone-400">Gross Profit</div>
-                <div className="mt-0.5 font-display text-lg font-black tabular-nums text-stone-900">
-                  {fmtMoney(priceNum - totalCost)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white p-2.5 border border-stone-200">
-                <div className="text-[10px] font-bold uppercase text-stone-400">vs Retail Cap</div>
-                <div className={cn("mt-0.5 font-display text-lg font-black tabular-nums", (deltaVsCap ?? 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
-                  {deltaVsCap != null ? `${deltaVsCap > 0 ? "+" : ""}${Math.round(deltaVsCap * 100)}%` : "0%"}
-                </div>
-              </div>
-            </div>
-          </div>
-
+                        {isSelected ? "Active Grade" : "Apply to Ask"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-
       </div>
     </div>
   );

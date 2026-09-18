@@ -30,6 +30,7 @@ type CreatePayload = {
   acquisitionCost?: number;
   refurbCost?: number;
   cleaningCost?: number;
+  benchmarkPrice?: number;
   listedPrice?: number | null;
   status?: "draft" | "intake" | "for_cleaning" | "for_refurb" | "in_stock" | "listed" | "reserved" | "sold" | "archived";
   supplierId?: number | null;
@@ -59,6 +60,12 @@ export async function POST(req: Request) {
 
   let listedPrice = num(body.listedPrice);
   if (status === "listed") {
+    if (body.status === "for_cleaning") {
+      return NextResponse.json(
+        { error: "CLEANING_REQUIRED", message: "Items tagged for cleaning cannot be listed for sale directly." },
+        { status: 409 }
+      );
+    }
     if (!listedPrice)
       return NextResponse.json({ error: "A listed price is required to list an item" }, { status: 400 });
     if (listedPrice < floor)
@@ -97,7 +104,7 @@ export async function POST(req: Request) {
       refurb_cost: refurbCost,
       listed_price: listedPrice,
       floor_price: floor,
-      benchmark_price: v.benchmark,
+      benchmark_price: num(body.benchmarkPrice) ?? v.benchmark,
       value_low: v.low,
       value_high: v.high,
       status,

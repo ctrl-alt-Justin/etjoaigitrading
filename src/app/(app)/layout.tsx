@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Sidebar, type ShellCounts } from "@/components/shell";
 import { getAllData, enrichItems, agingAlerts, isActive } from "@/lib/queries";
 import { monthStart } from "@/lib/format";
+import { AuthGate } from "@/components/auth-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,14 @@ async function shellCounts(): Promise<ShellCounts> {
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const counts = await shellCounts();
   return (
-    <>
+    <AuthGate>
       <Sidebar counts={counts} />
       <div className="min-h-screen pt-[104px] lg:pl-[248px] lg:pt-0">
         <main className="mx-auto w-full max-w-[1440px] px-4 pb-16 pt-6 sm:px-6 lg:px-7 xl:px-10 lg:pt-9">
           {children}
         </main>
       </div>
-    </>
+    </AuthGate>
   );
 }
+

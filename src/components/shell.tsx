@@ -6,11 +6,13 @@ import {
   Boxes,
   FolderTree,
   LayoutDashboard,
+  LogOut,
   PackagePlus,
   Scale,
   ShoppingBag,
   ArrowUpRight,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/format";
 
 export type ShellCounts = {
@@ -196,10 +198,23 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
               </Link>
             )}
           </div>
-          <div className="mt-4 px-1 text-[10.5px] leading-relaxed text-stone-600">
-            Etjoaigi Trading · Muntinlupa
-            <br />
-            Ops build 2.4 · production
+          <div className="mt-4 space-y-2.5">
+            <button
+              type="button"
+              onClick={async () => {
+                await fetch("/api/auth", { method: "DELETE" });
+                window.location.href = "/";
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[11.5px] font-semibold text-stone-500 transition hover:bg-white/10 hover:text-stone-300"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign Out
+            </button>
+            <div className="px-1 text-[10.5px] leading-relaxed text-stone-600">
+              Etjoaigi Trading · Muntinlupa
+              <br />
+              Ops build 2.4 · production
+            </div>
           </div>
         </div>
       </aside>

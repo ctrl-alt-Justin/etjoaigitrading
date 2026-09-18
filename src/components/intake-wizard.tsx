@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Fuse from "fuse.js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
@@ -315,7 +316,38 @@ export function IntakeWizard({
 
   /* ---- wizard state ---- */
   const initialRootId = initialItem?.categoryId != null ? rootOf(initialItem.categoryId)?.id ?? null : null;
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stepParam = urlParams.get("step");
+      if (stepParam != null && !isNaN(Number(stepParam))) {
+        return Math.max(0, Math.min(4, Number(stepParam)));
+      }
+      if (initialItem) {
+        const stored = sessionStorage.getItem(`intake_step_${initialItem.id}`);
+        if (stored != null && !isNaN(Number(stored))) {
+          return Math.max(0, Math.min(4, Number(stored)));
+        }
+      }
+    }
+    return 0;
+  });
+  const autoSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const changeStep = (nextStep: number | ((s: number) => number)) => {
+    if (editing && autoSaveRef.current) {
+      autoSaveRef.current();
+    }
+    setStep((prev) => {
+      const resolved = typeof nextStep === "function" ? nextStep(prev) : nextStep;
+      if (typeof window !== "undefined" && initialItem) {
+        sessionStorage.setItem(`intake_step_${initialItem.id}`, String(resolved));
+        const url = new URL(window.location.href);
+        url.searchParams.set("step", String(resolved));
+        window.history.replaceState({}, "", url.toString());
+      }
+      return resolved;
+    });
+  };
   const [rootId, setRootId] = useState<number | null>(initialRootId);
   const [leafId, setLeafId] = useState<number | null>(initialItem?.categoryId ?? null);
   const [catQuery, setCatQuery] = useState("");
@@ -384,6 +416,9 @@ export function IntakeWizard({
   const [cleaning, setCleaning] = useState(
     initialItem?.attributes?.cleaning_cost ? String(initialItem.attributes.cleaning_cost) : "0"
   );
+  const [brandNew, setBrandNew] = useState(
+    initialItem?.benchmarkPrice ? String(initialItem.benchmarkPrice) : ""
+  );
 
   const updateDims = (l: string, w: string, h: string, u: DimensionUnit) => {
     setDimL(l);
@@ -430,14 +465,31 @@ export function IntakeWizard({
 
   const [notes, setNotes] = useState(initialItem?.conditionNotes ?? "");
 
-  const [photos, setPhotos] = useState<Record<string, string | null>>(() =>
-    Object.fromEntries((initialItem?.photos ?? []).map((photo) => [photo.slot, photo.url]))
-  );
-  const [photoTimestamps, setPhotoTimestamps] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      (initialItem?.photos ?? []).filter((p) => p.timestamp).map((p) => [p.slot, p.timestamp!])
-    )
-  );
+  const [photos, setPhotos] = useState<Record<string, string | null>>(() => {
+    const map: Record<string, string | null> = {};
+    const itemPhotos = initialItem?.photos ?? [];
+    itemPhotos.forEach((photo) => {
+      if (photo.slot) map[photo.slot] = photo.url;
+    });
+    // Fallback: If front or back is not present, map existing photos in order
+    if (!map["front"] && itemPhotos.length > 0 && itemPhotos[0]?.url) {
+      map["front"] = itemPhotos[0].url;
+    }
+    if (!map["back"] && itemPhotos.length > 1 && itemPhotos[1]?.url) {
+      map["back"] = itemPhotos[1].url;
+    }
+    return map;
+  });
+  const [photoTimestamps, setPhotoTimestamps] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    const itemPhotos = initialItem?.photos ?? [];
+    itemPhotos.forEach((photo) => {
+      if (photo.slot && photo.timestamp) map[photo.slot] = photo.timestamp;
+    });
+    if (!map["front"] && itemPhotos[0]?.timestamp) map["front"] = itemPhotos[0].timestamp;
+    if (!map["back"] && itemPhotos[1]?.timestamp) map["back"] = itemPhotos[1].timestamp;
+    return map;
+  });
   const initialDefectPhotos = useMemo(() => {
     return (initialItem?.photos ?? [])
       .filter((p) => p.slot === "detail" || p.slot.startsWith("detail_"))
@@ -512,20 +564,83 @@ export function IntakeWizard({
     } catch {}
   }, []);
 
+  const brandNewNum = Number(brandNew) || 0;
   const formulaResult = useMemo(() => {
     return calculatePricingFormula(
       {
         acquisitionCost: acqNum,
         refurbCost: refurbNum,
         cleaningCost: cleaningNum,
-        brandNewPrice: baseValue ?? 0,
+        brandNewPrice: brandNewNum,
         selectedGrade: effectiveGrade,
       },
       formulaConfig
     );
-  }, [acqNum, refurbNum, cleaningNum, baseValue, effectiveGrade, formulaConfig]);
+  }, [acqNum, refurbNum, cleaningNum, brandNewNum, effectiveGrade, formulaConfig]);
 
   const activeGradeCap = formulaResult.recommendedGradeRow?.finalListingPrice ?? null;
+
+  const editing = Boolean(initialItem);
+
+  const isInformationRequiredItem =
+    initialItem?.status === "draft" ||
+    initialItem?.name === "Information required" ||
+    (initialItem && (!initialItem.categoryId || !initialItem.dimensions || !initialItem.grade || initialItem.acquisitionCost <= 0));
+
+  const hasAnyMedia = Boolean(
+    photos["front"] ||
+    photos["back"] ||
+    photos["label"] ||
+    defectPhotos.length > 0 ||
+    photos["video"]
+  );
+
+  const missingInfoList = useMemo(() => {
+    const missing: { step: number; field: string; label: string }[] = [];
+    if (!photos["front"] && !photos["back"] && defectPhotos.length === 0 && !hasAnyMedia) {
+      missing.push({ step: 0, field: "photo_front", label: "Front Photo" });
+    }
+    if (acqNum <= 0) missing.push({ step: 1, field: "acquisition", label: "Acquisition Cost" });
+    if (!leafId) missing.push({ step: 2, field: "category", label: "Category" });
+    if (!name.trim() || name === "Information required") missing.push({ step: 2, field: "name", label: "Item Name / Model" });
+    if (!dimensions.trim()) missing.push({ step: 2, field: "dimensions", label: "Dimensions" });
+    if (!effectiveGrade) missing.push({ step: 3, field: "grade", label: "Condition Grade" });
+    if (Object.keys(checks).length === 0) missing.push({ step: 3, field: "checklist", label: "Inspection Checklist" });
+    return missing;
+  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, effectiveGrade, checks]);
+
+  const stepValidation = useMemo(() => {
+    const missingDetails: Record<number, string[]> = {
+      0: [
+        ...(!photos["front"] && !photos["back"] && defectPhotos.length === 0 && !hasAnyMedia ? ["Item photo or media"] : []),
+      ],
+      1: [
+        ...(acqNum <= 0 ? ["Acquisition cost"] : []),
+      ],
+      2: [
+        ...(!leafId ? ["Category"] : []),
+        ...(!name.trim() || name === "Information required" ? ["Item name / model"] : []),
+        ...(!dimensions.trim() ? ["Dimensions"] : []),
+      ],
+      3: [
+        ...(!effectiveGrade ? ["Condition grade"] : []),
+        ...(Object.keys(checks).length === 0 ? ["Checklist answers"] : []),
+      ],
+      4: [
+        ...(editing && listMode === "listed" && (priceNum <= 0 || priceNum < floor) ? ["Valid listing price"] : []),
+      ],
+    };
+
+    const isStepMissing = (s: number) => (missingDetails[s]?.length ?? 0) > 0;
+    const missingStepIndices = new Set([0, 1, 2, 3, 4].filter(isStepMissing));
+
+    return {
+      missingDetails,
+      isStepMissing,
+      missingStepIndices,
+      totalMissingSteps: missingStepIndices.size,
+    };
+  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, effectiveGrade, checks, editing, listMode, priceNum, floor]);
 
   const history = useMemo(() => {
     const same = soldRefs
@@ -562,14 +677,7 @@ export function IntakeWizard({
   /* ---- gating ---- */
   const answered = categorizedChecklist.filter((_, ix) => checks[ix] != null).length;
   const isGradeA = effectiveGrade === "A";
-  const requiredPhotosOk = Boolean(photos["front"] && photos["back"]);
-  const hasAnyMedia = Boolean(
-    photos["front"] ||
-    photos["back"] ||
-    photos["label"] ||
-    defectPhotos.length > 0 ||
-    photos["video"]
-  );
+  const requiredPhotosOk = Boolean(photos["front"] || photos["back"] || hasAnyMedia);
   const mustAttrsOk = catAttrs.filter((a) => a.required).every((a) => (attrVals[a.name] ?? "").trim() !== "");
   const listingReady =
     leafId != null &&
@@ -699,21 +807,156 @@ export function IntakeWizard({
     }
   };
 
+  const autoSaveItem = async () => {
+    if (!initialItem) return;
+    autoSaveRef.current = autoSaveItem;
+    try {
+      const statusToSave = (() => {
+        if (listMode === "for_cleaning") return "for_cleaning";
+        if (listMode === "for_refurb") return "for_refurb";
+        if (listMode === "listed") {
+          return priceNum >= floor && priceNum > 0 ? "listed" : "in_stock";
+        }
+        if (listMode === "stock") {
+          return "in_stock";
+        }
+        if (initialItem.status && initialItem.status !== "draft") {
+          return initialItem.status;
+        }
+        if (!name.trim() || name === "Information required" || acqNum <= 0) {
+          return "draft";
+        }
+        return "in_stock";
+      })();
+
+      const payload = {
+        action: "edit",
+        name: name.trim() || initialItem.name || "Untitled Item",
+        brand: brand.trim() || null,
+        model: model.trim() || null,
+        categoryId: leafId,
+        attributes: { ...attrVals, cleaning_cost: String(cleaningNum) },
+        color: color.trim() || null,
+        material: material.trim() || null,
+        dimensions: normalizeDimensions(dimensions, dimensionUnit) || null,
+        grade: effectiveGrade,
+        checklist: categorizedChecklist.map((item, ix) => ({
+          key: `c${ix}`,
+          label: item.label,
+          category: item.category,
+          status: checks[ix] ?? "pass",
+        })),
+        photos: [
+          ...(photos["front"]
+            ? [{ slot: "front", label: "Front View", url: photos["front"], timestamp: photoTimestamps["front"] || undefined }]
+            : []),
+          ...(photos["back"]
+            ? [{ slot: "back", label: "Back / Reverse", url: photos["back"], timestamp: photoTimestamps["back"] || undefined }]
+            : []),
+          ...defectPhotos.map((dp, i) => ({
+            slot: i === 0 ? "detail" : `detail_${i}`,
+            label: defectPhotos.length === 1 ? "Defects & Wear" : `Defects & Wear #${i + 1}`,
+            url: dp.url,
+            timestamp: dp.timestamp || undefined,
+          })),
+          ...(photos["label"]
+            ? [{ slot: "label", label: "Label / Serial", url: photos["label"], timestamp: photoTimestamps["label"] || undefined }]
+            : []),
+          ...(photos["video"]
+            ? [
+                {
+                  slot: "video",
+                  label: "Condition Walkaround Video",
+                  url: photos["video"],
+                  timestamp: photoTimestamps["video"] || undefined,
+                },
+              ]
+            : []),
+        ],
+        conditionNotes: notes.trim() || null,
+        acquisitionCost: acqNum,
+        refurbCost: refurbNum,
+        cleaningCost: cleaningNum,
+        benchmarkPrice: brandNewNum > 0 ? brandNewNum : undefined,
+        listedPrice: statusToSave === "listed" ? priceNum : priceNum || null,
+        status: statusToSave,
+        supplierId: supplierId === "" ? null : supplierId,
+        location,
+      };
+
+      await fetch(`/api/items/${initialItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // background silent save
+    }
+  };
+
+  useEffect(() => {
+    autoSaveRef.current = autoSaveItem;
+  });
+
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (!editing || !initialItem) return;
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      autoSaveItem();
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    name,
+    brand,
+    model,
+    leafId,
+    attrVals,
+    color,
+    material,
+    dimensions,
+    dimensionUnit,
+    effectiveGrade,
+    checks,
+    photos,
+    defectPhotos,
+    notes,
+    acqNum,
+    refurbNum,
+    cleaningNum,
+    brandNewNum,
+    priceNum,
+    listMode,
+    supplierId,
+    location,
+  ]);
+
   const submit = async () => {
     setSaving(true);
     setError(null);
     try {
       const editing = initialItem != null;
-      const statusToSave =
-        listMode === "for_cleaning"
-          ? "for_cleaning"
-          : listMode === "for_refurb"
-          ? "for_refurb"
-          : listMode === "listed" && listingReady
-          ? "listed"
-          : listMode === "stock" && listingReady
-          ? "in_stock"
-          : "draft";
+      const statusToSave = (() => {
+        if (listMode === "for_cleaning") return "for_cleaning";
+        if (listMode === "for_refurb") return "for_refurb";
+        if (listMode === "listed") {
+          return priceNum >= floor && priceNum > 0 ? "listed" : "in_stock";
+        }
+        if (listMode === "stock") {
+          return "in_stock";
+        }
+        if (editing && initialItem?.status && initialItem.status !== "draft") {
+          return initialItem.status;
+        }
+        if (!name.trim() || name === "Information required" || acqNum <= 0) {
+          return "draft";
+        }
+        return "in_stock";
+      })();
 
       const res = await fetch(editing ? `/api/items/${initialItem.id}` : "/api/items", {
         method: editing ? "PATCH" : "POST",
@@ -766,6 +1009,7 @@ export function IntakeWizard({
           acquisitionCost: acqNum,
           refurbCost: refurbNum,
           cleaningCost: cleaningNum,
+          benchmarkPrice: brandNewNum > 0 ? brandNewNum : undefined,
           listedPrice:
             statusToSave === "listed"
               ? priceNum
@@ -780,7 +1024,7 @@ export function IntakeWizard({
       const data = await res.json().catch(() => ({}));
       if (res.status === 409 && data.error === "BELOW_FLOOR") {
         setError(`Price floor enforced — the ask must be at least ${fmtMoney(data.floor)} for this unit.`);
-        setStep(4);
+        changeStep(4);
       } else if (!res.ok) {
         setError(data.error === "DATABASE_MIGRATION_REQUIRED"
           ? "The database needs the draft-item migration. Run supabase/draft-items.sql in Supabase SQL Editor, then try again."
@@ -788,6 +1032,9 @@ export function IntakeWizard({
       } else {
         if (material.trim()) recordMaterialUsage(material.trim());
         if (editing) {
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem(`intake_step_${initialItem.id}`);
+          }
           router.push(`/inventory/${initialItem.id}`);
           router.refresh();
         } else {
@@ -802,7 +1049,7 @@ export function IntakeWizard({
   };
 
   const reset = () => {
-    setStep(0);
+    changeStep(0);
     setRootId(null);
     setLeafId(null);
     setBrand(""); setModel(""); setName(""); setNameTouched(false);
@@ -853,44 +1100,210 @@ export function IntakeWizard({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
+    <div className="grid gap-5 lg:grid-cols-[250px_1fr]">
       {/* stepper */}
       <div className="hidden lg:block">
-        <div className="card sticky top-6 p-3">
+        <div className="card sticky top-6 p-3 space-y-1">
+          {editing && (
+            <div className="mb-2.5 pb-2.5 border-b border-stone-200 px-1">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-stone-800">Edit Navigation</span>
+                {stepValidation.totalMissingSteps > 0 ? (
+                  <span className="text-[10px] font-black text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
+                    {stepValidation.totalMissingSteps} incomplete
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="h-3 w-3" /> All ready
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-stone-500 mt-1 leading-snug">
+                Click any step to edit freely. Incomplete steps are marked in red.
+              </p>
+            </div>
+          )}
+
           {STEPS.map((label, ix) => {
-            const done = ix < step;
+            const isMissing = stepValidation.isStepMissing(ix);
             const current = ix === step;
+            // In new mode, only mark as done if the user has actually visited this step
+            const visited = ix < step;
+            const done = editing ? !isMissing : visited && !isMissing;
+
             return (
               <button
                 key={label}
-                onClick={() => ix < step && setStep(ix)}
-                disabled={!done}
+                type="button"
+                onClick={() => {
+                  // Freely navigate to any step in edit mode, or only visited steps in new mode
+                  if (editing || ix <= step) {
+                    changeStep(ix);
+                  }
+                }}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] transition",
-                  current ? "bg-amber-50 font-semibold text-amber-900" : done ? "text-stone-700 hover:bg-stone-50" : "text-stone-400"
+                  "relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] transition group",
+                  current
+                    ? isMissing && editing
+                      ? "bg-rose-50 border-2 border-rose-400 font-bold text-rose-950 shadow-xs"
+                      : "bg-amber-50 border border-amber-300 font-bold text-amber-950 shadow-xs"
+                    : isMissing && editing
+                    ? "bg-rose-50/50 hover:bg-rose-100/70 border border-rose-200 text-rose-800 font-semibold"
+                    : done
+                    ? "text-stone-700 hover:bg-stone-50"
+                    : "text-stone-400"
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-                    done ? "bg-emerald-100 text-emerald-700" : current ? "bg-amber-600 text-white" : "bg-stone-100 text-stone-400"
-                  )}
-                >
-                  {done ? <Check className="h-3.5 w-3.5" /> : ix + 1}
-                </span>
-                {label}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span
+                    className={cn(
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black transition",
+                      isMissing && editing
+                        ? "bg-rose-600 text-white shadow-xs ring-2 ring-rose-300"
+                        : current
+                        ? "bg-amber-600 text-white"
+                        : done
+                        ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                        : "bg-stone-100 text-stone-400"
+                    )}
+                  >
+                    {isMissing && editing ? (
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    ) : done ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      ix + 1
+                    )}
+                  </span>
+                  <span className="truncate">{label}</span>
+                </div>
+
+                {/* Status pill badge */}
+                {editing && isMissing && (
+                  <span className="shrink-0 rounded-md bg-rose-100 border border-rose-300 px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-tight text-rose-800">
+                    Missing
+                  </span>
+                )}
+                {editing && !isMissing && (
+                  <span className="shrink-0 text-emerald-600 text-[11px]">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                )}
               </button>
             );
           })}
-          <div className="mt-3 rounded-xl bg-stone-50 p-3 text-[11px] leading-relaxed text-stone-500">
-            Standardized intake: same tree, same grading scale, same photo set — every unit,
-            every buyer.
-          </div>
+
+          {editing && (
+            <div className="mt-4 pt-3 border-t border-stone-200">
+              <Link
+                href={initialItem?.id ? `/inventory/${initialItem.id}` : "/inventory"}
+                onClick={() => {
+                  if (autoSaveRef.current) autoSaveRef.current();
+                }}
+                className="btn-ghost w-full h-9 text-xs text-stone-600 hover:text-stone-900 text-center flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to Item
+              </Link>
+            </div>
+          )}
+
+          {!editing && (
+            <div className="mt-3 rounded-xl bg-stone-50 p-3 text-[11px] leading-relaxed text-stone-500">
+              Standardized intake: same tree, same grading scale, same photo set — every unit,
+              every buyer.
+            </div>
+          )}
         </div>
       </div>
 
       {/* body */}
       <div>
+        {/* Mobile Horizontal Stepper */}
+        <div className="lg:hidden mb-4 flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-stone-200">
+          {STEPS.map((label, ix) => {
+            const isMissing = stepValidation.isStepMissing(ix);
+            const current = ix === step;
+            const visited = ix < step;
+            const done = editing ? !isMissing : visited && !isMissing;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (editing || ix <= step) changeStep(ix);
+                }}
+                className={cn(
+                  "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                  current
+                    ? isMissing && editing
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "bg-amber-600 text-white shadow-xs"
+                    : isMissing && editing
+                    ? "bg-rose-100 text-rose-800 border border-rose-300"
+                    : done
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                )}
+              >
+                <span>{ix + 1}.</span>
+                <span>{label}</span>
+                {editing && isMissing && <AlertCircle className="h-3 w-3 text-rose-700" />}
+                {done && !current && <Check className="h-3 w-3 text-emerald-600" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* In-Step Missing Alert Banner */}
+        {editing && stepValidation.missingDetails[step]?.length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-rose-300 bg-rose-50/95 p-3.5 text-xs text-rose-950 flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>
+                <strong>Action needed on this step:</strong> Missing {stepValidation.missingDetails[step].join(", ")}.
+              </span>
+            </div>
+            <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-rose-800 bg-rose-200/90 border border-rose-300 px-2 py-0.5 rounded">
+              Needs Attention
+            </span>
+          </div>
+        )}
+        {initialItem && isInformationRequiredItem && missingInfoList.length > 0 && (
+          <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50/90 p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-rose-900">
+                    Information Required — Complete Missing Fields
+                  </h4>
+                  <span className="rounded-full bg-rose-200 px-2 py-0.2 text-[10.5px] font-extrabold text-rose-800">
+                    {missingInfoList.length} missing
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-rose-700">
+                  This item is tagged as “Information required”. Complete the highlighted specifications and inspection details below before listing for sale.
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {missingInfoList.map((m) => (
+                    <button
+                      key={m.field}
+                      type="button"
+                      onClick={() => setStep(m.step)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-800 transition hover:bg-rose-100/60 shadow-2xs"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                      <span>{m.label}</span>
+                      <span className="text-[10px] text-stone-400 font-normal">Step {m.step + 1}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -1323,7 +1736,8 @@ export function IntakeWizard({
                       <div className="relative">
                         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
                         <input
-                          className="input pl-8"
+                          style={{ paddingLeft: "2.2rem" }}
+                          className="input"
                           type="number"
                           min={0}
                           value={acq}
@@ -1333,17 +1747,6 @@ export function IntakeWizard({
                       </div>
                     </div>
                   </div>
-
-                  {floor > 0 && (
-                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 text-[12.5px] text-amber-900">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600" />
-                      <span>
-                        Estimated price floor:{" "}
-                        <span className="font-bold text-stone-900">{fmtMoney(floor)}</span>{" "}
-                        <span className="text-stone-500">(effective cost × 1.18)</span>
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1374,9 +1777,6 @@ export function IntakeWizard({
                             <span className="text-stone-400">{item.path.split(" › ").slice(0, -1).join(" › ")} › </span>
                             <span className="font-semibold">{item.c.name}</span>
                           </span>
-                          {item.c.baseValue ? (
-                            <span className="text-[11px] text-stone-400 tabular-nums">ref {fmtMoney(item.c.baseValue)}</span>
-                          ) : null}
                         </button>
                       ))}
                       {catFuse.search(catQuery.trim()).length === 0 && (
@@ -1415,12 +1815,7 @@ export function IntakeWizard({
                                   : "text-stone-700 hover:bg-white"
                               )}
                             >
-                              {c.name}
-                              {c.baseValue ? (
-                                <span className={cn("text-[11px] tabular-nums", leafId === c.id ? "text-amber-100" : "text-stone-400")}>
-                                  ref {fmtMoney(c.baseValue)}
-                                </span>
-                              ) : null}
+                              <span>{c.name}</span>
                             </button>
                           ))
                         )}
@@ -1720,171 +2115,164 @@ export function IntakeWizard({
             {/* ---------------- STEP 4 · PRICING & PUBLISH ---------------- */}
             {step === 4 && (
               <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                {/* Left Column: Valuation Engine & Margin Calculator */}
+                {/* Left Column: Pricing Formula Workstation */}
                 <div className="space-y-4">
-                  {/* Valuation Engine */}
-                  <div className="card p-5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Algorithmic baseline</span>
-                      <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600">
-                        Tier: {tier.name} ({tier.multiplier}×)
+                  <div className="card p-5 space-y-4">
+                    <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                      <div>
+                        <h3 className="font-display text-xl font-bold text-stone-900">Pricing Formula</h3>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          Enforced retail gap ceilings, grade factors, and item intake costs.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                        Grade {effectiveGrade} · {formulaResult.recommendedGradeRow?.gradeFactor.toFixed(2)}×
                       </span>
                     </div>
-                    <div className="mt-3 flex items-baseline gap-3">
-                      <span className="font-display text-3xl font-bold tracking-tight text-stone-900">
-                        {v.suggested ? fmtMoney(v.suggested) : "—"}
-                      </span>
-                      {v.band && (
-                        <span className="text-xs text-stone-500">
-                          band {fmtMoney(v.band[0])} – {fmtMoney(v.band[1])}
+
+                    {/* Brand New Price (Retail Benchmark) — Outlined in Green Neon */}
+                    <div className="rounded-xl border-2 border-[#00e676] shadow-[0_0_12px_rgba(0,230,118,0.3)] ring-2 ring-[#00e676]/20 bg-white p-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                          Brand New Price ₱ (Retail Benchmark)
+                        </label>
+                        <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
+                          Required Input
                         </span>
-                      )}
+                      </div>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                        <input
+                          style={{ paddingLeft: "2.2rem" }}
+                          className="input font-bold tabular-nums text-sm h-10 border-2 border-[#00e676]/60 focus:border-[#00e676]"
+                          type="number"
+                          min={0}
+                          value={brandNew}
+                          onChange={(e) => setBrandNew(e.target.value)}
+                          placeholder="e.g. 15000"
+                        />
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-stone-500">
+                        Establishes Grade A ceiling (MaxA = Retail × (1 − {Math.round(formulaConfig.retailGapPct * 100)}% Gap)).
+                      </p>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] text-stone-500">
-                      <div>Base catalog ref: <span className="font-semibold text-stone-700">{baseValue ? fmtMoney(baseValue) : "—"}</span></div>
-                      <div>Floor (cost × 1.18): <span className="font-semibold text-stone-700">{fmtMoney(floor)}</span></div>
-                    </div>
-                  </div>
 
-                  {/* Margin Calculator (Moved directly under Valuation Engine, without subtitle) */}
-                  <div className="card p-5">
-                    <h3 className="font-display text-xl font-semibold text-stone-900">Margin Calculator</h3>
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="min-w-0">
-                        <label className="label truncate">Acquisition</label>
-                        <div className="input flex h-10 items-center bg-stone-50 tabular-nums text-stone-600 font-medium">{fmtMoney(acqNum)}</div>
+                    {/* Intake Costs Grid */}
+                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-stone-700 uppercase tracking-wider text-[11px]">Intake Costs</span>
+                        <span className="text-stone-900 bg-white px-2.5 py-0.5 rounded-md border border-stone-200 tabular-nums font-black">
+                          Total: {fmtMoney(acqNum + refurbNum + cleaningNum)}
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <label className="label truncate">Refurb</label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
-                          <input
-                            className="input pl-8 font-medium tabular-nums"
-                            type="number"
-                            min={0}
-                            value={refurb}
-                            onChange={(e) => setRefurb(e.target.value)}
-                            placeholder="0"
-                          />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="min-w-0">
+                          <label className="text-[10.5px] font-semibold text-stone-600 block">Acquisition</label>
+                          <div className="input mt-1 flex h-9 items-center bg-white tabular-nums text-stone-700 font-semibold text-xs border border-stone-200">
+                            {fmtMoney(acqNum)}
+                          </div>
                         </div>
-                      </div>
-                      <div className="min-w-0">
-                        <label className="label truncate">Cleaning</label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
-                          <input
-                            className="input pl-8 font-medium tabular-nums"
-                            type="number"
-                            min={0}
-                            value={cleaning}
-                            onChange={(e) => setCleaning(e.target.value)}
-                            placeholder="0"
-                          />
+                        <div className="min-w-0">
+                          <label className="text-[10.5px] font-semibold text-stone-600 block">Refurb</label>
+                          <div className="relative mt-1">
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">₱</span>
+                            <input
+                              style={{ paddingLeft: "2.1rem" }}
+                              className="input h-9 font-semibold tabular-nums text-xs"
+                              type="number"
+                              min={0}
+                              value={refurb}
+                              onChange={(e) => setRefurb(e.target.value)}
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="mt-3.5">
-                      <label className="label">Ask price</label>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <div className="relative flex-1">
-                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
-                          <input
-                            className="input pl-8 text-base sm:text-lg font-semibold tabular-nums"
-                            type="number"
-                            min={0}
-                            value={price}
-                            onChange={(e) => { setPrice(e.target.value); setPriceTouched(true); }}
-                            placeholder={suggested ? String(suggested) : "0"}
-                          />
+                        <div className="min-w-0">
+                          <label className="text-[10.5px] font-semibold text-stone-600 block">Cleaning</label>
+                          <div className="relative mt-1">
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">₱</span>
+                            <input
+                              style={{ paddingLeft: "2.1rem" }}
+                              className="input h-9 font-semibold tabular-nums text-xs"
+                              type="number"
+                              min={0}
+                              value={cleaning}
+                              onChange={(e) => setCleaning(e.target.value)}
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
-                        {activeGradeCap != null && priceNum !== activeGradeCap && (
-                          <button
-                            type="button"
-                            onClick={() => { setPrice(String(activeGradeCap)); setPriceTouched(true); }}
-                            className="btn-accent h-10 shrink-0 px-3 text-xs sm:text-[13px] font-bold"
-                          >
-                            Use Formula Cap ({fmtMoney(activeGradeCap)})
-                          </button>
-                        )}
-                        {suggested != null && priceNum !== suggested && priceNum !== activeGradeCap && (
-                          <button
-                            type="button"
-                            onClick={() => { setPrice(String(suggested)); setPriceTouched(true); }}
-                            className="btn-soft h-10 shrink-0 px-3 text-xs sm:text-[13px]"
-                          >
-                            Use {fmtMoney(suggested)}
-                          </button>
-                        )}
                       </div>
                     </div>
 
-                    {/* Condition Grade Pricing Matrix Table */}
-                    {baseValue && baseValue > 0 && (
-                      <div className="mt-3.5 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
-                            Condition Grade Pricing Matrix ({Math.round(formulaConfig.retailGapPct * 100)}% Retail Gap)
+                    {/* Ask Price Section — Outlined in Green Neon */}
+                    <div className="rounded-xl border-2 border-[#00e676] shadow-[0_0_12px_rgba(0,230,118,0.3)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                          Enforced Ask Price ₱
+                        </label>
+                        <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
+                          Set Listing Price
+                        </span>
+                      </div>
+
+                      {/* Formula Recommended Callout */}
+                      <div className="flex items-center justify-between rounded-lg bg-emerald-50/80 border border-emerald-200 px-3 py-2 text-xs">
+                        <div>
+                          <span className="font-bold text-emerald-900 block">
+                            Formula Suggestion (Grade {effectiveGrade} Cap):
                           </span>
-                          <span className="text-[10.5px] text-stone-400">Target Profit: {formulaConfig.targetProfitMultiplier}×</span>
+                          <span className="text-[11px] text-emerald-700">
+                            Retail × (1 − {Math.round(formulaConfig.retailGapPct * 100)}%) × {formulaResult.recommendedGradeRow?.gradeFactor.toFixed(2)}
+                          </span>
                         </div>
-                        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-                          <table className="w-full border-collapse text-left text-xs">
-                            <thead>
-                              <tr className="border-b border-stone-100 bg-stone-50/80 text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                                <th className="py-2 px-2.5">Grade</th>
-                                <th className="py-2 px-2.5">Factor</th>
-                                <th className="py-2 px-2.5">Max Allowed Cap</th>
-                                <th className="py-2 px-2.5">Target</th>
-                                <th className="py-2 px-2.5 font-bold text-stone-800">Final Ask</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-stone-100 font-medium">
-                              {formulaResult.grades.map((r) => {
-                                const isCurrent = effectiveGrade === r.grade;
-                                return (
-                                  <tr
-                                    key={r.grade}
-                                    onClick={() => {
-                                      setPrice(String(r.finalListingPrice));
-                                      setPriceTouched(true);
-                                    }}
-                                    className={cn(
-                                      "cursor-pointer transition-colors",
-                                      isCurrent ? "bg-amber-50/80 font-bold" : "hover:bg-stone-50"
-                                    )}
-                                  >
-                                    <td className="py-1.5 px-2.5">
-                                      Grade {r.grade} {isCurrent && <span className="text-[9.5px] text-amber-700">★</span>}
-                                    </td>
-                                    <td className="py-1.5 px-2.5 tabular-nums text-stone-500">{r.gradeFactor.toFixed(2)}</td>
-                                    <td className="py-1.5 px-2.5 tabular-nums font-semibold text-stone-800">{fmtMoney(r.maxAllowedCap)}</td>
-                                    <td className="py-1.5 px-2.5 tabular-nums text-stone-500">{fmtMoney(formulaResult.targetPrice)}</td>
-                                    <td className="py-1.5 px-2.5 tabular-nums font-extrabold text-stone-900">{fmtMoney(r.finalListingPrice)}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-base text-emerald-950 tabular-nums">
+                            {fmtMoney(activeGradeCap ?? 0)}
+                          </span>
+                          {activeGradeCap != null && (
+                            <button
+                              type="button"
+                              onClick={() => { setPrice(String(activeGradeCap)); setPriceTouched(true); }}
+                              className="btn-accent h-8 px-2.5 text-xs font-bold shadow-sm"
+                            >
+                              Use Formula Cap
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">₱</span>
+                        <input
+                          style={{ paddingLeft: "2.2rem" }}
+                          className="input h-11 text-lg font-black tabular-nums border-2 border-[#00e676]/60 focus:border-[#00e676]"
+                          type="number"
+                          min={0}
+                          value={price}
+                          onChange={(e) => { setPrice(e.target.value); setPriceTouched(true); }}
+                          placeholder={activeGradeCap ? String(activeGradeCap) : "0"}
+                        />
+                      </div>
+                    </div>
 
                     {priceNum > 0 && (
-                      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center pt-1">
                         {[
-                          ["Margin", acqNum + refurbNum + cleaningNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum + cleaningNum) - 1) * 100)}%` : "—"],
+                          ["Margin on Cost", acqNum + refurbNum + cleaningNum > 0 ? `${Math.round((priceNum / (acqNum + refurbNum + cleaningNum) - 1) * 100)}%` : "—"],
                           ["Gross profit", fmtMoney(priceNum - acqNum - refurbNum - cleaningNum)],
-                          ["vs benchmark", v.benchmark ? `${priceNum >= v.benchmark ? "+" : ""}${Math.round((priceNum / v.benchmark - 1) * 100)}%` : "—"],
+                          ["vs Retail Benchmark", brandNewNum > 0 ? `${priceNum >= brandNewNum ? "+" : ""}${Math.round((priceNum / brandNewNum - 1) * 100)}%` : "—"],
                         ].map(([l, r]) => (
-                          <div key={l} className="rounded-xl bg-stone-50 px-2 py-2.5 min-w-0" title={`${l}: ${r}`}>
-                            <div className="text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider text-stone-400 truncate">{l}</div>
-                            <div className="mt-0.5 font-display text-[13px] sm:text-[15px] md:text-[17px] font-bold tabular-nums text-stone-900 truncate">{r}</div>
+                          <div key={l} className="rounded-xl bg-stone-50 p-2.5 border border-stone-200 min-w-0" title={`${l}: ${r}`}>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 truncate">{l}</div>
+                            <div className="mt-0.5 font-display text-[14px] sm:text-[16px] font-bold tabular-nums text-stone-900 truncate">{r}</div>
                           </div>
                         ))}
                       </div>
                     )}
+
                     {priceTouched && priceNum > 0 && priceNum < floor && (
-                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] sm:text-[12.5px] text-rose-700">
+                      <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] text-rose-700">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                         Below the enforced price floor of {fmtMoney(floor)}. Listing is blocked until the ask is raised.
                       </div>
@@ -2038,14 +2426,26 @@ export function IntakeWizard({
                       </div>
                     )}
 
-                    <button
-                      onClick={submit}
-                      disabled={saving}
-                      className="btn-accent mt-4 w-full"
-                    >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      {saving ? "Logging unit…" : "Log into inventory"}
-                    </button>
+                    {editing ? (
+                      <Link
+                        href={`/inventory/${initialItem?.id}`}
+                        onClick={() => {
+                          if (autoSaveRef.current) autoSaveRef.current();
+                        }}
+                        className="btn-accent mt-4 w-full flex items-center justify-center gap-2"
+                      >
+                        <Check className="h-4 w-4" /> Done & Return to Item
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={submit}
+                        disabled={saving}
+                        className="btn-accent mt-4 w-full"
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        Logging unit…
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2054,25 +2454,49 @@ export function IntakeWizard({
         </AnimatePresence>
 
         {/* footer nav */}
-        <div className="mt-4 flex items-center justify-between">
-          <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="btn-ghost">
-            <ArrowLeft className="h-4 w-4" /> Back
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => changeStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0}
+            className="btn-ghost"
+          >
+            <ArrowLeft className="h-4 w-4" /> Previous Step
           </button>
-          <div className="text-[11.5px] tabular-nums text-stone-400">Step {step + 1} of {STEPS.length}</div>
-          {step < STEPS.length - 1 ? (
-            <button onClick={() => canContinue && setStep((s) => s + 1)} disabled={!canContinue} className="btn-primary">
-              Continue <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <span className="w-[118px]" />
-          )}
+          <div className="text-[11.5px] tabular-nums text-stone-400">
+            Step {step + 1} of {STEPS.length}
+          </div>
+          <div className="flex items-center gap-2.5">
+            {step < STEPS.length - 1 ? (
+              <button
+                type="button"
+                onClick={() => changeStep((s) => s + 1)}
+                disabled={!editing && !canContinue}
+                className="btn-primary"
+              >
+                Next Step <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : editing ? (
+              <Link
+                href={initialItem?.id ? `/inventory/${initialItem.id}` : "/inventory"}
+                onClick={() => {
+                  if (autoSaveRef.current) autoSaveRef.current();
+                }}
+                className="btn-primary"
+              >
+                Done <Check className="h-4 w-4" />
+              </Link>
+            ) : (
+              <span className="w-[118px]" />
+            )}
+          </div>
         </div>
-        {step === 0 && !hasAnyMedia && (
+        {!editing && step === 0 && !hasAnyMedia && (
           <p className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-medium text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" /> Media upload is required to continue
           </p>
         )}
-        {step > 0 && step < STEPS.length - 1 && !canContinue && (
+        {!editing && step > 0 && step < STEPS.length - 1 && !canContinue && (
           <p className="mt-2 flex items-center justify-end gap-1.5 text-[11.5px] text-stone-400">
             <X className="h-3 w-3" /> Complete the required fields above to continue
           </p>

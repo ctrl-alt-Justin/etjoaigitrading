@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { enrichItems, getAllData } from "@/lib/queries";
 import { IntakeWizard, type SoldRef, type SupplierLite } from "@/components/intake-wizard";
 import { SeedGate } from "@/components/seed-gate";
@@ -49,15 +51,39 @@ export default async function NewIntakePage({ searchParams }: { searchParams: Pr
     <div className="space-y-5">
       <Reveal>
         <div>
-          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
-            Intake Desk
-          </div>
-          <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-stone-900">
-            {editItem ? "Complete Item Information" : "Log a New Unit"}
-          </h1>
-          <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
-            {editItem ? "Finish the required information below before this item can be listed for sale." : "Structured intake replaces mental checklists: fixed taxonomy, graded inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone."}
-          </p>
+          {editItem ? (
+            <div className="mb-3">
+              <div className="flex items-center justify-between gap-3">
+                <Link
+                  href={`/inventory/${editItem.id}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-900 transition"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to Item Record
+                </Link>
+                <span className="rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">
+                  Editing: {editItem.sku ?? "No SKU"}
+                </span>
+              </div>
+              <h1 className="mt-2 font-display text-[28px] sm:text-[32px] font-semibold leading-tight tracking-tight text-stone-900">
+                Edit Item · {editItem.name || "Untitled Item"}
+              </h1>
+              <p className="mt-1.5 max-w-2xl text-[13.5px] text-stone-500">
+                Navigate freely between any step below to update specifications, inspection records, media, or pricing. Incomplete steps are marked in red.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
+                Intake Desk
+              </div>
+              <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-stone-900">
+                Log a New Unit
+              </h1>
+              <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
+                Structured intake replaces mental checklists: fixed taxonomy, graded inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone.
+              </p>
+            </div>
+          )}
         </div>
       </Reveal>
       <Reveal delay={0.05}>

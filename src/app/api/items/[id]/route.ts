@@ -45,8 +45,9 @@ type Action =
       listedPrice?: number | null;
       location?: string | null;
       categoryId?: number | null;
+      benchmarkPrice?: number | null;
     }
-  | { action: "list"; price: number }
+  | { action: "list"; price: number; previewPhotoUrl?: string }
   | { action: "price"; price: number }
   | { action: "sold"; price: number; channel?: string }
   | { action: "reserve" }
@@ -91,29 +92,44 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return fail(409, { error: "BELOW_FLOOR", message: `Listed price is below the enforced floor of ${fmtMoney(nextFloor)}`, floor: nextFloor });
     if (body.name !== undefined && !body.name.trim()) return fail(400, { error: "Item name is required" });
     if (body.categoryId != null && (!Number.isInteger(body.categoryId) || body.categoryId <= 0)) return fail(400, { error: "Category is invalid" });
-    const { error } = await supabase.from("items").update({
-      name: body.name?.trim() ?? item.name,
-      brand: body.brand?.trim() || null,
-      model: body.model?.trim() || null,
-      color: body.color?.trim() || null,
-      material: body.material?.trim() || null,
-      dimensions: body.dimensions?.trim() || null,
-      grade: body.grade ?? null,
-      condition_notes: body.conditionNotes?.trim() || null,
-      checklist: body.checklist ?? [],
-      photos: body.photos ?? item.photos ?? [],
-      attributes: body.attributes ?? item.attributes ?? {},
-      supplier_id: body.supplierId ?? item.supplierId,
+    if (body.status === "listed" && item.status === "for_cleaning") {
+      return fail(409, {
+        error: "CLEANING_REQUIRED",
+        message: "This item is currently tagged for cleaning. Complete cleaning before listing for sale.",
+      });
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      updated_at: now.toISOString(),
       acquisition_cost: acquisitionCost,
       refurb_cost: refurbCost,
-      listed_price: listedPrice,
       floor_price: nextFloor,
-      location: body.location?.trim() || null,
-      category_id: body.categoryId ?? item.categoryId,
-      updated_at: now.toISOString(),
-      status: body.status ?? item.status,
-      listed_at: body.status === "listed" ? new Date().toISOString() : item.listedAt,
-    }).eq("id", id);
+    };
+
+    if (body.name !== undefined) updatePayload.name = body.name.trim();
+    if (body.brand !== undefined) updatePayload.brand = body.brand?.trim() || null;
+    if (body.model !== undefined) updatePayload.model = body.model?.trim() || null;
+    if (body.color !== undefined) updatePayload.color = body.color?.trim() || null;
+    if (body.material !== undefined) updatePayload.material = body.material?.trim() || null;
+    if (body.dimensions !== undefined) updatePayload.dimensions = body.dimensions?.trim() || null;
+    if (body.grade !== undefined) updatePayload.grade = body.grade || null;
+    if (body.conditionNotes !== undefined) updatePayload.condition_notes = body.conditionNotes?.trim() || null;
+    if (body.checklist !== undefined) updatePayload.checklist = body.checklist ?? [];
+    if (body.photos !== undefined) updatePayload.photos = body.photos ?? [];
+    if (body.attributes !== undefined) updatePayload.attributes = body.attributes ?? {};
+    if (body.supplierId !== undefined) updatePayload.supplier_id = body.supplierId;
+    if (body.listedPrice !== undefined) updatePayload.listed_price = listedPrice;
+    if (body.benchmarkPrice !== undefined) updatePayload.benchmark_price = body.benchmarkPrice != null ? Number(body.benchmarkPrice) : null;
+    if (body.location !== undefined) updatePayload.location = body.location?.trim() || null;
+    if (body.categoryId !== undefined) updatePayload.category_id = body.categoryId;
+    if (body.status !== undefined) {
+      updatePayload.status = body.status;
+      if (body.status === "listed" && !item.listedAt) {
+        updatePayload.listed_at = new Date().toISOString();
+      }
+    }
+
+    const { error } = await supabase.from("items").update(updatePayload).eq("id", id);
     if (error) throw error;
     revalidateAll(id);
     return NextResponse.json({ ok: true });
@@ -123,11 +139,39 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     case "list": {
       const price = Number(body.price);
       if (!Number.isFinite(price) || price <= 0) return fail(400, { error: "Price required" });
-      const hasCompleteInfo = item.categoryId != null && item.name.trim().length > 1 && item.name !== "Information required" && item.dimensions?.trim().length && item.acquisitionCost > 0 && item.grade != null && (item.checklist?.length ?? 0) > 0 && (item.photos?.length ?? 0) > 0;
-      if (!hasCompleteInfo) return fail(409, { error: "INFORMATION_REQUIRED", message: "Complete the category, identity, cost, grade, checklist, and photos before listing this item." });
+      if (item.status === "for_cleaning") {
+        return fail(409, {
+          error: "CLEANING_REQUIRED",
+          message: "This item is currently tagged for cleaning. Complete cleaning before listing for sale.",
+        });
+      }
       if (price < floor)
         return fail(409, { error: "BELOW_FLOOR", message: `Price floor enforced at ${fmtMoney(floor)}`, floor });
-      const { error } = await supabase.from("items").update({ status: "listed", listed_price: price, listed_at: item.listedAt ?? now.toISOString(), updated_at: now.toISOString() }).eq("id", id);
+
+      let nextPhotos = item.photos ?? [];
+      const previewUrl = typeof body.previewPhotoUrl === "string" ? body.previewPhotoUrl.trim() : null;
+      if (previewUrl && nextPhotos.length > 0) {
+        const found = nextPhotos.find((p) => p.url === previewUrl);
+        if (found) {
+          nextPhotos = [found, ...nextPhotos.filter((p) => p.url !== previewUrl)];
+        } else {
+          nextPhotos = [{ slot: "preview", label: "Listing preview", url: previewUrl }, ...nextPhotos];
+        }
+      }
+
+      const nextAttributes = {
+        ...(item.attributes ?? {}),
+        ...(previewUrl ? { preview_photo_url: previewUrl } : {}),
+      };
+
+      const { error } = await supabase.from("items").update({
+        status: "listed",
+        listed_price: price,
+        photos: nextPhotos,
+        attributes: nextAttributes,
+        listed_at: item.listedAt ?? now.toISOString(),
+        updated_at: now.toISOString(),
+      }).eq("id", id);
       if (error) throw error;
       const { error: eventError } = await supabase.from("price_events").insert({ item_id: id, kind: "listed", price, created_at: now.toISOString() });
       if (eventError) throw eventError;

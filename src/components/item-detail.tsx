@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   PencilLine,
   ShieldCheck,
   Share2,
+  Sparkles,
   Tag,
   Trash2,
   TrendingDown,
@@ -27,7 +28,7 @@ import {
 } from "lucide-react";
 import type { DbCategory, DbPriceEvent, Grade, ItemPhoto } from "@/db/schema";
 import type { EnrichedItem } from "@/lib/queries";
-import { agingMarkdown, computeFloor, GRADE_META, GRADE_ORDER } from "@/lib/valuation";
+import { agingMarkdown, computeFloor, calculatePricingFormula, DEFAULT_PRICING_CONFIG, GRADE_META, GRADE_ORDER } from "@/lib/valuation";
 import { PHOTO_SLOTS, refPhotoFor, REAL_SETUP_PHOTO, SOLD_CHANNELS } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { compressImageFile } from "@/lib/image-compress";
@@ -180,6 +181,215 @@ function MoneyModal({
   );
 }
 
+function ListForSaleModal({
+  open,
+  onClose,
+  item,
+  defaultValue,
+  floor,
+  description,
+  onSubmit,
+}: {
+  open: boolean;
+  onClose: () => void;
+  item: EnrichedItem;
+  defaultValue?: number | null;
+  floor?: number | null;
+  description?: string;
+  onSubmit: (price: number, previewPhotoUrl?: string) => Promise<string | null>;
+}) {
+  const candidatePhotos = useMemo(() => {
+    const list: { url: string; label: string; slot?: string; isAfter?: boolean }[] = [];
+    const seen = new Set<string>();
+
+    (item.photos ?? []).forEach((p, idx) => {
+      if (p.url && !seen.has(p.url)) {
+        seen.add(p.url);
+        const isAfter = p.slot === "after" || (p.label && p.label.toLowerCase().includes("after")) || false;
+        list.push({
+          url: p.url,
+          label: p.label || (isAfter ? "After cleaning" : `Photo ${idx + 1}`),
+          slot: p.slot,
+          isAfter,
+        });
+      }
+    });
+
+    const attrAfter = (item.attributes as Record<string, unknown> | null)?.after_cleaning_photo_url;
+    if (attrAfter && typeof attrAfter === "string" && !seen.has(attrAfter)) {
+      seen.add(attrAfter);
+      list.push({
+        url: attrAfter,
+        label: "After cleaning",
+        slot: "after",
+        isAfter: true,
+      });
+    }
+
+    return list;
+  }, [item.photos, item.attributes]);
+
+  const initialPhoto = useMemo(() => {
+    const previewAttr = (item.attributes as Record<string, unknown> | null)?.preview_photo_url;
+    if (previewAttr && typeof previewAttr === "string" && candidatePhotos.some((c) => c.url === previewAttr)) {
+      return previewAttr;
+    }
+    const after = candidatePhotos.find((c) => c.isAfter);
+    if (after) return after.url;
+    return candidatePhotos[0]?.url ?? "";
+  }, [candidatePhotos, item.attributes]);
+
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string>(initialPhoto);
+  const [price, setPrice] = useState(defaultValue ? String(defaultValue) : "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setSelectedPhotoUrl(initialPhoto);
+      setPrice(defaultValue ? String(defaultValue) : "");
+      setErr(null);
+    }
+  }, [open, initialPhoto, defaultValue]);
+
+  if (!open) return null;
+  const num = Number(price) || 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="card w-full max-w-lg overflow-hidden p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-bold text-accent">
+              <Tag className="h-3 w-3" /> List Item for Sale
+            </div>
+            <h3 className="mt-1.5 font-display text-xl font-semibold text-stone-900">List for sale</h3>
+            {description && <p className="mt-1 text-[12px] leading-relaxed text-stone-500">{description}</p>}
+          </div>
+          <button onClick={onClose} className="btn-ghost px-2.5 py-1 text-xs">Cancel</button>
+        </div>
+
+        {/* Preview Photo Picker */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-stone-700">
+              Select Listing Preview Photo
+            </label>
+            {candidatePhotos.length > 0 && (
+              <span className="text-[11px] font-medium text-stone-400">
+                {candidatePhotos.length} {candidatePhotos.length === 1 ? "photo" : "photos"} available
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[11.5px] text-stone-500">
+            Choose which uploaded photo or after-cleaning photo will be displayed as the main preview card for buyers.
+          </p>
+
+          {candidatePhotos.length === 0 ? (
+            <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-dashed border-stone-300 bg-stone-50 p-3 text-xs text-stone-500">
+              <Camera className="h-4 w-4 text-stone-400 shrink-0" />
+              <span>No photos uploaded for this item yet. You can list now, or add photos via Edit Item.</span>
+            </div>
+          ) : (
+            <div className="mt-2.5 grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-52 overflow-y-auto p-1.5 rounded-xl border border-stone-200/80 bg-stone-50/70">
+              {candidatePhotos.map((p) => {
+                const isSelected = selectedPhotoUrl === p.url;
+                return (
+                  <button
+                    key={p.url}
+                    type="button"
+                    onClick={() => setSelectedPhotoUrl(p.url)}
+                    className={cn(
+                      "group relative aspect-square w-full overflow-hidden rounded-xl border-2 transition text-left focus:outline-none",
+                      isSelected
+                        ? "border-emerald-500 ring-2 ring-emerald-500/30 shadow-md"
+                        : "border-stone-200 hover:border-stone-400 opacity-75 hover:opacity-100"
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+
+                    {/* Selection Checkmark */}
+                    {isSelected && (
+                      <div className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white shadow">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </div>
+                    )}
+
+                    {/* After badge */}
+                    {p.isAfter && (
+                      <span className="absolute top-1.5 left-1.5 rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow">
+                        After
+                      </span>
+                    )}
+
+                    {/* Bottom Label */}
+                    <div
+                      className={cn(
+                        "absolute inset-x-0 bottom-0 px-1 py-0.5 text-center text-[10px] font-medium truncate",
+                        isSelected
+                          ? "bg-emerald-700/90 text-white font-semibold"
+                          : "bg-stone-900/60 text-white backdrop-blur-[2px]"
+                      )}
+                    >
+                      {isSelected ? "Preview Cover" : p.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Price Input */}
+        <div className="mt-4">
+          <label className="label">Live Ask Price — ₱</label>
+          <input
+            autoFocus
+            type="number"
+            min={0}
+            className="input text-lg font-semibold tabular-nums"
+            placeholder="0.00"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+        </div>
+
+        {floor != null && floor > 0 && num > 0 && num < floor && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> Below enforced floor of {fmtMoney(floor)}.
+          </div>
+        )}
+
+        {err && (
+          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+            {err}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+          <button
+            disabled={busy || num <= 0}
+            className="btn-accent inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition disabled:opacity-50"
+            onClick={async () => {
+              setBusy(true);
+              const e = await onSubmit(num, selectedPhotoUrl || undefined);
+              setBusy(false);
+              if (e) setErr(e);
+              else onClose();
+            }}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+            Confirm &amp; Go Live
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function parseInitialDims(raw?: string | null): { l: string; w: string; h: string; unit: DimensionUnit } {
   if (!raw) return { l: "", w: "", h: "", unit: "cm" };
   const trimmed = raw.trim();
@@ -196,6 +406,214 @@ function parseInitialDims(raw?: string | null): { l: string; w: string; h: strin
     h: numbers?.[2] ?? "",
     unit,
   };
+}
+
+function AfterPhotoModal({
+  open,
+  item,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean;
+  item: EnrichedItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(() => {
+    const existingAfter = item.photos?.find((p) => p.slot === "after");
+    return existingAfter?.url ?? null;
+  });
+  const [timestamp, setTimestamp] = useState<string | null>(() => {
+    const existingAfter = item.photos?.find((p) => p.slot === "after");
+    return existingAfter?.timestamp ?? null;
+  });
+  const [cleaningNotes, setCleaningNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async (file: File | undefined) => {
+    if (!file) return;
+    const now = new Date();
+    const timeStr = now.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    try {
+      const dataUrl = await compressImageFile(file);
+      setPhotoUrl(dataUrl);
+      setTimestamp(timeStr);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPhotoUrl(String(reader.result));
+        setTimestamp(timeStr);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!photoUrl) {
+      setError("Please capture or upload the After-cleaning photo before completing cleaning.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+
+    const afterPhoto: ItemPhoto = {
+      slot: "after",
+      label: "After cleaning",
+      url: photoUrl,
+      timestamp: timestamp ?? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }),
+    };
+
+    const existingPhotos = (item.photos ?? []).filter((p) => p.slot !== "after");
+    const updatedPhotos = [...existingPhotos, afterPhoto];
+
+    const noteAddition = cleaningNotes.trim()
+      ? (item.conditionNotes ? `${item.conditionNotes} · Cleaned: ${cleaningNotes.trim()}` : `Cleaned: ${cleaningNotes.trim()}`)
+      : item.conditionNotes;
+
+    const res = await fetch(`/api/items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "edit",
+        status: "in_stock",
+        photos: updatedPhotos,
+        conditionNotes: noteAddition,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+
+    if (!res.ok) {
+      setError(data.message ?? data.error ?? "Failed to update item status");
+      return;
+    }
+
+    onSuccess();
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="card w-full max-w-lg overflow-hidden p-5 sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+              <Sparkles className="h-3 w-3" /> Cleaning Completion
+            </div>
+            <h3 className="mt-1.5 font-display text-xl font-semibold text-stone-900">Mark cleaned → Move to stock</h3>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-stone-500">
+              Please upload or capture the <strong>After cleaning</strong> photo to document the restored condition before moving this unit to active stock.
+            </p>
+          </div>
+          <button onClick={onClose} className="btn-ghost px-2.5 py-1 text-xs">Cancel</button>
+        </div>
+
+        {/* Photo Upload Area */}
+        <div className="mt-4">
+          <label className="label flex items-center justify-between">
+            <span className="flex items-center gap-1 font-bold text-stone-800">
+              After-Cleaning Photo <span className="text-rose-500 font-bold">*</span>
+            </span>
+            {timestamp && <span className="text-[10.5px] font-normal text-stone-400">Captured: {timestamp}</span>}
+          </label>
+
+          {photoUrl ? (
+            <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoUrl} alt="After cleaning" className="aspect-[16/10] w-full object-cover" />
+              <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                <label className="btn-soft h-8 cursor-pointer rounded-lg bg-stone-950/80 px-3 text-xs font-semibold text-white backdrop-blur hover:bg-stone-950">
+                  <Camera className="h-3.5 w-3.5" /> Retake / Change
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleUpload(e.target.files?.[0]);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoUrl(null);
+                    setTimestamp(null);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-600 text-white transition hover:bg-rose-500"
+                  title="Remove photo"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label className="flex aspect-[16/10] w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 text-center transition hover:border-emerald-500 hover:bg-emerald-50/60">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-emerald-200">
+                <Camera className="h-6 w-6 text-emerald-600" />
+              </div>
+              <span className="mt-3 text-sm font-bold text-stone-800">Upload or Capture After Photo</span>
+              <span className="mt-1 text-xs text-stone-500">Show the cleaned, restored unit in good lighting</span>
+              <span className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+                <ImagePlus className="h-3.5 w-3.5" /> Choose file / camera
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  handleUpload(e.target.files?.[0]);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+          )}
+        </div>
+
+        {/* Cleaning notes */}
+        <div className="mt-4">
+          <label className="label">Cleaning &amp; restoration notes <span className="font-normal text-stone-400">(optional)</span></label>
+          <input
+            type="text"
+            className="input text-xs"
+            placeholder="e.g. Ultrasonic foam wash, leather conditioned, sanitized wheels"
+            value={cleaningNotes}
+            onChange={(e) => setCleaningNotes(e.target.value)}
+          />
+        </div>
+
+        {error && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
+          </div>
+        )}
+
+        <div className="mt-5 flex items-center justify-end gap-2.5">
+          <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={busy || !photoUrl}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Confirm Cleaned → Move to Stock
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function EditItemModal({
@@ -229,13 +647,14 @@ function EditItemModal({
     conditionNotes: item.conditionNotes ?? "",
     acquisitionCost: String(item.acquisitionCost),
     refurbCost: String(item.refurbCost),
+    benchmarkPrice: item.benchmarkPrice == null ? "" : String(item.benchmarkPrice),
     listedPrice: item.listedPrice == null ? "" : String(item.listedPrice),
     location: item.location ?? "",
     categoryId: item.categoryId == null ? "" : String(item.categoryId),
   });
   const [checklist, setChecklist] = useState(item.checklist ?? []);
 
-  // Map each standard slot (front, back, detail, setup, after, label) to its photo if present
+  // Map each standard slot to its photo if present
   const [slotPhotos, setSlotPhotos] = useState<Record<string, ItemPhoto | null>>(() => {
     const map: Record<string, ItemPhoto | null> = {};
     const photos = item.photos ?? [];
@@ -254,7 +673,6 @@ function EditItemModal({
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!open) return null;
 
   const update = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -273,12 +691,71 @@ function EditItemModal({
   };
 
   const editFloor = computeFloor(Number(form.acquisitionCost) || 0, Number(form.refurbCost) || 0);
-  const priceSuggestions = [
-    { label: "Floor", value: editFloor },
-    { label: "Value low", value: item.valueLow },
-    { label: "Benchmark", value: item.benchmarkPrice },
-    { label: "Value high", value: item.valueHigh },
-  ].filter((suggestion): suggestion is { label: string; value: number } => suggestion.value != null && suggestion.value >= editFloor && suggestion.value > 0);
+  const acqNum = Number(form.acquisitionCost) || 0;
+  const refurbNum = Number(form.refurbCost) || 0;
+  const bmNum = Number(form.benchmarkPrice) || 0;
+
+  const formulaResult = useMemo(() => {
+    return calculatePricingFormula({
+      acquisitionCost: acqNum,
+      refurbCost: refurbNum,
+      cleaningCost: 0,
+      brandNewPrice: bmNum,
+      selectedGrade: (form.grade as Grade) || null,
+    });
+  }, [acqNum, refurbNum, bmNum, form.grade]);
+
+  const priceSuggestions: { label: string; value: number }[] = [];
+  if (editFloor > 0) {
+    priceSuggestions.push({ label: "Floor", value: editFloor });
+  }
+  if (formulaResult.targetPrice > 0) {
+    priceSuggestions.push({ label: "Cost Target (1.40×)", value: formulaResult.targetPrice });
+  }
+  if (formulaResult.maxA > 0) {
+    priceSuggestions.push({ label: "MaxA Cap (35% gap)", value: formulaResult.maxA });
+  }
+  if (form.grade && formulaResult.recommendedGradeRow) {
+    priceSuggestions.push({
+      label: `Grade ${form.grade} Cap`,
+      value: formulaResult.recommendedGradeRow.maxAllowedCap,
+    });
+  }
+  if (bmNum > 0) {
+    priceSuggestions.push({ label: "Retail Benchmark", value: bmNum });
+  }
+
+  // Missing fields checking for items tagged with "Information required"
+  const missingInfoList = useMemo(() => {
+    const list: { key: string; label: string; desc: string }[] = [];
+    if (!form.name.trim() || form.name.toLowerCase() === "information required") {
+      list.push({ key: "name", label: "Item Name", desc: "Product title / model description" });
+    }
+    if (!form.categoryId) {
+      list.push({ key: "category", label: "Category", desc: "Select taxonomy branch" });
+    }
+    if (!dimL.trim() || !dimW.trim() || !dimH.trim()) {
+      list.push({ key: "dimensions", label: "Dimensions", desc: "L × W × H measurements" });
+    }
+    if (!form.grade) {
+      list.push({ key: "grade", label: "Condition Grade", desc: "Grade A, B, or C" });
+    }
+    if (!Number(form.acquisitionCost) || Number(form.acquisitionCost) <= 0) {
+      list.push({ key: "cost", label: "Acquisition Cost", desc: "Cost paid to buy unit" });
+    }
+    if (!slotPhotos["front"]?.url) {
+      list.push({ key: "photo_front", label: "Front Photo", desc: "Clear front overview" });
+    }
+    if (!slotPhotos["back"]?.url) {
+      list.push({ key: "photo_back", label: "Back Photo", desc: "Rear / reverse view" });
+    }
+    if (!checklist.length) {
+      list.push({ key: "checklist", label: "Inspection Checklist", desc: "At least one check recorded" });
+    }
+    return list;
+  }, [form.name, form.categoryId, dimL, dimW, dimH, form.grade, form.acquisitionCost, slotPhotos, checklist]);
+
+  const isMissing = (key: string) => missingInfoList.some((m) => m.key === key);
 
   const updateSlotPhoto = (slot: string, label: string, url: string, timestamp?: string) => {
     setSlotPhotos((prev) => ({
@@ -358,6 +835,7 @@ function EditItemModal({
         categoryId: form.categoryId ? Number(form.categoryId) : null,
         acquisitionCost: Number(form.acquisitionCost),
         refurbCost: Number(form.refurbCost),
+        benchmarkPrice: form.benchmarkPrice ? Number(form.benchmarkPrice) : null,
         listedPrice: form.listedPrice ? Number(form.listedPrice) : null,
         grade: form.grade || null,
       }),
@@ -372,18 +850,132 @@ function EditItemModal({
     onClose();
   };
 
+  const isCleaningItem = item.status === "for_cleaning";
+
+  if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="card max-h-[90vh] w-full max-w-3xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between gap-4"><div><h3 className="font-display text-xl font-semibold text-stone-900">Edit inventory entry</h3><p className="mt-1 text-[12.5px] text-stone-500">Update the record without changing its price history.</p></div><button onClick={onClose} className="btn-ghost px-3">Close</button></div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-display text-xl font-semibold text-stone-900">Edit inventory entry</h3>
+            <p className="mt-1 text-[12.5px] text-stone-500">Update the record without changing its price history.</p>
+          </div>
+          <button onClick={onClose} className="btn-ghost px-3">Close</button>
+        </div>
+
+        {/* Emphasize Missing Fields if Tagged with Information Required */}
+        {missingInfoList.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-rose-300 bg-rose-50/80 p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-rose-900">
+                    Information Required — {missingInfoList.length} Missing {missingInfoList.length === 1 ? "Detail" : "Details"}
+                  </h4>
+                  <span className="rounded-full bg-rose-200/80 px-2 py-0.5 text-[11px] font-bold text-rose-800">
+                    Action Needed
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-rose-700">
+                  This item is incomplete or tagged for information required. Fill in the highlighted red fields below to finalize the record:
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {missingInfoList.map((m) => (
+                    <span
+                      key={m.key}
+                      className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-white px-2 py-1 text-[11px] font-bold text-rose-800 shadow-xs"
+                    >
+                      <XCircle className="h-3 w-3 text-rose-500" />
+                      <span>{m.label}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {([["name", "Item name"], ["brand", "Brand"], ["model", "Model"], ["color", "Color"], ["material", "Material"], ["location", "Location"]] as const).map(([key, label]) => <label key={key} className={key === "name" ? "sm:col-span-2" : ""}><span className="label">{label}</span><input className="input" value={form[key]} onChange={(event) => update(key, event.target.value)} /></label>)}
+          {/* Name Field */}
+          <label className="sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <span className="label">Item name</span>
+              {isMissing("name") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+            </div>
+            <input
+              className={cn("input", isMissing("name") && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
+              value={form.name}
+              onChange={(event) => update("name", event.target.value)}
+              placeholder="e.g. Herman Miller Aeron Chair"
+            />
+          </label>
+
+          {/* Brand */}
+          <label>
+            <span className="label">Brand</span>
+            <input className="input" value={form.brand} onChange={(event) => update("brand", event.target.value)} />
+          </label>
+
+          {/* Model */}
+          <label>
+            <span className="label">Model</span>
+            <input className="input" value={form.model} onChange={(event) => update("model", event.target.value)} />
+          </label>
+
+          {/* Color */}
+          <label>
+            <span className="label">Color</span>
+            <input className="input" value={form.color} onChange={(event) => update("color", event.target.value)} />
+          </label>
+
+          {/* Material */}
+          <label>
+            <span className="label">Material</span>
+            <input className="input" value={form.material} onChange={(event) => update("material", event.target.value)} />
+          </label>
+
+          {/* Location */}
+          <label>
+            <span className="label">Location</span>
+            <input className="input" value={form.location} onChange={(event) => update("location", event.target.value)} />
+          </label>
+
+          {/* Category */}
+          <label>
+            <div className="flex items-center justify-between">
+              <span className="label">Category</span>
+              {isMissing("category") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+            </div>
+            <select
+              className={cn("input", isMissing("category") && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
+              value={form.categoryId}
+              onChange={(event) => update("categoryId", event.target.value)}
+            >
+              <option value="">Uncategorized</option>
+              {categories
+                .filter((category) => category.parentId != null)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          {/* Dimensions */}
           <div className="sm:col-span-2">
-            <span className="label">Dimensions</span>
+            <div className="flex items-center justify-between">
+              <span className="label">Dimensions</span>
+              {isMissing("dimensions") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+            </div>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <input
-                  className="input text-center font-medium"
+                  className={cn("input text-center font-medium", isMissing("dimensions") && !dimL.trim() && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
                   placeholder="L"
                   value={dimL}
                   onChange={(e) => updateDims(e.target.value, dimW, dimH, dimensionUnit)}
@@ -394,7 +986,7 @@ function EditItemModal({
               <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
               <div className="relative flex-1">
                 <input
-                  className="input text-center font-medium"
+                  className={cn("input text-center font-medium", isMissing("dimensions") && !dimW.trim() && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
                   placeholder="W"
                   value={dimW}
                   onChange={(e) => updateDims(dimL, e.target.value, dimH, dimensionUnit)}
@@ -405,7 +997,7 @@ function EditItemModal({
               <span className="shrink-0 text-sm font-bold text-stone-400">×</span>
               <div className="relative flex-1">
                 <input
-                  className="input text-center font-medium"
+                  className={cn("input text-center font-medium", isMissing("dimensions") && !dimH.trim() && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
                   placeholder="H"
                   value={dimH}
                   onChange={(e) => updateDims(dimL, dimW, e.target.value, dimensionUnit)}
@@ -428,33 +1020,137 @@ function EditItemModal({
             </div>
             <p className="mt-1 text-[11px] text-stone-400">Unit: {dimensionUnit === "cm" ? "centimeters" : dimensionUnit === "mm" ? "millimeters" : dimensionUnit === "in" ? "inches" : "meters"}</p>
           </div>
-          <label><span className="label">Category</span><select className="input" value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}><option value="">Uncategorized</option>{categories.filter((category) => category.parentId != null).sort((a, b) => a.name.localeCompare(b.name)).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+
+          {/* Product status */}
           <label>
             <span className="label">Product status</span>
             <select className="input" value={form.status} onChange={(event) => update("status", event.target.value)}>
               <option value="draft">Information required (Draft)</option>
               <option value="intake">Intake</option>
               <option value="for_cleaning">For cleaning</option>
-              <option value="for_refurb">For cleaning & refurbishing</option>
+              <option value="for_refurb">For cleaning &amp; refurbishing</option>
               <option value="in_stock">In stock</option>
-              <option value="listed">Listed</option>
+              <option value="listed" disabled={isCleaningItem}>
+                {isCleaningItem ? "Listed (Disabled: Cleaning required first)" : "Listed"}
+              </option>
               <option value="reserved">Reserved</option>
             </select>
           </label>
-          <div className="sm:col-span-2"><span className="label">Condition grade</span><div className="grid grid-cols-4 gap-2">{GRADE_ORDER.map((grade) => { const active = form.grade === grade; const meta = GRADE_META[grade]; return <button key={grade} type="button" onClick={() => update("grade", active ? "" : grade)} className={cn("rounded-xl border px-2 py-2 text-left transition", active ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/30" : "border-[var(--line)] bg-white hover:border-amber-300")}><span className={cn("chip", meta.chip)}>{grade}</span><span className="mt-1 block truncate text-[10px] font-semibold text-stone-600">{meta.tagline}</span></button>; })}</div><p className="mt-1.5 text-[11px] text-stone-400">Select a grade to update the inspection record, or click the selected grade again to clear it.</p></div>
-          <label><span className="label">Listed price — ₱</span><input className="input" type="number" min={0} value={form.listedPrice} onChange={(event) => update("listedPrice", event.target.value)} placeholder="Not listed" /></label>
-          <label><span className="label">Acquisition cost — ₱</span><input className="input" type="number" min={0} value={form.acquisitionCost} onChange={(event) => update("acquisitionCost", event.target.value)} /></label>
-          <label><span className="label">Refurb cost — ₱</span><input className="input" type="number" min={0} value={form.refurbCost} onChange={(event) => update("refurbCost", event.target.value)} /></label>
-          <label className="sm:col-span-2"><span className="label">Condition notes</span><textarea className="input" value={form.conditionNotes} onChange={(event) => update("conditionNotes", event.target.value)} /></label>
+
+          {/* Condition grade */}
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <span className="label">Condition grade</span>
+              {isMissing("grade") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+            </div>
+            <div className={cn("grid grid-cols-4 gap-2 rounded-xl p-1", isMissing("grade") && "border border-dashed border-rose-300 bg-rose-50/20")}>
+              {GRADE_ORDER.map((grade) => {
+                const active = form.grade === grade;
+                const meta = GRADE_META[grade];
+                return (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => update("grade", active ? "" : grade)}
+                    className={cn(
+                      "rounded-xl border px-2 py-2 text-left transition",
+                      active
+                        ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/30"
+                        : "border-[var(--line)] bg-white hover:border-amber-300"
+                    )}
+                  >
+                    <span className={cn("chip", meta.chip)}>{grade}</span>
+                    <span className="mt-1 block truncate text-[10px] font-semibold text-stone-600">{meta.tagline}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-stone-400">Select a grade to update the inspection record, or click the selected grade again to clear it.</p>
+          </div>
+
+          {/* Acquisition cost */}
+          <label>
+            <div className="flex items-center justify-between">
+              <span className="label">Acquisition cost — ₱</span>
+              {isMissing("cost") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+            </div>
+            <input
+              className={cn("input", isMissing("cost") && "border-rose-400 bg-rose-50/20 ring-2 ring-rose-200/50")}
+              type="number"
+              min={0}
+              value={form.acquisitionCost}
+              onChange={(event) => update("acquisitionCost", event.target.value)}
+            />
+          </label>
+
+          {/* Refurb cost */}
+          <label>
+            <span className="label">Refurb cost — ₱</span>
+            <input className="input" type="number" min={0} value={form.refurbCost} onChange={(event) => update("refurbCost", event.target.value)} />
+          </label>
+
+          {/* Benchmark Price (Brand New Retail Benchmark) */}
+          <label>
+            <span className="label">Brand New Benchmark — ₱</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              value={form.benchmarkPrice}
+              onChange={(event) => update("benchmarkPrice", event.target.value)}
+              placeholder="e.g. 50000"
+            />
+          </label>
+
+          {/* Listed price */}
+          <label>
+            <span className="label">Listed price — ₱</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              value={form.listedPrice}
+              onChange={(event) => update("listedPrice", event.target.value)}
+              placeholder="Not listed"
+            />
+          </label>
+
+          {/* Condition notes */}
+          <label className="sm:col-span-2">
+            <span className="label">Condition notes</span>
+            <textarea className="input" value={form.conditionNotes} onChange={(event) => update("conditionNotes", event.target.value)} />
+          </label>
         </div>
+
+        {/* Pricing Formula Suggestions */}
         <div className="mt-4 rounded-xl bg-amber-50/60 p-3.5">
-          <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-900">Automatic listing suggestions</span><span className="text-xs font-semibold text-rose-600">Floor {fmtMoney(editFloor)}</span></div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-900">Official Pricing Formula Suggestions</span>
+            <span className="text-xs font-semibold text-rose-600">Floor {fmtMoney(editFloor)}</span>
+          </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {priceSuggestions.length === 0 ? <span className="text-xs text-stone-500">Add costs and complete the item valuation to see suggestions.</span> : priceSuggestions.map((suggestion) => <button key={suggestion.label} type="button" onClick={() => update("listedPrice", String(suggestion.value))} className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-900 transition hover:border-amber-400 hover:bg-amber-50">{suggestion.label} · {fmtMoney(suggestion.value)}</button>)}
+            {priceSuggestions.length === 0 ? (
+              <span className="text-xs text-stone-500">Add costs and benchmark to compute formula suggestions.</span>
+            ) : (
+              priceSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.label}
+                  type="button"
+                  onClick={() => update("listedPrice", String(suggestion.value))}
+                  className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-900 transition hover:border-amber-400 hover:bg-amber-50"
+                >
+                  {suggestion.label} · {fmtMoney(suggestion.value)}
+                </button>
+              ))
+            )}
           </div>
         </div>
+
         <div className="mt-5 border-t border-stone-100 pt-4">
-          <div className="label">Inspection checklist</div>
+          <div className="flex items-center justify-between">
+            <div className="label">Inspection checklist</div>
+            {isMissing("checklist") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
+          </div>
           {checklist.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[var(--line)] bg-stone-50 px-3 py-3 text-xs text-stone-500">No inspection checklist was recorded for this item.</p>
           ) : (
@@ -486,6 +1182,7 @@ function EditItemModal({
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {PHOTO_SLOTS.map((s) => {
               const photo = slotPhotos[s.slot];
+              const isRequiredSlotMissing = s.required && !photo;
 
               return (
                 <div
@@ -494,11 +1191,13 @@ function EditItemModal({
                     "relative flex flex-col justify-between overflow-hidden rounded-xl border transition-all",
                     photo
                       ? "border-stone-200 bg-white shadow-sm"
+                      : isRequiredSlotMissing
+                      ? "border-2 border-dashed border-rose-400 bg-rose-50/30 ring-2 ring-rose-200/50"
                       : "border-dashed border-stone-300 bg-stone-50/70"
                   )}
                 >
                   {/* Slot Header */}
-                  <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/90 px-3 py-1.5 text-[11px]">
+                  <div className={cn("flex items-center justify-between border-b px-3 py-1.5 text-[11px]", isRequiredSlotMissing ? "border-rose-200 bg-rose-100/60" : "border-stone-100 bg-stone-50/90")}>
                     <span className="font-bold text-stone-800 flex items-center gap-1">
                       {s.label}
                       {s.required ? (
@@ -507,9 +1206,13 @@ function EditItemModal({
                         <span className="text-stone-400 font-normal text-[10px]">(optional)</span>
                       )}
                     </span>
-                    <span className="text-[9.5px] font-semibold text-stone-400 uppercase tracking-wider">
-                      {s.slot}
-                    </span>
+                    {isRequiredSlotMissing ? (
+                      <span className="rounded bg-rose-200 px-1 text-[9.5px] font-bold text-rose-800">Required Missing</span>
+                    ) : (
+                      <span className="text-[9.5px] font-semibold text-stone-400 uppercase tracking-wider">
+                        {s.slot}
+                      </span>
+                    )}
                   </div>
 
                   {photo ? (
@@ -706,12 +1409,33 @@ export function ItemDetail({
   const [modal, setModal] = useState<null | "list" | "sold" | "price">(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [cleanModalOpen, setCleanModalOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const photos = item.photos ?? [];
   const aging = item.status === "listed" && item.daysListed != null
     ? agingMarkdown(item.daysListed, item.listedPrice ?? 0, item.floorPrice)
     : null;
+
+  const listFormula = useMemo(() => {
+    return calculatePricingFormula({
+      acquisitionCost: item.acquisitionCost ?? 0,
+      refurbCost: item.refurbCost ?? 0,
+      cleaningCost: 0,
+      brandNewPrice: item.benchmarkPrice ?? 0,
+      selectedGrade: item.grade,
+    });
+  }, [item.acquisitionCost, item.refurbCost, item.benchmarkPrice, item.grade]);
+
+  const recommendedListPrice = useMemo(() => {
+    if (listFormula.recommendedGradeRow?.maxAllowedCap) {
+      return listFormula.recommendedGradeRow.maxAllowedCap;
+    }
+    if (listFormula.targetPrice > 0) {
+      return listFormula.targetPrice;
+    }
+    return Math.max(item.floorPrice ?? 0, item.benchmarkPrice ?? 0);
+  }, [listFormula, item.floorPrice, item.benchmarkPrice]);
 
   const act = async (body: Record<string, unknown>, after?: () => void) => {
     const res = await fetch(`/api/items/${item.id}`, {
@@ -772,13 +1496,11 @@ export function ItemDetail({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => item.status === "draft" ? router.push(`/inventory/new?edit=${item.id}`) : setEditOpen(true)} className="btn-ghost"><PencilLine className="h-4 w-4" /> Edit</button>
+            <button onClick={() => router.push(`/inventory/new?edit=${item.id}`)} className="btn-ghost"><PencilLine className="h-4 w-4" /> Edit</button>
             {item.status !== "sold" && item.status !== "archived" && (
               <button
-                onClick={() => isInformationRequired ? null : setShareOpen(true)}
-                disabled={isInformationRequired}
-                title={isInformationRequired ? "Complete required details before sharing" : undefined}
-                className={cn("btn-ghost relative", isInformationRequired && "opacity-40 cursor-not-allowed text-stone-400 pointer-events-none")}
+                onClick={() => setShareOpen(true)}
+                className="btn-ghost relative"
               >
                 <Share2 className="h-4 w-4" /> Share
                 {share?.active && (
@@ -786,19 +1508,26 @@ export function ItemDetail({
                 )}
               </button>
             )}
-            {["draft", "intake", "in_stock", "for_cleaning", "for_refurb", "for_refurbishing", "cleaning", "refurbishing"].includes(item.status) && (
+            {item.status === "for_cleaning" && (
+              <div
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-dashed border-amber-300 bg-amber-50/80 px-3 text-xs font-semibold text-amber-800"
+                title="Item is currently tagged for cleaning. Cleaning must be completed before listing for sale."
+              >
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Tagged for cleaning · Clean before listing</span>
+              </div>
+            )}
+            {["draft", "intake", "in_stock", "for_refurb", "for_refurbishing", "refurbishing"].includes(item.status) && (
               <button
-                onClick={() => isInformationRequired ? null : setModal("list")}
-                disabled={isInformationRequired}
-                title={isInformationRequired ? "Cannot list: complete required information first" : undefined}
-                className={cn("btn-accent", isInformationRequired && "opacity-40 cursor-not-allowed bg-stone-200 text-stone-400 hover:bg-stone-200 pointer-events-none")}
+                onClick={() => setModal("list")}
+                className="btn-accent"
               >
                 <Tag className="h-4 w-4" /> List for sale
               </button>
             )}
             {item.status === "for_cleaning" && (
-              <button onClick={() => simpleAction("clean_done", { action: "edit", status: "in_stock" })} disabled={busyAction != null} className="btn-soft">
-                <Check className="h-4 w-4 text-emerald-600" /> Mark cleaned → To stock
+              <button onClick={() => setCleanModalOpen(true)} disabled={busyAction != null} className="btn-soft">
+                <Sparkles className="h-4 w-4 text-emerald-600" /> Mark cleaned → To stock
               </button>
             )}
             {item.status === "for_refurb" && (
@@ -846,7 +1575,9 @@ export function ItemDetail({
         </div>
       </div>
 
-      <EditItemModal item={item} categories={categories} open={editOpen} onClose={() => setEditOpen(false)} onSaved={() => router.refresh()} />
+      {editOpen && (
+        <EditItemModal item={item} categories={categories} open={editOpen} onClose={() => setEditOpen(false)} onSaved={() => router.refresh()} />
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.12fr_1fr]">
         {/* LEFT */}
@@ -859,7 +1590,7 @@ export function ItemDetail({
               </span>
               <button
                 type="button"
-                onClick={() => setEditOpen(true)}
+                onClick={() => router.push(`/inventory/new?edit=${item.id}`)}
                 className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1D5D8B] hover:underline"
               >
                 <Camera className="h-3.5 w-3.5" />
@@ -1145,6 +1876,14 @@ export function ItemDetail({
       </div>
 
       {/* modals */}
+      {cleanModalOpen && (
+        <AfterPhotoModal
+          open={cleanModalOpen}
+          item={item}
+          onClose={() => setCleanModalOpen(false)}
+          onSuccess={() => router.refresh()}
+        />
+      )}
       <ShareModal
         open={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -1155,15 +1894,18 @@ export function ItemDetail({
         conditionNotes={item.conditionNotes}
         initial={share}
       />
-      <MoneyModal
+      <ListForSaleModal
         open={modal === "list"}
         onClose={() => setModal(null)}
-        title="List for sale"
-        description={item.valueLow != null ? `Graded value range ${fmtMoney(item.valueLow)} – ${fmtMoney(item.valueHigh)} · benchmark ${fmtMoney(item.benchmarkPrice)}.` : "Set the ask price."}
-        submitLabel="Go live"
-        defaultValue={Math.max(item.floorPrice ?? 0, item.valueLow && item.valueHigh ? Math.round(((item.valueLow + item.valueHigh) / 2) / 5) * 5 : item.benchmarkPrice ?? 0)}
+        item={item}
+        description={
+          item.benchmarkPrice != null
+            ? `Official Formula Target ${fmtMoney(listFormula.targetPrice)} · MaxA cap ${fmtMoney(listFormula.maxA)} · Benchmark ${fmtMoney(item.benchmarkPrice)}`
+            : `Official Formula Target ${fmtMoney(listFormula.targetPrice)} · Enforced floor ${fmtMoney(item.floorPrice)}.`
+        }
+        defaultValue={recommendedListPrice}
         floor={item.floorPrice}
-        onSubmit={(p) => act({ action: "list", price: p })}
+        onSubmit={(p, previewPhotoUrl) => act({ action: "list", price: p, previewPhotoUrl })}
       />
       <MoneyModal
         open={modal === "price"}

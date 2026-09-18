@@ -124,7 +124,7 @@ async function fetchAllData() {
         suppliers: camelizeRows<DbSupplier>(supRows.data),
         events: camelizeRows<DbPriceEvent>(eventRows.data),
       };
-      memoryCache = { data, expires: Date.now() + 60000 };
+      memoryCache = { data, expires: Date.now() + 500 };
       return data;
     } finally {
       inflightPromise = null;
@@ -207,7 +207,7 @@ async function fetchShopCatalogData() {
       })) as DbItem[];
 
       const data = { items, categories };
-      shopMemoryCache = { data, expires: Date.now() + 60000 };
+      shopMemoryCache = { data, expires: Date.now() + 500 };
       return data;
     } finally {
       shopInflightPromise = null;
