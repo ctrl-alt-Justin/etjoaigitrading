@@ -166,3 +166,120 @@ export const SUPPLIER_CHANNELS = [
   "Direct",
   "Institutional",
 ] as const;
+
+/* ------------------------------------------------------------------ */
+/* Company Retail Gap & Condition Grade Pricing Formula Engine         */
+/* ------------------------------------------------------------------ */
+
+export interface PricingFormulaConfig {
+  targetProfitMultiplier: number; // default: 1.40
+  retailGapPct: number; // default: 0.35 (35%)
+  gradeFactors: {
+    A: number; // default: 1.00
+    B: number; // default: 0.85
+    C: number; // default: 0.70
+    D: number; // default: 0.50
+  };
+}
+
+export const DEFAULT_PRICING_CONFIG: PricingFormulaConfig = {
+  targetProfitMultiplier: 1.40,
+  retailGapPct: 0.35,
+  gradeFactors: {
+    A: 1.00,
+    B: 0.85,
+    C: 0.70,
+    D: 0.50,
+  },
+};
+
+export const PRICING_CONFIG_STORAGE_KEY = "etjoaigi_pricing_desk_config";
+
+export interface PricingFormulaGradeRow {
+  grade: Grade;
+  gradeFactor: number;
+  maxAllowedCap: number; // MaxA * gradeFactor
+  targetPrice: number; // Total Cost * targetProfitMultiplier
+  finalListingPrice: number; // Max Allowed Cap
+  isTargetMet: boolean; // finalListingPrice >= targetPrice
+  profit: number; // finalListingPrice - totalCost
+  marginPct: number; // (finalListingPrice - totalCost) / totalCost
+}
+
+export interface PricingFormulaResult {
+  totalCost: number; // acquisition + refurb + cleaning
+  targetProfitMultiplier: number;
+  targetPrice: number; // totalCost * targetProfitMultiplier
+  brandNewPrice: number;
+  retailGapPct: number;
+  maxA: number; // brandNewPrice * (1 - retailGapPct)
+  grades: PricingFormulaGradeRow[];
+  recommendedGradeRow: PricingFormulaGradeRow | null;
+}
+
+/**
+ * Enforces company pricing formula:
+ * 1. Total Cost = Acquisition + Refurb + Cleaning
+ * 2. Target Price = Total Cost × Target Profit Multiplier (default 1.40)
+ * 3. MaxA (Grade A Ceiling) = Brand New Price × (1 - Retail Gap) (default 35%)
+ * 4. Max Allowed Cap (per Grade) = MaxA × Grade Factor (A: 1.00, B: 0.85, C: 0.70)
+ * 5. Final Listing Price = Max Allowed Cap (evaluated against Cost + Profit Target)
+ */
+export function calculatePricingFormula(
+  input: {
+    acquisitionCost: number;
+    refurbCost: number;
+    cleaningCost: number;
+    brandNewPrice: number;
+    selectedGrade?: Grade | null;
+  },
+  config: PricingFormulaConfig = DEFAULT_PRICING_CONFIG
+): PricingFormulaResult {
+  const totalCost = (input.acquisitionCost || 0) + (input.refurbCost || 0) + (input.cleaningCost || 0);
+  const targetProfitMultiplier =
+    config.targetProfitMultiplier > 0 ? config.targetProfitMultiplier : DEFAULT_PRICING_CONFIG.targetProfitMultiplier;
+  const targetPrice = round50(totalCost * targetProfitMultiplier);
+  const brandNewPrice = input.brandNewPrice || 0;
+  const retailGapPct =
+    config.retailGapPct >= 0 && config.retailGapPct < 1 ? config.retailGapPct : DEFAULT_PRICING_CONFIG.retailGapPct;
+  const maxA = round50(brandNewPrice * (1 - retailGapPct));
+
+  const grades: Grade[] = ["A", "B", "C", "D"];
+
+  const rows: PricingFormulaGradeRow[] = grades.map((g) => {
+    const factor =
+      config.gradeFactors[g] ??
+      DEFAULT_PRICING_CONFIG.gradeFactors[g] ??
+      (g === "A" ? 1.00 : g === "B" ? 0.85 : g === "C" ? 0.70 : 0.50);
+    const maxAllowedCap = round50(maxA * factor);
+    const finalListingPrice = maxAllowedCap;
+    const isTargetMet = totalCost > 0 ? finalListingPrice >= targetPrice : true;
+    const profit = totalCost > 0 ? finalListingPrice - totalCost : 0;
+    const marginPct = totalCost > 0 ? (finalListingPrice - totalCost) / totalCost : 0;
+
+    return {
+      grade: g,
+      gradeFactor: factor,
+      maxAllowedCap,
+      targetPrice,
+      finalListingPrice,
+      isTargetMet,
+      profit,
+      marginPct,
+    };
+  });
+
+  const selected = rows.find((r) => r.grade === input.selectedGrade) || rows[0] || null;
+
+  return {
+    totalCost,
+    targetProfitMultiplier,
+    targetPrice,
+    brandNewPrice,
+    retailGapPct,
+    maxA,
+    grades: rows,
+    recommendedGradeRow: selected,
+  };
+}
+

@@ -30,9 +30,11 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [added, setAdded] = useState(false);
+  const [selectedPhotoIdx, setSelectedPhotoIdx] = useState(0);
 
   const fav = isFavorite(item.id);
-  const photoUrl = item.photos?.[0]?.url;
+  const photos = item.photos && item.photos.length > 0 ? item.photos : [];
+  const currentPhotoUrl = photos[selectedPhotoIdx]?.url || photos[0]?.url;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -42,7 +44,7 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
       id: item.id,
       name: item.name,
       price: item.listedPrice,
-      photo: photoUrl,
+      photo: currentPhotoUrl,
       brand: item.brand,
       model: item.model,
       grade: item.grade,
@@ -50,7 +52,7 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
       sku: item.sku,
     });
     setAdded(true);
-    setTimeout(() => setAdded(false), 1800);
+    setTimeout(() => setAdded(false), 2000);
   };
 
   const handleFav = (e: React.MouseEvent) => {
@@ -61,7 +63,7 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
       id: item.id,
       name: item.name,
       price: item.listedPrice,
-      photo: photoUrl,
+      photo: currentPhotoUrl,
       brand: item.brand,
       model: item.model,
       grade: item.grade,
@@ -74,16 +76,24 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
     ? Math.round(((item.benchmarkPrice - item.listedPrice) / item.benchmarkPrice) * 100)
     : null;
 
+  const savingsAmount = item.benchmarkPrice && item.listedPrice && item.benchmarkPrice > item.listedPrice
+    ? item.benchmarkPrice - item.listedPrice
+    : null;
+
   return (
-    <div className="relative group overflow-hidden border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl transition duration-500 hover:border-white/30 hover:bg-white/[0.14]">
-      {/* Top row: tags and favorite button */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
-            <Sparkles className="h-3 w-3" /> Spotlight Pick
+    <div className="relative group overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-3.5 sm:p-4 xl:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur-xl transition duration-500 hover:border-white/35 hover:shadow-[0_20px_60px_rgba(22,196,223,0.15)]">
+      {/* Decorative ambient top glow */}
+      <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#16c4df]/20 blur-2xl pointer-events-none transition group-hover:bg-[#16c4df]/30" />
+
+      {/* Top Header Row: Badges & Favorite */}
+      <div className="relative z-10 flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
+            <Sparkles className="h-3 w-3" /> Featured Spotlight
           </span>
           {item.grade && (
-            <span className="border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
+              <ShieldCheck className="h-3 w-3 text-[#16c4df]" />
               Grade {item.grade} · {item.grade === "A" ? "Like New" : item.grade === "B" ? "Good" : "Inspected"}
             </span>
           )}
@@ -93,49 +103,111 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
           type="button"
           onClick={handleFav}
           aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-          className="flex h-8 w-8 items-center justify-center bg-white/20 text-white backdrop-blur transition hover:bg-white hover:text-[#17364b]"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur transition hover:scale-110 hover:border-white/50 hover:bg-white hover:text-[#17364b]"
         >
-          <Heart className={`h-4 w-4 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
+          <Heart className={`h-3.5 w-3.5 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
         </button>
       </div>
 
-      {/* Image container */}
-      <Link href={`/shop/${item.id}`} className="block relative mt-4 h-56 w-full bg-white/10 p-4 transition group-hover:bg-white/15">
-        <ProductHoverThumb
-          photos={item.photos}
+      {/* Primary Image Viewport */}
+      <Link
+        href={`/shop/${item.id}`}
+        className="relative mt-2.5 sm:mt-3 block h-36 sm:h-44 md:h-48 lg:h-44 xl:h-52 2xl:h-60 w-full overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 sm:p-4 transition duration-300 group-hover:bg-white/[0.16]"
+      >
+        <Thumb
+          url={currentPhotoUrl}
           alt={item.name}
-          className="h-full w-full object-contain drop-shadow-md"
+          className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition duration-500 group-hover:scale-105"
         />
+
         {discountPct && discountPct > 0 && (
-          <div className="absolute bottom-3 left-3 z-10 bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow">
-            Save {discountPct}% vs New
+          <div className="absolute top-2.5 left-2.5 z-10 rounded-md bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-md">
+            Save {discountPct}%
           </div>
         )}
+
+        <div className="absolute bottom-2.5 right-2.5 z-10 rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
+          Inspected & Tested
+        </div>
       </Link>
 
-      {/* Item info */}
-      <div className="mt-4">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-[#a9e4f1]">
-          {item.brand ?? "Designer Workspace"}
+      {/* Multi-Photo Thumbnail Bar if multiple photos exist */}
+      {photos.length > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          {photos.slice(0, 5).map((p, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedPhotoIdx(idx);
+              }}
+              className={`relative h-7 w-9 overflow-hidden rounded border p-0.5 transition ${
+                selectedPhotoIdx === idx
+                  ? "border-[#16c4df] ring-1 ring-[#16c4df]/50 bg-white/20"
+                  : "border-white/20 bg-white/5 opacity-70 hover:opacity-100"
+              }`}
+            >
+              <Thumb url={p.url} alt={`View ${idx + 1}`} className="h-full w-full object-contain" />
+            </button>
+          ))}
         </div>
-        <Link href={`/shop/${item.id}`} className="mt-0.5 block font-display text-xl font-bold text-white hover:text-[#16c4df] transition">
-          {item.name}
-        </Link>
-        <div className="mt-1 flex items-center gap-2 text-xs text-white/70">
-          {item.color && <span>{item.color}</span>}
-          {item.color && item.material && <span>·</span>}
-          {item.material && <span className="truncate max-w-[200px]">{item.material}</span>}
+      )}
+
+      {/* Item Metadata */}
+      <div className="relative z-10 mt-2.5 sm:mt-3">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-bold uppercase tracking-widest text-[#a9e4f1]">
+            {item.brand ?? "Designer Workspace"}
+          </span>
+          {item.model && (
+            <span className="text-[10.5px] font-medium text-[#dbeaf2]/70">
+              {item.model}
+            </span>
+          )}
         </div>
 
-        {/* Pricing + Action */}
-        <div className="mt-4 flex items-center justify-between border-t border-white/15 pt-3.5">
+        <Link
+          href={`/shop/${item.id}`}
+          className="mt-0.5 block font-display text-base sm:text-lg xl:text-xl font-black text-white transition hover:text-[#16c4df] truncate"
+        >
+          {item.name}
+        </Link>
+
+        {/* Spec tags */}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-[#dbeaf2]">
+          {item.color && (
+            <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium">
+              {item.color}
+            </span>
+          )}
+          {item.material && (
+            <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium truncate max-w-[160px]">
+              {item.material}
+            </span>
+          )}
+          <span className="inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 font-semibold text-emerald-300">
+            Ready to dispatch
+          </span>
+        </div>
+
+        {/* Pricing + Action Bar */}
+        <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-2.5">
           <div>
-            <div className="text-xl font-black text-white">
-              {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-lg sm:text-xl xl:text-2xl font-black text-white">
+                {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
+              </span>
+              {item.benchmarkPrice && (
+                <span className="text-[11px] text-[#dbeaf2]/60 line-through">
+                  Retail {fmtMoney(item.benchmarkPrice)}
+                </span>
+              )}
             </div>
-            {item.benchmarkPrice && (
-              <div className="text-[11px] text-white/60 line-through">
-                Retail {fmtMoney(item.benchmarkPrice)}
+            {savingsAmount && savingsAmount > 0 && (
+              <div className="text-[10.5px] font-bold text-[#16c4df]">
+                You save {fmtMoney(savingsAmount)} vs retail
               </div>
             )}
           </div>
@@ -143,22 +215,22 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
           <div className="flex items-center gap-2">
             <Link
               href={`/shop/${item.id}`}
-              className="inline-flex h-9 items-center justify-center bg-white/20 px-3 text-xs font-bold text-white transition hover:bg-white/30"
+              className="inline-flex h-8 sm:h-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 hover:border-white/40"
             >
-              Details
+              View Piece
             </Link>
             <button
               type="button"
               onClick={handleAdd}
-              className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#16c4df] px-3.5 text-xs font-bold text-[#17364b] shadow transition hover:bg-[#70e2ef] active:scale-95"
+              className="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-[#16c4df] px-3.5 text-xs font-black text-[#17364b] shadow-[0_4px_15px_rgba(22,196,223,0.3)] transition hover:bg-[#68e0ee] hover:scale-105 active:scale-95"
             >
               {added ? (
                 <>
-                  <Check className="h-3.5 w-3.5" /> Added
+                  <Check className="h-3.5 w-3.5 stroke-[3]" /> Added
                 </>
               ) : (
                 <>
-                  <ShoppingBag className="h-3.5 w-3.5" /> Add
+                  <ShoppingBag className="h-3.5 w-3.5" /> Add to Cart
                 </>
               )}
             </button>

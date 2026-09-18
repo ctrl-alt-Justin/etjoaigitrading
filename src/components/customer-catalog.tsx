@@ -105,7 +105,6 @@ const CONDITION_FILTER_OPTIONS = [
   { id: "A", label: "(Good)", grade: "A" as Grade },
   { id: "B", label: "(Fair)", grade: "B" as Grade },
   { id: "C", label: "(Poor)", grade: "C" as Grade },
-  { id: "D", label: "(Salvage)", grade: "D" as Grade },
 ];
 
 function getControlledAttributesSummary(item: DbItem): string {
@@ -114,7 +113,7 @@ function getControlledAttributesSummary(item: DbItem): string {
       ([k, v]) => v && !["stock", "quantity"].includes(k.toLowerCase())
     );
     if (entries.length > 0) {
-      return entries.map(([, v]) => v).join(", ");
+      return entries.map(([k, v]) => `${k}: ${v}`).join(", ");
     }
   }
   return `Grade ${item.grade || "A"}`;
@@ -942,12 +941,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     <div className="relative z-10 mt-4 flex flex-col pointer-events-none">
                       {/* Available Color Swatches & Grade Tag */}
                       <div className="flex items-center justify-between gap-2">
-                        {/* Color Swatch Dots (increased to h-4.5 w-4.5) */}
+                        {/* Color Swatch Dots (increased to h-4.5 w-4.5 with 2.5pt white border) */}
                         <div className="flex items-center gap-1.5">
                           {colorDots.map((dot, idx) => (
                             <span
                               key={idx}
-                              className="h-4.5 w-4.5 rounded-full border border-black/20 shadow-sm"
+                              className="h-4.5 w-4.5 rounded-full border-[2.5pt] border-white shadow-sm"
                               style={{ backgroundColor: dot }}
                             />
                           ))}
@@ -1045,12 +1044,12 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                             </span>
                           </div>
 
-                          {/* Color Swatch Circles */}
+                          {/* Color Swatch Circles with 2.5pt white border */}
                           <div className="flex items-center gap-1.5">
                             {colorDots.map((dot, idx) => (
                               <span
                                 key={idx}
-                                className="h-4.5 w-4.5 rounded-full border border-black/20 shadow-sm"
+                                className="h-4.5 w-4.5 rounded-full border-[2.5pt] border-white shadow-sm"
                                 style={{ backgroundColor: dot }}
                               />
                             ))}
@@ -1135,14 +1134,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                       {/* Bottom: Price + View Details Link (NO LINE ABOVE PRICE) */}
                       <div className="mt-4 flex items-center justify-between transition-colors shrink-0">
                         <div
-                          className="font-display text-2xl font-normal sm:text-3xl text-black group-hover/row:text-white transition-colors"
+                          className="font-display text-2xl sm:text-[26px] font-black uppercase tracking-tight text-black group-hover/row:text-white transition-colors"
                         >
                           {fmtMoney(item.listedPrice)}
                         </div>
 
                         <Link
                           href={`/shop/${item.id}`}
-                          className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-[#1D5D8B] bg-white border border-stone-200 shadow-sm transition hover:bg-[#16c4df] hover:text-[#17364b] hover:border-[#16c4df]"
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-[#1D5D8B] bg-white transition hover:bg-[#16c4df] hover:text-[#17364b]"
                         >
                           View Details →
                         </Link>

@@ -4,7 +4,7 @@ import { Building2, MapPin } from "lucide-react";
 export function ShopFooter() {
   return (
     <footer className="border-t border-[#8ab7d2]/30 bg-white">
-      <div className="mx-auto grid max-w-[1480px] gap-8 px-6 py-12 text-sm text-[#294e65] sm:grid-cols-[1.5fr_1fr_1fr_1fr] sm:px-8">
+      <div className="mx-auto grid max-w-[1760px] 2xl:max-w-[1840px] gap-8 px-6 py-14 text-sm text-[#294e65] sm:grid-cols-[1.5fr_1fr_1fr_1fr] sm:px-10 lg:px-14 xl:px-16">
         <div>
           <div className="font-hegarty text-3xl font-black tracking-tight text-[#1D5D8B]">
             ETJOAIGI

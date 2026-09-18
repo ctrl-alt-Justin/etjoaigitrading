@@ -147,8 +147,8 @@ export function CategoryValueChart({
   );
 }
 
-/* ---------------- Inventory aging ---------------- */
-export function AgingChart({
+/* ---------------- Inventory aging / Age Distribution ---------------- */
+export function AgeDistributionChart({
   data,
 }: {
   data: { label: string; count: number; value: number; tone: string }[];
@@ -157,7 +157,7 @@ export function AgingChart({
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 8 }}>
         <CartesianGrid stroke={GRID} horizontal={false} />
-        <XAxis type="number" hide />
+        <XAxis type="number" allowDecimals={false} tick={AXIS} axisLine={false} tickLine={false} />
         <YAxis
           type="category"
           dataKey="label"
@@ -169,12 +169,20 @@ export function AgingChart({
         <Tooltip
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null;
-            const p = payload[0].payload as { label: string; count: number; value: number };
+            const p = payload[0].payload as { label: string; count: number; value: number; tone: string };
             return (
-              <div className="rounded-xl border border-stone-200 bg-white/95 px-3 py-2 text-xs shadow-xl">
-                <div className="font-semibold text-stone-900">{p.label}</div>
-                <div className="mt-1 text-stone-500">
-                  {p.count} items · <span className="font-semibold text-stone-900">{fmtMoney(p.value)}</span> at ask
+              <div className="rounded-xl border border-stone-200 bg-white/95 px-3.5 py-2.5 text-xs shadow-xl backdrop-blur">
+                <div className="flex items-center gap-2 font-bold text-stone-900">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.tone }} />
+                  <span>{p.label}</span>
+                </div>
+                <div className="mt-1.5 flex items-center justify-between gap-4 text-stone-600">
+                  <span>Number of items:</span>
+                  <span className="font-bold text-stone-900 tabular-nums">{p.count} units</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-4 text-stone-600">
+                  <span>Total listed value:</span>
+                  <span className="font-bold text-[#1D5D8B] tabular-nums">{fmtMoney(p.value)}</span>
                 </div>
               </div>
             );
@@ -190,6 +198,8 @@ export function AgingChart({
     </ResponsiveContainer>
   );
 }
+
+export const AgingChart = AgeDistributionChart;
 
 /* ---------------- Cost vs listed vs sold ---------------- */
 export function TriadChart({

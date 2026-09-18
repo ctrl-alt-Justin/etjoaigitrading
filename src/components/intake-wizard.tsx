@@ -36,6 +36,10 @@ import {
   brandTier,
   computeFloor,
   valuate,
+  calculatePricingFormula,
+  DEFAULT_PRICING_CONFIG,
+  PRICING_CONFIG_STORAGE_KEY,
+  type PricingFormulaConfig,
 } from "@/lib/valuation";
 import {
   PHOTO_SLOTS,
@@ -489,6 +493,39 @@ export function IntakeWizard({
   const floor = computeFloor(acqNum, refurbNum + cleaningNum);
   const suggested = v.suggested ? Math.max(floor, v.suggested) : floor || null;
   const priceNum = Number(price) || 0;
+
+  const [formulaConfig, setFormulaConfig] = useState<PricingFormulaConfig>(DEFAULT_PRICING_CONFIG);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(PRICING_CONFIG_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setFormulaConfig((prev) => ({
+          ...prev,
+          ...parsed,
+          gradeFactors: {
+            ...prev.gradeFactors,
+            ...(parsed.gradeFactors || {}),
+          },
+        }));
+      }
+    } catch {}
+  }, []);
+
+  const formulaResult = useMemo(() => {
+    return calculatePricingFormula(
+      {
+        acquisitionCost: acqNum,
+        refurbCost: refurbNum,
+        cleaningCost: cleaningNum,
+        brandNewPrice: baseValue ?? 0,
+        selectedGrade: effectiveGrade,
+      },
+      formulaConfig
+    );
+  }, [acqNum, refurbNum, cleaningNum, baseValue, effectiveGrade, formulaConfig]);
+
+  const activeGradeCap = formulaResult.recommendedGradeRow?.finalListingPrice ?? null;
 
   const history = useMemo(() => {
     const same = soldRefs
@@ -1760,7 +1797,16 @@ export function IntakeWizard({
                             placeholder={suggested ? String(suggested) : "0"}
                           />
                         </div>
-                        {suggested != null && priceNum !== suggested && (
+                        {activeGradeCap != null && priceNum !== activeGradeCap && (
+                          <button
+                            type="button"
+                            onClick={() => { setPrice(String(activeGradeCap)); setPriceTouched(true); }}
+                            className="btn-accent h-10 shrink-0 px-3 text-xs sm:text-[13px] font-bold"
+                          >
+                            Use Formula Cap ({fmtMoney(activeGradeCap)})
+                          </button>
+                        )}
+                        {suggested != null && priceNum !== suggested && priceNum !== activeGradeCap && (
                           <button
                             type="button"
                             onClick={() => { setPrice(String(suggested)); setPriceTouched(true); }}
@@ -1771,6 +1817,58 @@ export function IntakeWizard({
                         )}
                       </div>
                     </div>
+
+                    {/* Condition Grade Pricing Matrix Table */}
+                    {baseValue && baseValue > 0 && (
+                      <div className="mt-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                            Condition Grade Pricing Matrix ({Math.round(formulaConfig.retailGapPct * 100)}% Retail Gap)
+                          </span>
+                          <span className="text-[10.5px] text-stone-400">Target Profit: {formulaConfig.targetProfitMultiplier}×</span>
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+                          <table className="w-full border-collapse text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-stone-100 bg-stone-50/80 text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                                <th className="py-2 px-2.5">Grade</th>
+                                <th className="py-2 px-2.5">Factor</th>
+                                <th className="py-2 px-2.5">Max Allowed Cap</th>
+                                <th className="py-2 px-2.5">Target</th>
+                                <th className="py-2 px-2.5 font-bold text-stone-800">Final Ask</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 font-medium">
+                              {formulaResult.grades.map((r) => {
+                                const isCurrent = effectiveGrade === r.grade;
+                                return (
+                                  <tr
+                                    key={r.grade}
+                                    onClick={() => {
+                                      setPrice(String(r.finalListingPrice));
+                                      setPriceTouched(true);
+                                    }}
+                                    className={cn(
+                                      "cursor-pointer transition-colors",
+                                      isCurrent ? "bg-amber-50/80 font-bold" : "hover:bg-stone-50"
+                                    )}
+                                  >
+                                    <td className="py-1.5 px-2.5">
+                                      Grade {r.grade} {isCurrent && <span className="text-[9.5px] text-amber-700">★</span>}
+                                    </td>
+                                    <td className="py-1.5 px-2.5 tabular-nums text-stone-500">{r.gradeFactor.toFixed(2)}</td>
+                                    <td className="py-1.5 px-2.5 tabular-nums font-semibold text-stone-800">{fmtMoney(r.maxAllowedCap)}</td>
+                                    <td className="py-1.5 px-2.5 tabular-nums text-stone-500">{fmtMoney(formulaResult.targetPrice)}</td>
+                                    <td className="py-1.5 px-2.5 tabular-nums font-extrabold text-stone-900">{fmtMoney(r.finalListingPrice)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                     {priceNum > 0 && (
                       <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
                         {[

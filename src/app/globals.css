@@ -139,18 +139,38 @@ body::after {
   color: var(--paper);
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* Custom scrollbar matching website brand theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1D5D8B rgba(29, 93, 139, 0.06);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #b8cfdd;
-  border-radius: 8px;
-  border: 2px solid var(--paper);
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
+  background: rgba(29, 93, 139, 0.04);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1D5D8B;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #16c4df;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 

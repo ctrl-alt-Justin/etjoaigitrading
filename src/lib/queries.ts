@@ -421,6 +421,29 @@ export interface AgingAlertRow {
   suggested: number | null;
 }
 
+export interface SourcingOpportunity {
+  id: string;
+  name: string;
+  grade: Grade | null;
+  soldCount: number;
+  avgDaysToSell: number | null;
+  inStockCount: number;
+  supplierName: string;
+}
+
+export interface HighCostItem {
+  id: number;
+  name: string;
+  sku: string | null;
+  grade: Grade | null;
+  effectiveCost: number;
+  listedPrice: number | null;
+  daysInStock: number;
+  ageLabel: string;
+  photos: { url: string }[];
+  categoryPath?: string;
+}
+
 export interface DashboardData {
   kpis: {
     stockCount: number;
@@ -434,6 +457,15 @@ export interface DashboardData {
     intakeThisWeek: number;
     alertCount: number;
   };
+  totalProfit: number;
+  lifetimeSalesCount: number;
+  needsAttention: {
+    total: number;
+    incomplete: number;
+    aging: number;
+  };
+  highCostItems: HighCostItem[];
+  sourcingOpportunities: SourcingOpportunity[];
   spark: { label: string; value: number }[];
   weekly: WeeklyBucket[];
   categoryValue: { name: string; slug: string; value: number; count: number }[];
@@ -548,10 +580,10 @@ export function computeDashboard(
   const categoryValue = [...catMap.values()].sort((a, b) => b.value - a.value);
 
   const agingDefs = [
-    { label: "0–29 days", min: 0, max: 29, tone: "#0e9f6e" },
-    { label: "30–59 days", min: 30, max: 59, tone: "#1D5D8B" },
-    { label: "60–89 days", min: 60, max: 89, tone: "#ea580c" },
-    { label: "90+ days", min: 90, max: 9999, tone: "#e11d48" },
+    { label: "0–30 days", min: 0, max: 30, tone: "#0e9f6e" },
+    { label: "31–60 days", min: 31, max: 60, tone: "#1D5D8B" },
+    { label: "61–90 days", min: 61, max: 90, tone: "#ea580c" },
+    { label: "90+ days", min: 91, max: 99999, tone: "#e11d48" },
   ];
   const aging = agingDefs.map((d) => {
     const rows = active.filter(
@@ -587,6 +619,107 @@ export function computeDashboard(
     (i) => new Date(i.intakeAt).getTime() >= firstOfWeek
   ).length;
 
+  // Total Profit and Lifetime Sales
+  const totalProfit = sold.reduce(
+    (sum, i) => sum + ((i.soldPrice ?? 0) - i.effectiveCost),
+    0
+  );
+  const lifetimeSalesCount = sold.length;
+
+  // Needs Attention Breakdown (Incomplete + Aging)
+  const incompleteItems = enriched.filter(
+    (i) => i.status !== "sold" && (i.status === "intake" || !i.grade || !i.photos?.length || i.listedPrice == null)
+  );
+  const needsAttention = {
+    total: incompleteItems.length + alerts.length,
+    incomplete: incompleteItems.length,
+    aging: alerts.length,
+  };
+
+  // High-Cost Items (Top 5 active by cost with age)
+  const highCostItems: HighCostItem[] = [...active]
+    .sort((a, b) => b.effectiveCost - a.effectiveCost)
+    .slice(0, 5)
+    .map((i) => {
+      const days = i.daysInStock ?? 0;
+      const ageLabel = days === 0 ? "Today" : `${days}d in stock`;
+      return {
+        id: i.id,
+        name: i.name,
+        sku: i.sku,
+        grade: i.grade,
+        effectiveCost: i.effectiveCost,
+        listedPrice: i.listedPrice,
+        daysInStock: days,
+        ageLabel,
+        photos: i.photos?.slice(0, 1) ?? [],
+        categoryPath: i.categoryPath,
+      };
+    });
+
+  // Sourcing Opportunities (Sold models & high demand vs current in-stock)
+  const modelMap = new Map<string, {
+    name: string;
+    grade: Grade | null;
+    soldCount: number;
+    totalDaysToSell: number;
+    dtsCount: number;
+    inStockCount: number;
+    supplierCounts: Map<string, number>;
+  }>();
+
+  for (const i of enriched) {
+    const key = `${i.model || i.name}|${i.grade || "A"}`;
+    const row = modelMap.get(key) ?? {
+      name: i.model || i.name,
+      grade: i.grade,
+      soldCount: 0,
+      totalDaysToSell: 0,
+      dtsCount: 0,
+      inStockCount: 0,
+      supplierCounts: new Map<string, number>(),
+    };
+
+    if (i.status === "sold") {
+      row.soldCount++;
+      if (i.daysToSell != null) {
+        row.totalDaysToSell += i.daysToSell;
+        row.dtsCount++;
+      }
+    } else if (isActive(i.status)) {
+      row.inStockCount++;
+    }
+
+    if (i.supplierName) {
+      row.supplierCounts.set(i.supplierName, (row.supplierCounts.get(i.supplierName) ?? 0) + 1);
+    }
+    modelMap.set(key, row);
+  }
+
+  const sourcingOpportunities: SourcingOpportunity[] = [...modelMap.entries()]
+    .map(([key, data]) => {
+      let topSup = "Direct Liquidations";
+      let maxCnt = 0;
+      for (const [sName, cnt] of data.supplierCounts.entries()) {
+        if (cnt > maxCnt) {
+          maxCnt = cnt;
+          topSup = sName;
+        }
+      }
+
+      return {
+        id: key,
+        name: data.name,
+        grade: data.grade,
+        soldCount: data.soldCount,
+        avgDaysToSell: data.dtsCount > 0 ? Math.round(data.totalDaysToSell / data.dtsCount) : null,
+        inStockCount: data.inStockCount,
+        supplierName: topSup,
+      };
+    })
+    .sort((a, b) => b.soldCount - a.soldCount || a.inStockCount - b.inStockCount)
+    .slice(0, 6);
+
   return {
     kpis: {
       stockCount: active.length,
@@ -605,6 +738,11 @@ export function computeDashboard(
       intakeThisWeek,
       alertCount: alerts.length,
     },
+    totalProfit,
+    lifetimeSalesCount,
+    needsAttention,
+    highCostItems,
+    sourcingOpportunities,
     spark: weekly.map((w) => ({ label: w.label, value: w.revenue })),
     weekly,
     categoryValue,

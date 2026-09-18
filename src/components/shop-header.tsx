@@ -72,7 +72,7 @@ function ShopHeaderInner() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#8ab7d2]/30 bg-[#1D5D8B]/95 backdrop-blur-md text-[#FCFDF8]">
-      <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-5 py-3 sm:px-8">
+      <div className="mx-auto flex max-w-[1760px] 2xl:max-w-[1840px] items-center justify-between gap-4 px-6 py-3.5 sm:px-10 lg:px-14 xl:px-16">
         {/* Left: Brand & Nav Links */}
         <div className="flex items-center gap-8">
           <Link href="/shop" prefetch={true} className="transition duration-200 hover:opacity-90">
@@ -342,7 +342,7 @@ export function ShopHeader() {
     <Suspense
       fallback={
         <header className="sticky top-0 z-40 h-[68px] w-full border-b border-[#164e75] bg-[#1D5D8B]">
-          <div className="mx-auto flex h-full max-w-[1480px] items-center justify-between px-4 sm:px-8">
+          <div className="mx-auto flex h-full max-w-[1760px] 2xl:max-w-[1840px] items-center justify-between px-6 sm:px-10 lg:px-14 xl:px-16">
             <Link href="/shop" className="flex items-center gap-3">
               <span className="font-hegarty text-2xl font-black tracking-tight text-[#FCFDF8]">
                 ETJOAIGI

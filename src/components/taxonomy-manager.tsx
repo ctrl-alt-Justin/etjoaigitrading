@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { DbCategory, DbCategoryAttribute } from "@/db/schema";
-import { cn, fmtMoney } from "@/lib/format";
+import { cn } from "@/lib/format";
 
 export function TaxonomyManager({
   categories,
@@ -48,9 +48,8 @@ export function TaxonomyManager({
   const [busy, setBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
-  const [baseDraft, setBaseDraft] = useState("");
 
-  const [newCat, setNewCat] = useState({ name: "", parentId: roots[0]?.id ?? 0, baseValue: "" });
+  const [newCat, setNewCat] = useState({ name: "", parentId: roots[0]?.id ?? 0 });
   const [newAttr, setNewAttr] = useState({ name: "", inputType: "select" as "select" | "text", options: "", required: false });
 
   const flash = (key: string) => {
@@ -61,7 +60,6 @@ export function TaxonomyManager({
   const selectCat = (c: DbCategory) => {
     setSelectedId(c.id);
     setNameDraft(c.name);
-    setBaseDraft(c.baseValue ? String(c.baseValue) : "");
   };
 
   const toggle = (id: number) =>
@@ -81,23 +79,14 @@ export function TaxonomyManager({
     router.refresh();
   };
 
-  const saveBase = async () => {
-    if (!selected) return;
-    setBusy("base");
-    await fetch("/api/categories", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selected.id, baseValue: baseDraft ? Number(baseDraft) : null }) });
-    setBusy(null);
-    flash("base");
-    router.refresh();
-  };
-
   const addCategory = async () => {
     if (!newCat.name.trim()) return;
     setBusy("addcat");
-    const res = await fetch("/api/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newCat.name, parentId: newCat.parentId || null, baseValue: newCat.baseValue ? Number(newCat.baseValue) : null }) });
+    const res = await fetch("/api/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newCat.name, parentId: newCat.parentId || null }) });
     setBusy(null);
     if (res.ok) {
       const row = await res.json();
-      setNewCat({ name: "", parentId: newCat.parentId, baseValue: "" });
+      setNewCat({ name: "", parentId: newCat.parentId });
       router.refresh();
       setSelectedId(row.id);
     }
@@ -209,9 +198,6 @@ export function TaxonomyManager({
                         >
                           <span className="truncate">{k.name}</span>
                           <span className="flex shrink-0 items-center gap-1.5">
-                            {k.baseValue ? (
-                              <span className="text-[10.5px] tabular-nums text-stone-400">{fmtMoney(k.baseValue)}</span>
-                            ) : null}
                             <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-stone-500">
                               {counts[k.id] ?? 0}
                             </span>
@@ -233,15 +219,12 @@ export function TaxonomyManager({
           </div>
           <div className="space-y-2.5">
             <input className="input" placeholder="New category name" value={newCat.name} onChange={(e) => setNewCat((s) => ({ ...s, name: e.target.value }))} />
-            <div className="grid grid-cols-2 gap-2.5">
-              <select className="input" value={newCat.parentId} onChange={(e) => setNewCat((s) => ({ ...s, parentId: Number(e.target.value) }))}>
-                <option value={0}>— Root level —</option>
-                {roots.map((r) => (
-                  <option key={r.id} value={r.id}>Under {r.name}</option>
-                ))}
-              </select>
-              <input className="input" type="number" min={0} placeholder="Base value (₱)" value={newCat.baseValue} onChange={(e) => setNewCat((s) => ({ ...s, baseValue: e.target.value }))} />
-            </div>
+            <select className="input" value={newCat.parentId} onChange={(e) => setNewCat((s) => ({ ...s, parentId: Number(e.target.value) }))}>
+              <option value={0}>— Root level —</option>
+              {roots.map((r) => (
+                <option key={r.id} value={r.id}>Under {r.name}</option>
+              ))}
+            </select>
             <button onClick={addCategory} disabled={busy === "addcat" || !newCat.name.trim()} className="btn-primary w-full">
               {busy === "addcat" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Add category
@@ -263,29 +246,17 @@ export function TaxonomyManager({
                 {busy === "deletecat" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
               </button>
             </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="label">Category name</label>
-                <div className="flex gap-2">
-                  <input className="input" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
-                  <button onClick={saveName} disabled={busy === "name" || nameDraft.trim() === selected.name} className="btn-ghost shrink-0">
-                    {saved === "name" ? <Check className="h-4 w-4 text-emerald-600" /> : busy === "name" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="label">Reference value (new) — ₱</label>
-                <div className="flex gap-2">
-                  <input className="input" type="number" min={0} value={baseDraft} onChange={(e) => setBaseDraft(e.target.value)} placeholder="Inherited if empty" />
-                  <button onClick={saveBase} disabled={busy === "base"} className="btn-ghost shrink-0">
-                    {saved === "base" ? <Check className="h-4 w-4 text-emerald-600" /> : busy === "base" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                  </button>
-                </div>
+            <div className="mt-4 max-w-md">
+              <label className="label">Category name</label>
+              <div className="flex gap-2">
+                <input className="input" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
+                <button onClick={saveName} disabled={busy === "name" || nameDraft.trim() === selected.name} className="btn-ghost shrink-0">
+                  {saved === "name" ? <Check className="h-4 w-4 text-emerald-600" /> : busy === "name" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </button>
               </div>
             </div>
             <p className="mt-3 text-[12px] leading-relaxed text-stone-500">
-              The valuation engine prices items as <span className="font-semibold text-stone-700">reference value × brand tier × grade band</span>.
-              When a category has no value, the engine walks up to the nearest ancestor that does. Slug:{" "}
+              Unique category identifier slug:{" "}
               <code className="rounded bg-stone-100 px-1.5 py-0.5 text-[11px] text-stone-600">{selected.slug}</code>
             </p>
           </div>

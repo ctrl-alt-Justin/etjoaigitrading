@@ -61,19 +61,35 @@ export default async function PricingPage() {
 
   const brands = [...new Set([...KNOWN_BRANDS, ...items.map((i) => i.brand).filter((b): b is string => !!b)])].sort();
 
+  const itemOptions = enriched.map((i) => ({
+    id: i.id,
+    sku: i.sku,
+    name: i.name,
+    brand: i.brand,
+    model: i.model,
+    grade: i.grade,
+    status: i.status,
+    acquisitionCost: i.acquisitionCost ?? 0,
+    refurbCost: i.refurbCost ?? 0,
+    cleaningCost: i.attributes?.cleaning_cost ? Number(i.attributes.cleaning_cost) : 0,
+    benchmarkPrice: i.benchmarkPrice ?? nearestBaseValue(i.categoryId, byId) ?? 0,
+    listedPrice: i.listedPrice,
+    floorPrice: i.floorPrice,
+    categoryId: i.categoryId,
+  }));
+
   return (
     <div className="space-y-5">
       <Reveal>
         <div>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
-            Pricing desk
+            Pricing Desk
           </div>
           <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-stone-900">
-            No more pricing by feel
+            Pricing & Valuation Desk
           </h1>
           <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
-            Margin math, historical comps, market benchmarks and aging markdowns —
-            enforced by the floor, tuned by policy.
+            Enforced retail gap ceilings, condition grade multipliers, cost target hurdles and aging markdowns.
           </p>
         </div>
       </Reveal>
@@ -84,6 +100,7 @@ export default async function PricingPage() {
           benchmarks={benchmarks}
           baseOptions={baseOptions}
           brands={brands}
+          items={itemOptions}
         />
       </Reveal>
     </div>
