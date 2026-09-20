@@ -19,6 +19,9 @@ export async function compressImageFile(
     });
   }
 
+  const isPng = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
+  const isWebp = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
+
   // If already a tiny image (under 75KB), no need to re-encode
   if (file.size < 75 * 1024) {
     return new Promise((resolve, reject) => {
@@ -53,8 +56,20 @@ export async function compressImageFile(
       const ctx = canvas.getContext("2d");
 
       if (ctx) {
+        // Clear canvas so alpha channel remains completely transparent
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+
+        if (isPng) {
+          // PNG supports full alpha channel transparency without darkening/black box
+          resolve(canvas.toDataURL("image/png"));
+        } else if (isWebp) {
+          // WebP supports lossy/lossless alpha transparency
+          resolve(canvas.toDataURL("image/webp", quality));
+        } else {
+          // Standard JPEG compression for non-transparent photos
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        }
       } else {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));

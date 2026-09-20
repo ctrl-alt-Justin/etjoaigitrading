@@ -37,7 +37,10 @@ export async function POST(req: Request) {
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    console.error("Failed to insert category attribute:", error);
+    return NextResponse.json({ error: error.message || "Failed to insert attribute" }, { status: 500 });
+  }
   revalidateTag("inventory-data", "max");
   return NextResponse.json(camelizeRow<DbCategoryAttribute>(data), { status: 201 });
 }
@@ -51,7 +54,10 @@ export async function DELETE(req: Request) {
   }
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
   const { error } = await supabase.from("category_attributes").delete().eq("id", body.id);
-  if (error) throw error;
+  if (error) {
+    console.error("Failed to delete category attribute:", error);
+    return NextResponse.json({ error: error.message || "Failed to delete attribute" }, { status: 500 });
+  }
   revalidateTag("inventory-data", "max");
   return NextResponse.json({ ok: true });
 }

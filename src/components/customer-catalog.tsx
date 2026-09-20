@@ -828,10 +828,11 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     )}
 
                     {/* Product Image with Hover to Alternate Setup View - Transparent background & no shape outline */}
-                    <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-transparent border-0 border-none outline-none ring-0 shadow-none pointer-events-none flex items-center justify-center">
+                    <div className="relative z-10 aspect-[4/3] w-full overflow-hidden bg-transparent border-0 border-none outline-none ring-0 shadow-none pointer-events-none flex items-center justify-center p-2">
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
+                        fit="contain"
                         className="h-full w-full object-contain"
                         containerClassName="bg-transparent border-none shadow-none"
                       />
@@ -913,12 +914,13 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                     {/* Left: Product Image on Clean Background */}
                     <Link
                       href={`/shop/${item.id}`}
-                      className="group/img relative flex h-64 md:h-full w-full items-center justify-center bg-stone-50 border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200 overflow-hidden self-stretch"
+                      className="group/img relative flex h-64 md:h-full w-full items-center justify-center bg-stone-50 border-b border-stone-200 md:border-b-0 md:border-r md:border-stone-200 overflow-hidden self-stretch p-3"
                     >
                       <ProductHoverThumb
                         photos={item.photos}
                         alt={item.name}
-                        className="h-full w-full object-cover object-center"
+                        fit="contain"
+                        className="h-full w-full object-contain"
                         containerClassName="h-full w-full"
                       />
                     </Link>

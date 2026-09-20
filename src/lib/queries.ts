@@ -41,6 +41,32 @@ export async function getLatestShareForItem(itemId: number): Promise<DbItemShare
   return data[0] ? camelizeRow<DbItemShare>(data[0]) : null;
 }
 
+export function parseReviewContent(r: DbReview): DbReview {
+  let content = r.content ?? "";
+  let photos: string[] = Array.isArray(r.photos) ? r.photos : [];
+
+  if (content && content.includes("<!--REVIEW_PHOTOS:")) {
+    const match = content.match(/<!--REVIEW_PHOTOS:([\s\S]*?)-->/);
+    if (match && match[1]) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed)) {
+          photos = parsed;
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+      content = content.replace(/<!--REVIEW_PHOTOS:[\s\S]*?-->/g, "").trim();
+    }
+  }
+
+  return {
+    ...r,
+    content: content || null,
+    photos,
+  };
+}
+
 export async function getItemReviews(itemId: number): Promise<DbReview[]> {
   try {
     const { data, error } = await supabase
@@ -52,7 +78,7 @@ export async function getItemReviews(itemId: number): Promise<DbReview[]> {
       console.warn("Could not query reviews:", error.message);
       return [];
     }
-    return camelizeRows<DbReview>(data);
+    return camelizeRows<DbReview>(data).map(parseReviewContent);
   } catch (err) {
     console.warn("Failed to fetch reviews:", err);
     return [];

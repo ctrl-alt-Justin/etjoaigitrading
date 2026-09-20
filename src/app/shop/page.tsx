@@ -1,20 +1,20 @@
-import { 
-  Archive, 
-  ArrowRight, 
-  Armchair, 
-  Building2, 
-  Check, 
-  LampDesk, 
-  Table2, 
-  Sparkles, 
-  MapPin, 
-  ArrowUpRight, 
-  ShieldCheck, 
-  Truck, 
-  RotateCcw, 
-  Star, 
-  Clock, 
-  CheckCircle2, 
+import {
+  Archive,
+  ArrowRight,
+  Armchair,
+  Building2,
+  Check,
+  LampDesk,
+  Table2,
+  Sparkles,
+  MapPin,
+  ArrowUpRight,
+  ShieldCheck,
+  Truck,
+  RotateCcw,
+  Star,
+  Clock,
+  CheckCircle2,
   Award,
   Compass,
   Navigation,
@@ -32,50 +32,50 @@ import { HeroSpotlightCard } from "@/components/shop-home-cards";
 export const revalidate = 60;
 
 const CATEGORY_TILES = [
-  { 
-    label: "Ergonomic Chairs", 
-    slug: "seating", 
-    icon: Armchair, 
+  {
+    label: "Ergonomic Chairs",
+    slug: "seating",
+    icon: Armchair,
     tagline: "Flagship Task Seating",
     desc: "Herman Miller Aeron, Steelcase Leap V2, Embody, Gesture, Haworth Zody",
     gradient: "from-sky-500/15 via-sky-500/5 to-transparent",
     accent: "text-sky-600 border-sky-200 bg-sky-50",
     badge: "Most Popular"
   },
-  { 
-    label: "Motorized Desks", 
-    slug: "desks", 
-    icon: Table2, 
+  {
+    label: "Motorized Desks",
+    slug: "desks",
+    icon: Table2,
     tagline: "Height Adjustable",
     desc: "Dual-motor sit/stand frames, solid wood tops, executive pods & risers",
     gradient: "from-[#1D5D8B]/15 via-[#1D5D8B]/5 to-transparent",
     accent: "text-[#1D5D8B] border-[#1D5D8B]/30 bg-[#1D5D8B]/10",
     badge: "Ergonomic"
   },
-  { 
-    label: "Conference & Tables", 
-    slug: "tables", 
-    icon: Table2, 
+  {
+    label: "Conference & Tables",
+    slug: "tables",
+    icon: Table2,
     tagline: "Team Collaboration",
     desc: "Boardroom tables, training modular fold-ups, round meeting & side tables",
     gradient: "from-emerald-500/15 via-emerald-500/5 to-transparent",
     accent: "text-emerald-700 border-emerald-200 bg-emerald-50",
     badge: "Executive"
   },
-  { 
-    label: "Storage & Credenzas", 
-    slug: "storage", 
-    icon: Archive, 
+  {
+    label: "Storage & Credenzas",
+    slug: "storage",
+    icon: Archive,
     tagline: "Organization & Filing",
     desc: "Lateral steel files, acoustic bookcases, executive credenzas & lockers",
     gradient: "from-amber-500/15 via-amber-500/5 to-transparent",
     accent: "text-amber-700 border-amber-200 bg-amber-50",
     badge: "Heavy-Duty"
   },
-  { 
-    label: "Lounge & Reception", 
-    slug: "reception", 
-    icon: LampDesk, 
+  {
+    label: "Lounge & Reception",
+    slug: "reception",
+    icon: LampDesk,
     tagline: "Guest & Breakout",
     desc: "Designer reception sofas, breakout barstools, privacy booths & acoustic pods",
     gradient: "from-purple-500/15 via-purple-500/5 to-transparent",
@@ -174,26 +174,26 @@ export default async function ShopHomePage() {
   const spotlightItem = spotlightItems[0] || null;
 
   return (
-    <div className="min-h-screen bg-[#FCFDF8] text-[#17364b] antialiased selection:bg-[#1D5D8B] selection:text-white">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#FCFDF8] text-[#17364b] antialiased selection:bg-[#1D5D8B] selection:text-white">
       <ShopHeader />
 
-      <main className="w-full">
+      <main className="w-full overflow-x-hidden">
         {/* ================================================================= */}
         {/* 1. HERO SECTION WITH SPOTLIGHT PRODUCT CARD & MARQUEE             */}
         {/* ================================================================= */}
-        <div className="relative w-full flex flex-col lg:min-h-[calc(100dvh-64px)] lg:max-h-[calc(100dvh-64px)]">
-          <section className="relative w-full flex-1 flex flex-col justify-center overflow-hidden bg-gradient-to-br from-[#071c2e] via-[#103a57] to-[#1D5D8B] text-[#FCFDF8]">
+        <div className="relative w-full flex flex-col min-h-[calc(100dvh-64px)] overflow-x-clip">
+          <section className="relative w-full flex-1 flex flex-col justify-center overflow-x-clip bg-gradient-to-br from-[#071c2e] via-[#103a57] to-[#1D5D8B] text-[#FCFDF8] py-8 sm:py-12 lg:py-10">
             {/* Ambient Lighting & Geometric Texture */}
             <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-[#16c4df]/20 blur-3xl pointer-events-none" />
             <div className="absolute top-1/3 -right-32 h-[600px] w-[600px] rounded-full bg-[#16c4df]/15 blur-3xl pointer-events-none" />
             <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:28px_28px] opacity-70 pointer-events-none" />
 
-            <div className="relative mx-auto w-full max-w-[1760px] 2xl:max-w-[1840px] px-6 sm:px-10 lg:px-14 xl:px-16 2xl:px-20 py-8 sm:py-10 lg:py-4 xl:py-6 my-auto">
-              <div className="grid items-center gap-6 lg:gap-10 xl:gap-14 lg:grid-cols-12">
-                
+            <div className="relative mx-auto w-full max-w-[1760px] 2xl:max-w-[1840px] px-6 sm:px-10 lg:px-14 xl:px-16 2xl:px-20 my-auto">
+              <div className="grid items-center gap-8 lg:gap-10 xl:gap-14 lg:grid-cols-12">
+
                 {/* Left Column: Headline, Brand Pills, CTAs, and Trust Matrix */}
-                <div className="lg:col-span-7 xl:col-span-7 flex flex-col justify-center">
-                  
+                <div className="lg:col-span-6 xl:col-span-6 2xl:col-span-5 flex flex-col justify-center">
+
                   {/* Live Status Pill */}
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="inline-flex items-center gap-2 rounded-full border border-[#16c4df]/40 bg-[#16c4df]/15 px-3 py-1 text-[11px] font-bold text-[#bbf3fb] backdrop-blur-md">
@@ -296,10 +296,10 @@ export default async function ShopHomePage() {
                 </div>
 
                 {/* Right Column: Hero Spotlight Product Showcase */}
-                <div className="lg:col-span-5 xl:col-span-5 flex justify-center lg:justify-end w-full">
-                  <div className="w-full max-w-xl xl:max-w-2xl">
-                    {spotlightItem ? (
-                      <HeroSpotlightCard items={spotlightItems} item={spotlightItem} />
+                <div className="lg:col-span-6 xl:col-span-6 2xl:col-span-7 flex items-center justify-center w-full overflow-visible py-2 sm:py-4">
+                  <div className="w-full max-w-lg xl:max-w-xl 2xl:max-w-2xl">
+                    {spotlightItems.length > 0 ? (
+                      <HeroSpotlightCard items={spotlightItems} />
                     ) : (
                       <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center backdrop-blur-xl">
                         <Armchair className="mx-auto h-20 w-20 text-[#16c4df]" strokeWidth={1} />
@@ -341,7 +341,7 @@ export default async function ShopHomePage() {
         <section className="w-full border-b border-stone-200/80 bg-white py-10 sm:py-12 shadow-sm">
           <div className="mx-auto max-w-[1760px] 2xl:max-w-[1840px] px-6 sm:px-10 lg:px-14 xl:px-16 2xl:px-20">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              
+
               <div className="group flex items-start gap-4 rounded-2xl border border-stone-200/80 bg-[#fbfdfd] p-5 sm:p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df]/60 hover:shadow-md hover:bg-white">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#16c4df]/15 text-[#1D5D8B] transition duration-300 group-hover:scale-110 group-hover:bg-[#16c4df]/25">
                   <ShieldCheck className="h-6 w-6 text-[#1D5D8B]" />
@@ -419,7 +419,7 @@ export default async function ShopHomePage() {
         {/* ================================================================= */}
         <section className="w-full border-b border-stone-200/80 bg-[#fafcfb] py-16 sm:py-20">
           <div className="mx-auto max-w-[1760px] 2xl:max-w-[1840px] px-6 sm:px-10 lg:px-14 xl:px-16 2xl:px-20">
-            
+
             {/* Header row with catalog action */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -434,8 +434,8 @@ export default async function ShopHomePage() {
                 </p>
               </div>
 
-              <Link 
-                href="/shop/catalog" 
+              <Link
+                href="/shop/catalog"
                 className="inline-flex items-center gap-2 rounded-xl bg-white border border-stone-300/80 px-5 py-3 text-xs font-black uppercase tracking-wider text-[#1D5D8B] shadow-sm transition hover:border-[#16c4df] hover:bg-[#edf7f9] hover:text-[#17364b]"
               >
                 View Full Catalog ({forSale.length}) <ArrowRight className="h-4 w-4" />
@@ -497,7 +497,7 @@ export default async function ShopHomePage() {
         {/* ================================================================= */}
         <section id="reviews" className="w-full border-b border-stone-200/80 bg-gradient-to-b from-stone-50/70 via-white to-stone-50/40 py-16 sm:py-24">
           <div className="mx-auto max-w-[1760px] 2xl:max-w-[1840px] px-6 sm:px-10 lg:px-14 xl:px-16 2xl:px-20">
-            
+
             <div className="text-center max-w-3xl mx-auto">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#1D5D8B]/10 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-[#1D5D8B]">
                 <Star className="h-4 w-4 text-amber-500 fill-amber-500" /> Real Experiences & Verified Proofs
@@ -532,9 +532,9 @@ export default async function ShopHomePage() {
                     {/* Transaction Proof Photo */}
                     <div className="relative mt-4 mb-4 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-inner group/img">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={t.proofImage} 
-                        alt={t.proofTitle} 
+                      <img
+                        src={t.proofImage}
+                        alt={t.proofTitle}
                         className="h-52 w-full object-cover transition duration-500 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />

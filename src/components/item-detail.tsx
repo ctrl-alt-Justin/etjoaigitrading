@@ -300,14 +300,14 @@ function ListForSaleModal({
                     type="button"
                     onClick={() => setSelectedPhotoUrl(p.url)}
                     className={cn(
-                      "group relative aspect-square w-full overflow-hidden rounded-xl border-2 transition text-left focus:outline-none",
+                      "group relative aspect-square w-full overflow-hidden rounded-xl border-2 transition text-left focus:outline-none bg-white flex items-center justify-center",
                       isSelected
                         ? "border-emerald-500 ring-2 ring-emerald-500/30 shadow-md"
-                        : "border-stone-200 hover:border-stone-400 opacity-75 hover:opacity-100"
+                        : "border-stone-200 hover:border-stone-400 opacity-80 hover:opacity-100"
                     )}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+                    <img src={p.url} alt={p.label} className="h-full w-full object-contain p-2 pb-6" />
 
                     {/* Selection Checkmark */}
                     {isSelected && (
@@ -531,7 +531,7 @@ function AfterPhotoModal({
           {photoUrl ? (
             <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoUrl} alt="After cleaning" className="aspect-[16/10] w-full object-cover" />
+              <img src={photoUrl} alt="After cleaning" className="aspect-[16/10] w-full object-contain p-2 bg-stone-900/[0.03]" />
               <div className="absolute bottom-3 right-3 flex items-center gap-2">
                 <label className="btn-soft h-8 cursor-pointer rounded-lg bg-stone-950/80 px-3 text-xs font-semibold text-white backdrop-blur hover:bg-stone-950">
                   <Camera className="h-3.5 w-3.5" /> Retake / Change
@@ -1183,15 +1183,15 @@ function EditItemModal({
 
                   {photo ? (
                     <div className="p-2.5">
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-stone-100">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-stone-100/80 flex items-center justify-center">
                         {photo.url.startsWith("data:video/") ? (
-                          <video src={photo.url} controls className="h-full w-full object-cover" />
+                          <video src={photo.url} controls className="h-full w-full object-contain" />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={photo.url}
                             alt={s.label}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-contain p-1"
                           />
                         )}
 
@@ -1305,12 +1305,12 @@ function EditItemModal({
             {extraPhotos.length > 0 ? (
               <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {extraPhotos.map((p, idx) => (
-                  <div key={p.slot || idx} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-stone-200 bg-white">
+                  <div key={p.slot || idx} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-stone-200 bg-white flex items-center justify-center">
                     {p.url.startsWith("data:video/") ? (
-                      <video src={p.url} controls className="h-full w-full object-cover" />
+                      <video src={p.url} controls className="h-full w-full object-contain" />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+                      <img src={p.url} alt={p.label} className="h-full w-full object-contain p-1" />
                     )}
                     <button
                       type="button"
@@ -1372,6 +1372,7 @@ export function ItemDetail({
 }) {
   const router = useRouter();
   const [photo, setPhoto] = useState(0);
+  const [photoFit, setPhotoFit] = useState<"contain" | "cover">("contain");
   const [modal, setModal] = useState<null | "list" | "sold" | "price">(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -1549,29 +1550,64 @@ export function ItemDetail({
         <div className="space-y-5">
           {/* gallery */}
           <div className="card overflow-hidden p-3">
-            <div className="mb-2 flex items-center justify-between px-1">
+            <div className="mb-2 flex items-center justify-between px-1 gap-2 flex-wrap">
               <span className="text-[11.5px] font-bold uppercase tracking-wider text-stone-500">
                 Item Photography
               </span>
-              <button
-                type="button"
-                onClick={() => router.push(`/inventory/new?edit=${item.id}`)}
-                className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1D5D8B] hover:underline"
-              >
-                <Camera className="h-3.5 w-3.5" />
-                <span>Edit media slots</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-lg border border-stone-200 bg-stone-100/80 p-0.5 text-[11px] font-semibold text-stone-600">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoFit("contain")}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[11px] transition",
+                      photoFit === "contain"
+                        ? "bg-white text-stone-900 shadow-xs font-bold"
+                        : "text-stone-500 hover:text-stone-900"
+                    )}
+                    title="Fit whole photo without cropping"
+                  >
+                    Fit Whole Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoFit("cover")}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[11px] transition",
+                      photoFit === "cover"
+                        ? "bg-white text-stone-900 shadow-xs font-bold"
+                        : "text-stone-500 hover:text-stone-900"
+                    )}
+                    title="Fill frame"
+                  >
+                    Fill
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => router.push(`/inventory/new?edit=${item.id}`)}
+                  className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#1D5D8B] hover:underline"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  <span>Edit media slots</span>
+                </button>
+              </div>
             </div>
             {photos.length ? (
               <>
-                <div className="relative overflow-hidden rounded-xl">
+                <div className="relative overflow-hidden rounded-xl border border-stone-200/80 bg-stone-900/[0.03] flex items-center justify-center">
                   <Thumb
                     url={photos[Math.min(photo, photos.length - 1)]?.url}
                     alt={item.name}
-                    className="aspect-[16/10] w-full"
+                    className={cn(
+                      "aspect-[16/10] w-full transition-all duration-200",
+                      photoFit === "contain" ? "object-contain p-2.5" : "object-cover"
+                    )}
+                    fit={photoFit}
                   />
                   {photos[Math.min(photo, photos.length - 1)]?.timestamp && (
-                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
+                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 rounded-full bg-stone-950/75 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur shadow-sm">
                       <Clock className="h-3 w-3 text-amber-400" />
                       {photos[Math.min(photo, photos.length - 1)]?.timestamp}
                     </div>
@@ -1584,11 +1620,11 @@ export function ItemDetail({
                         key={ix}
                         onClick={() => setPhoto(ix)}
                         className={cn(
-                          "overflow-hidden rounded-lg border-2 transition",
-                          ix === photo ? "border-amber-500" : "border-transparent opacity-70 hover:opacity-100"
+                          "overflow-hidden rounded-lg border-2 transition bg-white",
+                          ix === photo ? "border-amber-500 ring-2 ring-amber-500/20" : "border-transparent opacity-75 hover:opacity-100"
                         )}
                       >
-                        <Thumb url={p.url} alt={p.label} className="aspect-[4/3] w-full" />
+                        <Thumb url={p.url} alt={p.label} className="aspect-[4/3] w-full object-contain p-1" fit="contain" />
                         <span className="block truncate bg-stone-50 px-1.5 py-1 text-[10px] font-semibold text-stone-500">{p.label}</span>
                       </button>
                     ))}

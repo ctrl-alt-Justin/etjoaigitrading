@@ -118,6 +118,7 @@ export type DbReview = {
   rating: number;
   authorName: string;
   content: string | null;
+  photos?: string[];
   createdAt: string;
 };
 

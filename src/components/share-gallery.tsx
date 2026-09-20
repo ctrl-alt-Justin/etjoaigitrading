@@ -15,11 +15,11 @@ export function ShareGallery({ photos, name }: { photos: ItemPhoto[]; name: stri
 
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[#fbfcfd] shadow-sm flex items-center justify-center">
         {isVideo ? (
-          <video src={current.url} controls className="aspect-[4/3] w-full bg-stone-950 object-contain" />
+          <video src={current.url} controls className="aspect-[4/3] sm:aspect-[16/11] w-full bg-stone-950 object-contain" />
         ) : (
-          <Thumb url={current.url} alt={name} className="aspect-[4/3] w-full" />
+          <Thumb url={current.url} alt={name} className="aspect-[4/3] sm:aspect-[16/11] w-full object-contain p-3" fit="contain" />
         )}
       </div>
       {photos.length > 1 && (
@@ -29,11 +29,11 @@ export function ShareGallery({ photos, name }: { photos: ItemPhoto[]; name: stri
               key={i}
               onClick={() => setIx(i)}
               className={cn(
-                "overflow-hidden rounded-xl border-2 transition",
-                i === ix ? "border-amber-500" : "border-transparent opacity-70 hover:opacity-100"
+                "overflow-hidden rounded-xl border-2 transition bg-[#fbfcfd]",
+                i === ix ? "border-[#1D5D8B] ring-2 ring-[#1D5D8B]/20" : "border-transparent opacity-70 hover:opacity-100"
               )}
             >
-              <Thumb url={p.url} alt={p.label} className="aspect-[4/3] w-full" />
+              <Thumb url={p.url} alt={p.label} className="aspect-[4/3] w-full object-contain p-1" fit="contain" />
               <span className="block truncate bg-white px-1.5 py-1 text-[10px] font-semibold text-stone-500">
                 {p.label}
               </span>

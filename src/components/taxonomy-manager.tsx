@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertCircle,
   Check,
   ChevronDown,
   FolderTree,
@@ -43,11 +44,18 @@ export function TaxonomyManager({
   const [selectedId, setSelectedId] = useState<number | null>(firstLeaf?.id ?? null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set(roots.map((r) => r.id)));
   const selected = categories.find((c) => c.id === selectedId) ?? null;
-  const selectedAttrs = attributes.filter((a) => a.categoryId === selectedId);
+
+  const [localAttrs, setLocalAttrs] = useState<DbCategoryAttribute[]>(attributes);
+  useEffect(() => {
+    setLocalAttrs(attributes);
+  }, [attributes]);
+
+  const selectedAttrs = localAttrs.filter((a) => a.categoryId === selectedId);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
+  const [attrError, setAttrError] = useState<string | null>(null);
 
   const [newCat, setNewCat] = useState({ name: "", parentId: roots[0]?.id ?? 0 });
   const [newAttr, setNewAttr] = useState({ name: "", inputType: "select" as "select" | "text", options: "", required: false });
@@ -93,29 +101,76 @@ export function TaxonomyManager({
   };
 
   const addAttr = async () => {
-    if (!selected || !newAttr.name.trim()) return;
+    setAttrError(null);
+    if (!selected) {
+      setAttrError("Please select a category first.");
+      return;
+    }
+    const trimmedName = newAttr.name.trim();
+    if (!trimmedName) {
+      setAttrError("Field name cannot be empty.");
+      return;
+    }
+    const optionsList = newAttr.options
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (newAttr.inputType === "select" && optionsList.length === 0) {
+      setAttrError("Fixed options require at least one choice (e.g. Leather, Fabric) or switch to Free text.");
+      return;
+    }
+
     setBusy("addattr");
-    await fetch("/api/attributes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        categoryId: selected.id,
-        name: newAttr.name,
-        inputType: newAttr.inputType,
-        options: newAttr.options.split(",").map((s) => s.trim()).filter(Boolean),
-        required: newAttr.required,
-      }),
-    });
-    setBusy(null);
-    setNewAttr({ name: "", inputType: "select", options: "", required: false });
-    router.refresh();
+    try {
+      const res = await fetch("/api/attributes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryId: selected.id,
+          name: trimmedName,
+          inputType: newAttr.inputType,
+          options: newAttr.inputType === "select" ? optionsList : [],
+          required: newAttr.required,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAttrError(data.error || "Failed to add field.");
+        setBusy(null);
+        return;
+      }
+      setLocalAttrs((prev) => [...prev, data]);
+      setNewAttr({ name: "", inputType: "select", options: "", required: false });
+      flash("attr-added");
+      router.refresh();
+    } catch (err: any) {
+      setAttrError(err?.message || "Network error adding attribute");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const removeAttr = async (id: number) => {
     setBusy(`attr-${id}`);
-    await fetch("/api/attributes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    setBusy(null);
-    router.refresh();
+    try {
+      const res = await fetch("/api/attributes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setLocalAttrs((prev) => prev.filter((a) => a.id !== id));
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to remove field.");
+      }
+    } catch (err: any) {
+      alert(err?.message || "Failed to remove field.");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const deleteCategory = async () => {
@@ -295,24 +350,97 @@ export function TaxonomyManager({
                 ))}
               </div>
             )}
-            <div className="mt-4 rounded-xl bg-stone-50/80 p-3.5">
-              <div className="grid gap-2.5 sm:grid-cols-[1fr_130px]">
-                <input className="input" placeholder="Attribute name — e.g. Upholstery" value={newAttr.name} onChange={(e) => setNewAttr((s) => ({ ...s, name: e.target.value }))} />
-                <select className="input" value={newAttr.inputType} onChange={(e) => setNewAttr((s) => ({ ...s, inputType: e.target.value as "select" | "text" }))}>
+            <div className="mt-4 rounded-xl border border-stone-200/80 bg-stone-50/80 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-stone-500 mb-2.5">
+                Add controlled field
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-[1fr_140px]">
+                <input
+                  className="input bg-white"
+                  placeholder="Field name — e.g. Material, Mechanism, Color"
+                  value={newAttr.name}
+                  onChange={(e) => {
+                    setAttrError(null);
+                    setNewAttr((s) => ({ ...s, name: e.target.value }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newAttr.inputType === "text") {
+                      e.preventDefault();
+                      addAttr();
+                    }
+                  }}
+                />
+                <select
+                  className="input bg-white font-medium text-stone-700"
+                  value={newAttr.inputType}
+                  onChange={(e) => {
+                    setAttrError(null);
+                    setNewAttr((s) => ({ ...s, inputType: e.target.value as "select" | "text" }));
+                  }}
+                >
                   <option value="select">Fixed options</option>
                   <option value="text">Free text</option>
                 </select>
               </div>
-              {newAttr.inputType === "select" && (
-                <input className="input mt-2.5" placeholder="Options, comma separated — e.g. Leather, Mesh, Fabric" value={newAttr.options} onChange={(e) => setNewAttr((s) => ({ ...s, options: e.target.value }))} />
+
+              {newAttr.inputType === "select" ? (
+                <div className="mt-2.5">
+                  <input
+                    className="input bg-white"
+                    placeholder="Choices, comma-separated — e.g. Leather, Fabric, Mesh, Steel"
+                    value={newAttr.options}
+                    onChange={(e) => {
+                      setAttrError(null);
+                      setNewAttr((s) => ({ ...s, options: e.target.value }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addAttr();
+                      }
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] text-stone-400">
+                    Separate multiple choices with commas. Intake forms will display these in a dropdown menu.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-stone-400">
+                  Operators can type any custom value during inventory intake.
+                </p>
               )}
-              <div className="mt-2.5 flex items-center justify-between">
-                <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-medium text-stone-600">
-                  <input type="checkbox" className="h-4 w-4 rounded accent-amber-600" checked={newAttr.required} onChange={(e) => setNewAttr((s) => ({ ...s, required: e.target.checked }))} />
+
+              {attrError && (
+                <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 border border-rose-200">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{attrError}</span>
+                </div>
+              )}
+
+              {saved === "attr-added" && (
+                <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <span>Attribute field added successfully!</span>
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between pt-2 border-t border-stone-200/60">
+                <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-medium text-stone-600 select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded accent-amber-600"
+                    checked={newAttr.required}
+                    onChange={(e) => setNewAttr((s) => ({ ...s, required: e.target.checked }))}
+                  />
                   Required at intake
                 </label>
-                <button onClick={addAttr} disabled={busy === "addattr" || !newAttr.name.trim()} className="btn-soft">
-                  {busy === "addattr" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                <button
+                  type="button"
+                  onClick={addAttr}
+                  disabled={busy === "addattr" || !newAttr.name.trim()}
+                  className="btn-primary !py-1.5 !px-3.5 text-xs font-semibold"
+                >
+                  {busy === "addattr" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                   Add field
                 </button>
               </div>

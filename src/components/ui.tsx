@@ -119,19 +119,35 @@ export function Thumb({
   alt = "",
   className,
   iconClassName,
+  fit,
 }: {
   url?: string | null;
   alt?: string;
   className?: string;
   iconClassName?: string;
+  fit?: "cover" | "contain" | "scale-down";
 }) {
   if (url) {
     const resolvedUrl = normalizeRefPhoto(url);
+    const hasExplicitFit =
+      className?.includes("object-contain") ||
+      className?.includes("object-cover") ||
+      className?.includes("object-scale-down") ||
+      className?.includes("object-fill");
+
+    const defaultFitClass = hasExplicitFit
+      ? ""
+      : fit === "contain"
+      ? "object-contain"
+      : fit === "scale-down"
+      ? "object-scale-down"
+      : "object-cover";
+
     if (resolvedUrl.startsWith("data:video/") || /\.(mp4|webm|mov)(\?|$)/i.test(resolvedUrl)) {
-      return <video src={resolvedUrl} className={cn("object-cover", className)} muted playsInline />;
+      return <video src={resolvedUrl} className={cn(defaultFitClass, className)} muted playsInline />;
     }
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={resolvedUrl} alt={alt} className={cn("object-cover", className)} loading="lazy" />;
+    return <img src={resolvedUrl} alt={alt} className={cn(defaultFitClass, className)} loading="lazy" />;
   }
   return (
     <div className={cn("flex items-center justify-center bg-stone-100 text-stone-300", className)}>
@@ -145,11 +161,13 @@ export function ProductHoverThumb({
   alt = "",
   className,
   containerClassName,
+  fit = "contain",
 }: {
   photos?: { url: string; slot?: string; label?: string }[] | null;
   alt?: string;
   className?: string;
   containerClassName?: string;
+  fit?: "contain" | "cover" | "scale-down";
 }) {
   const primaryItem = photos?.find((p) => p.slot === "front" && p.url) ?? photos?.[0];
   const primaryUrl = primaryItem?.url ? normalizeRefPhoto(primaryItem.url) : null;
@@ -158,6 +176,20 @@ export function ProductHoverThumb({
   const setupItem = photos?.find((p) => (p.slot === "setup" || p.slot === "preview") && p.url);
   const secondaryUrl = setupItem?.url ? normalizeRefPhoto(setupItem.url) : null;
   const hasSecondary = Boolean(secondaryUrl && secondaryUrl !== primaryUrl);
+
+  const hasExplicitFit =
+    className?.includes("object-contain") ||
+    className?.includes("object-cover") ||
+    className?.includes("object-scale-down") ||
+    className?.includes("object-fill");
+
+  const fitClass = hasExplicitFit
+    ? ""
+    : fit === "cover"
+    ? "object-cover"
+    : fit === "scale-down"
+    ? "object-scale-down"
+    : "object-contain";
 
   if (!primaryUrl) {
     return (
@@ -175,7 +207,8 @@ export function ProductHoverThumb({
         src={primaryUrl}
         alt={alt}
         className={cn(
-          "h-full w-full object-cover object-center transition-all duration-500",
+          "h-full w-full object-center transition-all duration-500",
+          fitClass,
           hasSecondary
             ? "group-hover:opacity-0 group-hover/img:opacity-0 group-hover/row:opacity-0 group-hover:scale-95 group-hover/img:scale-95 group-hover/row:scale-95"
             : "group-hover:scale-105 group-hover/img:scale-105 group-hover/row:scale-105",
@@ -191,7 +224,8 @@ export function ProductHoverThumb({
           src={secondaryUrl!}
           alt={`${alt} - setup preview`}
           className={cn(
-            "absolute inset-0 h-full w-full object-cover object-center opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover/img:opacity-100 group-hover/row:opacity-100 group-hover:scale-100 group-hover/img:scale-100 group-hover/row:scale-100",
+            "absolute inset-0 h-full w-full object-center opacity-0 scale-105 transition-all duration-500 group-hover:opacity-100 group-hover/img:opacity-100 group-hover/row:opacity-100 group-hover:scale-100 group-hover/img:scale-100 group-hover/row:scale-100",
+            fitClass,
             className
           )}
           loading="lazy"

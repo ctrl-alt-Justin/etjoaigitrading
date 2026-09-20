@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { 
   BadgeCheck, 
   CheckCircle2, 
@@ -15,12 +15,18 @@ import {
   Sparkles,
   MessageSquare,
   ShieldCheck,
-  Send
+  Send,
+  Camera,
+  ImagePlus,
+  Trash2,
+  X,
+  Maximize2
 } from "lucide-react";
 import type { DbItem, DbReview, Grade } from "@/db/schema";
 import { fmtMoney, fmtDateFull, relTime } from "@/lib/format";
 import { GRADE_META } from "@/lib/valuation";
 import { useCart } from "@/components/cart-provider";
+import { compressImageFile } from "@/lib/image-compress";
 
 interface Props {
   item: DbItem;
@@ -44,22 +50,41 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
   const [newRating, setNewRating] = useState(5);
   const [newAuthor, setNewAuthor] = useState("");
   const [newContent, setNewContent] = useState("");
+  const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
+  const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
+  const [previewLightbox, setPreviewLightbox] = useState<string | null>(null);
+  const reviewFileInputRef = useRef<HTMLInputElement>(null);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   const grade = item.grade as Grade | null;
 
   // Calculate dynamic rating
   const { avgRating, ratingCount } = useMemo(() => {
-    if (!reviews || reviews.length === 0) {
-      return { avgRating: 5.0, ratingCount: 0 };
-    }
+    if (!reviews.length) return { avgRating: 5.0, ratingCount: 0 };
     const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    const avg = sum / reviews.length;
     return {
-      avgRating: Math.round(avg * 10) / 10,
+      avgRating: Number((sum / reviews.length).toFixed(1)),
       ratingCount: reviews.length,
     };
   }, [reviews]);
+
+  const handleReviewPhotoSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsProcessingPhotos(true);
+    try {
+      const addedUrls: string[] = [];
+      for (const f of Array.from(files)) {
+        if (reviewPhotos.length + addedUrls.length >= 5) break;
+        const dataUrl = await compressImageFile(f);
+        addedUrls.push(dataUrl);
+      }
+      setReviewPhotos((prev) => [...prev, ...addedUrls].slice(0, 5));
+    } catch (err) {
+      console.error("Failed to compress review photo:", err);
+    } finally {
+      setIsProcessingPhotos(false);
+    }
+  };
 
   const handleAddToCart = () => {
     if (!item.listedPrice) return;
@@ -97,6 +122,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
           rating: newRating,
           authorName: newAuthor,
           content: newContent,
+          photos: reviewPhotos,
         }),
       });
 
@@ -108,9 +134,10 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
       setReviews((prev) => [created, ...prev]);
       setNewAuthor("");
       setNewContent("");
+      setReviewPhotos([]);
       setNewRating(5);
       setReviewFormOpen(false);
-      setReviewMessage("Thank you! Your review has been added.");
+      setReviewMessage("Thank you! Your review and photos have been added.");
     } catch {
       setReviewMessage("Could not post review at this time. Please try again.");
     } finally {
@@ -430,6 +457,73 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                   />
                 </div>
 
+                {/* Picture Uploads on Review */}
+                <div className="mt-3.5 border-t border-[#d8e2e7]/70 pt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[#17364b]">
+                      <Camera className="h-3.5 w-3.5 text-[#1D5D8B]" />
+                      <span>Attach Photos</span>
+                      <span className="font-normal text-stone-400">(optional, up to 5)</span>
+                    </label>
+                    <span className="text-[11px] font-medium text-[#557287]">
+                      {reviewPhotos.length}/5 photos
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    {reviewPhotos.map((url, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#d8e2e7] bg-white shadow-2xs"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`Uploaded review photo ${idx + 1}`}
+                          className="h-full w-full object-contain p-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setReviewPhotos((p) => p.filter((_, i) => i !== idx))}
+                          className="absolute inset-0 flex items-center justify-center bg-stone-900/60 text-white opacity-0 backdrop-blur-2xs transition group-hover:opacity-100"
+                          title="Remove photo"
+                        >
+                          <Trash2 className="h-4 w-4 text-rose-300" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {reviewPhotos.length < 5 && (
+                      <button
+                        type="button"
+                        disabled={isProcessingPhotos}
+                        onClick={() => reviewFileInputRef.current?.click()}
+                        className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#16c4df]/70 bg-white text-[#1D5D8B] transition hover:border-[#16c4df] hover:bg-[#16c4df]/5 disabled:opacity-50"
+                      >
+                        <ImagePlus className="h-4 w-4 text-[#16c4df]" />
+                        <span className="mt-1 text-[10px] font-bold text-[#17364b]">
+                          {isProcessingPhotos ? "Processing..." : "+ Add"}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    ref={reviewFileInputRef}
+                    type="file"
+                    accept="image/*,image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handleReviewPhotoSelect(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <p className="mt-1.5 text-[10.5px] text-stone-400">
+                    Supports PNG with transparent backgrounds, JPG, and WebP (up to 5 images).
+                  </p>
+                </div>
+
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"
@@ -440,7 +534,7 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmittingReview}
+                    disabled={isSubmittingReview || isProcessingPhotos}
                     className="inline-flex items-center gap-1.5 bg-[#16c4df] px-4 py-2 text-xs font-bold text-[#17364b] transition hover:bg-[#70e2ef] disabled:opacity-50"
                   >
                     <Send className="h-3 w-3" />
@@ -493,6 +587,31 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
                         {rev.content}
                       </p>
                     )}
+
+                    {/* Review Attached Photos */}
+                    {rev.photos && rev.photos.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {rev.photos.map((pUrl, pIdx) => (
+                          <button
+                            key={pIdx}
+                            type="button"
+                            onClick={() => setPreviewLightbox(pUrl)}
+                            className="group relative h-16 w-16 overflow-hidden rounded-lg border border-[#d8e2e7] bg-stone-50 transition hover:border-[#16c4df] hover:ring-2 hover:ring-[#16c4df]/20"
+                            title="Click to view full photo"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={pUrl}
+                              alt={`Customer photo ${pIdx + 1}`}
+                              className="h-full w-full object-contain p-0.5"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-stone-950/40 opacity-0 transition group-hover:opacity-100">
+                              <Maximize2 className="h-3.5 w-3.5 text-white drop-shadow" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -500,6 +619,34 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal for Review Full-Size Photos */}
+      {previewLightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4 backdrop-blur-xs animate-in fade-in-50"
+          onClick={() => setPreviewLightbox(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl bg-stone-900 border border-white/20 p-2 shadow-2xl flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewLightbox(null)}
+              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white hover:bg-rose-600 transition shadow"
+              aria-label="Close photo preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewLightbox}
+              alt="Enlarged review photo"
+              className="max-h-[82vh] max-w-[85vw] object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Muntinlupa viewing card */}
       <div className="mt-8 bg-[#123D5B] p-5 text-white shadow-sm">

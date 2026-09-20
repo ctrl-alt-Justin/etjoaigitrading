@@ -337,17 +337,20 @@ export function IntakeWizard({
     if (editing && autoSaveRef.current) {
       autoSaveRef.current();
     }
-    setStep((prev) => {
-      const resolved = typeof nextStep === "function" ? nextStep(prev) : nextStep;
-      if (typeof window !== "undefined" && initialItem) {
-        sessionStorage.setItem(`intake_step_${initialItem.id}`, String(resolved));
-        const url = new URL(window.location.href);
-        url.searchParams.set("step", String(resolved));
-        window.history.replaceState({}, "", url.toString());
-      }
-      return resolved;
-    });
+    setStep(nextStep);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (initialItem) {
+      sessionStorage.setItem(`intake_step_${initialItem.id}`, String(step));
+    }
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("step") !== String(step)) {
+      url.searchParams.set("step", String(step));
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [step, initialItem]);
   const [rootId, setRootId] = useState<number | null>(initialRootId);
   const [leafId, setLeafId] = useState<number | null>(initialItem?.categoryId ?? null);
   const [catQuery, setCatQuery] = useState("");
@@ -1288,7 +1291,7 @@ export function IntakeWizard({
                     <button
                       key={m.field}
                       type="button"
-                      onClick={() => setStep(m.step)}
+                      onClick={() => changeStep(m.step)}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-800 transition hover:bg-rose-100/60 shadow-2xs"
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -1330,9 +1333,9 @@ export function IntakeWizard({
                       return (
                         <div key={s.slot} className={cn("overflow-hidden rounded-2xl border transition-all", url ? "border-[var(--line)] shadow-sm bg-white" : "border-dashed border-stone-300 bg-stone-50/60")}>
                           {url ? (
-                            <div className="relative group">
+                            <div className="relative group bg-stone-900/[0.03] flex items-center justify-center">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt={s.label} className="aspect-[4/3] w-full object-cover" />
+                              <img src={url} alt={s.label} className="aspect-[4/3] w-full object-contain p-2" />
 
                               {/* Timestamp Badge */}
                               {photoTimestamps[s.slot] && (
@@ -1431,9 +1434,9 @@ export function IntakeWizard({
                     {/* Multi-Photo Wear & Defects Slots */}
                     {defectPhotos.map((dp, idx) => (
                       <div key={dp.id} className="overflow-hidden rounded-2xl border border-[var(--line)] shadow-sm bg-white">
-                        <div className="relative group">
+                        <div className="relative group bg-stone-900/[0.03] flex items-center justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={dp.url} alt={`Defects & Wear #${idx + 1}`} className="aspect-[4/3] w-full object-cover" />
+                          <img src={dp.url} alt={`Defects & Wear #${idx + 1}`} className="aspect-[4/3] w-full object-contain p-2" />
 
                           {dp.timestamp && (
                             <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-stone-950/75 px-2.5 py-1 text-[10.5px] font-medium text-white backdrop-blur shadow-sm">
@@ -1566,7 +1569,7 @@ export function IntakeWizard({
                           <video
                             src={photos["video"]}
                             controls
-                            className="aspect-[4/3] w-full object-cover"
+                            className="aspect-[4/3] w-full object-contain"
                           />
 
                           {/* Timestamp Badge */}
@@ -2356,7 +2359,7 @@ export function IntakeWizard({
                     {/* Picture thumbnail here */}
                     <div className="mt-4 flex items-center gap-3 rounded-xl bg-stone-50 p-3">
                       <div className="relative shrink-0">
-                        <Thumb url={photos.front || photos.back || defectPhotos[0]?.url} alt="" className="h-12 w-16 rounded-lg border border-stone-200 object-cover" />
+                        <Thumb url={photos.front || photos.back || defectPhotos[0]?.url} alt="" className="h-12 w-16 rounded-lg border border-stone-200 object-contain p-0.5 bg-white" fit="contain" />
                       </div>
                       <div className="min-w-0 text-[12.5px]">
                         <div className="truncate font-semibold text-stone-900">{name || "Unnamed item"}</div>

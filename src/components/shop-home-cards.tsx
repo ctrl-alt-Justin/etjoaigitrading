@@ -1,624 +1,284 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { 
-  Heart, 
-  ShoppingBag, 
-  Check, 
-  ArrowRight, 
-  Sparkles, 
-  Eye, 
-  ShieldCheck, 
-  Award,
-  ChevronRight,
-  ChevronLeft
+import {
+  ArrowLeft,
+  ArrowRight,
+  Sparkles,
+  BadgePercent,
+  ShieldCheck,
+  ArrowRightCircle
 } from "lucide-react";
-import { useCart } from "@/components/cart-provider";
-import { useFavorites } from "@/components/favorites-provider";
-import { fmtMoney } from "@/lib/format";
-import { Thumb, ProductHoverThumb } from "@/components/ui";
-import { type DbItem } from "@/db/schema";
-import { normalizeRefPhoto } from "@/lib/taxonomy-data";
 
-interface Props {
-  spotlightItem?: DbItem | null;
-  featuredItems: DbItem[];
-  categories: { id: number; slug: string; name: string; parentId: number | null }[];
+interface Photo {
+  url: string;
 }
 
-export function HeroSpotlightCard({ 
-  item: singleItem, 
-  items: multipleItems 
-}: { 
-  item?: DbItem | null; 
-  items?: DbItem[];
-}) {
-  const allItems = multipleItems && multipleItems.length > 0 ? multipleItems : singleItem ? [singleItem] : [];
-  const [currentIdx, setCurrentIdx] = useState(0);
-
-  // Safe item fallback
-  const item = allItems[currentIdx] || singleItem;
-
-  const prevIdx = (currentIdx - 1 + allItems.length) % allItems.length;
-  const nextIdx = (currentIdx + 1) % allItems.length;
-  const prevItem = allItems.length > 1 ? allItems[prevIdx] : null;
-  const nextItem = allItems.length > 1 ? allItems[nextIdx] : null;
-
-  const { addToCart } = useCart();
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const [added, setAdded] = useState(false);
-  const [selectedPhotoIdx, setSelectedPhotoIdx] = useState(0);
-
-  if (!item) return null;
-
-  const fav = isFavorite(item.id);
-  const photos = item.photos && item.photos.length > 0 ? item.photos : [];
-  const currentPhotoUrl = photos[selectedPhotoIdx]?.url || photos[0]?.url;
-
-  const [slideDirection, setSlideDirection] = useState<"right" | "left" | null>(null);
-  const [slideKey, setSlideKey] = useState(0);
-
-  const handlePrev = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    setSlideDirection("left");
-    setSlideKey((k) => k + 1);
-    setCurrentIdx((prev) => (prev > 0 ? prev - 1 : allItems.length - 1));
-    setSelectedPhotoIdx(0);
-  };
-
-  const handleNext = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    setSlideDirection("right");
-    setSlideKey((k) => k + 1);
-    setCurrentIdx((prev) => (prev < allItems.length - 1 ? prev + 1 : 0));
-    setSelectedPhotoIdx(0);
-  };
-
-  const handleAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!item.listedPrice) return;
-    addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.listedPrice,
-      photo: currentPhotoUrl,
-      brand: item.brand,
-      model: item.model,
-      grade: item.grade,
-      color: item.color,
-      sku: item.sku,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  };
-
-  const handleFav = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!item.listedPrice) return;
-    toggleFavorite({
-      id: item.id,
-      name: item.name,
-      price: item.listedPrice,
-      photo: currentPhotoUrl,
-      brand: item.brand,
-      model: item.model,
-      grade: item.grade,
-      color: item.color,
-      sku: item.sku,
-    });
-  };
-
-  const discountPct = item.benchmarkPrice && item.listedPrice
-    ? Math.round(((item.benchmarkPrice - item.listedPrice) / item.benchmarkPrice) * 100)
-    : null;
-
-  const savingsAmount = item.benchmarkPrice && item.listedPrice && item.benchmarkPrice > item.listedPrice
-    ? item.benchmarkPrice - item.listedPrice
-    : null;
-
-  return (
-    <div className="relative w-full flex items-center justify-center py-2 sm:py-4 select-none">
-      {/* Left Ghost Card Preview (Click to rotate to previous item) */}
-      {prevItem && allItems.length > 1 && (
-        <button
-          type="button"
-          onClick={(e) => handlePrev(e)}
-          title={`Rotate to ${prevItem.name}`}
-          className="group/ghost hidden md:flex flex-col absolute -left-6 lg:-left-12 xl:-left-16 z-10 w-44 lg:w-48 xl:w-52 rounded-2xl border border-white/20 bg-gradient-to-b from-white/10 to-white/5 p-3 shadow-xl backdrop-blur-md cursor-pointer transition-all duration-500 ease-out transform -translate-x-1/6 scale-[0.84] opacity-40 hover:opacity-85 hover:scale-[0.88] hover:border-[#16c4df]/50"
-        >
-          <div className="flex items-center justify-between text-[10px] text-white/70 mb-2 w-full">
-            <span className="flex items-center gap-1 font-bold text-[#16c4df]">
-              <ChevronLeft className="h-3.5 w-3.5" /> Prev
-            </span>
-            <span className="font-bold uppercase tracking-wider truncate max-w-[80px]">
-              {prevItem.brand || "Surplus"}
-            </span>
-          </div>
-
-          <div className="relative h-24 lg:h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
-            <Thumb
-              url={prevItem.photos?.[0]?.url}
-              alt={prevItem.name}
-              className="h-full w-full object-contain opacity-75 group-hover/ghost:opacity-100 transition duration-300"
-            />
-          </div>
-
-          <div className="mt-2 text-left w-full">
-            <div className="truncate text-xs font-bold text-white group-hover/ghost:text-[#16c4df] transition">
-              {prevItem.name}
-            </div>
-            <div className="mt-0.5 text-[11px] font-extrabold text-[#16c4df]">
-              {prevItem.listedPrice ? fmtMoney(prevItem.listedPrice) : "—"}
-            </div>
-          </div>
-        </button>
-      )}
-
-      {/* Main Spotlight Center Active Card */}
-      <div className="relative group z-20 w-full max-w-[420px] sm:max-w-[460px] xl:max-w-[500px] overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-b from-white/20 via-white/10 to-white/5 p-3.5 sm:p-4 xl:p-5 shadow-[0_25px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all duration-500 ease-out hover:border-white/40 hover:shadow-[0_25px_65px_rgba(22,196,223,0.18)]">
-        {/* Decorative ambient top glow */}
-        <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#16c4df]/25 blur-2xl pointer-events-none transition group-hover:bg-[#16c4df]/35" />
-
-        {/* Top Header Row: Badges & Carousel Controls & Favorite */}
-        <div className="relative z-10 flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
-              <Sparkles className="h-3 w-3" /> Featured Spotlight
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
-              <ShieldCheck className="h-3 w-3 text-[#16c4df]" />
-              Verified Good Condition
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Carousel navigation buttons */}
-            {allItems.length > 1 && (
-              <div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/25 px-2 py-0.5 backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  aria-label="Previous spotlight piece"
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white transition"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-                <span className="px-1 text-[10px] font-bold tracking-wider text-[#16c4df] tabular-nums">
-                  {currentIdx + 1}/{allItems.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  aria-label="Next spotlight piece"
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white transition"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleFav}
-              aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur transition hover:scale-110 hover:border-white/50 hover:bg-white hover:text-[#17364b]"
-            >
-              <Heart className={`h-3.5 w-3.5 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Sliding card interior viewport */}
-        <div
-          key={slideKey}
-          className={`transition-all duration-300 ${
-            slideDirection === "right"
-              ? "animate-slide-in-right"
-              : slideDirection === "left"
-              ? "animate-slide-in-left"
-              : ""
-          }`}
-        >
-          {/* Primary Image Viewport */}
-          <Link
-            href={`/shop/${item.id}`}
-            className="relative mt-2.5 sm:mt-3 block h-36 sm:h-44 md:h-48 lg:h-44 xl:h-52 2xl:h-60 w-full overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 sm:p-4 transition duration-300 group-hover:bg-white/[0.16]"
-          >
-          <Thumb
-            url={currentPhotoUrl}
-            alt={item.name}
-            className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition duration-500 group-hover:scale-105"
-          />
-
-          {discountPct && discountPct > 0 && (
-            <div className="absolute top-2.5 left-2.5 z-10 rounded-md bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-md">
-              Save {discountPct}%
-            </div>
-          )}
-
-          <div className="absolute bottom-2.5 right-2.5 z-10 rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
-            Inspected & Tested
-          </div>
-        </Link>
-
-        {/* Multi-Photo Thumbnail Bar if multiple photos exist */}
-        {photos.length > 1 && (
-          <div className="mt-2 flex items-center justify-center gap-1.5">
-            {photos.slice(0, 5).map((p, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSelectedPhotoIdx(idx);
-                }}
-                className={`relative h-7 w-9 overflow-hidden rounded border p-0.5 transition ${
-                  selectedPhotoIdx === idx
-                    ? "border-[#16c4df] ring-1 ring-[#16c4df]/50 bg-white/20"
-                    : "border-white/20 bg-white/5 opacity-70 hover:opacity-100"
-                }`}
-              >
-                <Thumb url={p.url} alt={`View ${idx + 1}`} className="h-full w-full object-contain" />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Item Metadata */}
-        <div className="relative z-10 mt-2.5 sm:mt-3">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="font-bold uppercase tracking-widest text-[#a9e4f1]">
-              {item.brand ?? "Designer Workspace"}
-            </span>
-            {item.model && (
-              <span className="text-[10.5px] font-medium text-[#dbeaf2]/70">
-                {item.model}
-              </span>
-            )}
-          </div>
-
-          <Link
-            href={`/shop/${item.id}`}
-            className="mt-0.5 block font-display text-base sm:text-lg xl:text-xl font-black text-white transition hover:text-[#16c4df] truncate"
-          >
-            {item.name}
-          </Link>
-
-          {/* Spec tags */}
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-[#dbeaf2]">
-            {item.color && (
-              <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium">
-                {item.color}
-              </span>
-            )}
-            {item.material && (
-              <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium truncate max-w-[160px]">
-                {item.material}
-              </span>
-            )}
-            <span className="inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 font-semibold text-emerald-300">
-              Ready to dispatch
-            </span>
-          </div>
-
-          {/* Pricing + Action Bar */}
-          <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-2.5">
-            <div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-display text-lg sm:text-xl xl:text-2xl font-black text-white">
-                  {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
-                </span>
-                {item.benchmarkPrice && (
-                  <span className="text-[11px] text-[#dbeaf2]/60 line-through">
-                    Retail {fmtMoney(item.benchmarkPrice)}
-                  </span>
-                )}
-              </div>
-              {savingsAmount && savingsAmount > 0 && (
-                <div className="text-[10.5px] font-bold text-[#16c4df]">
-                  You save {fmtMoney(savingsAmount)} vs retail
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/shop/${item.id}`}
-                className="inline-flex h-8 sm:h-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 hover:border-white/40"
-              >
-                View Piece
-              </Link>
-              <button
-                type="button"
-                onClick={handleAdd}
-                className="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-[#16c4df] px-3.5 text-xs font-black text-[#17364b] shadow-[0_4px_15px_rgba(22,196,223,0.3)] transition hover:bg-[#68e0ee] hover:scale-105 active:scale-95"
-              >
-                {added ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 stroke-[3]" /> Added
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="h-3.5 w-3.5" /> Add to Cart
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-
-      {/* Right Ghost Card Preview (Click to rotate to next item) */}
-      {nextItem && allItems.length > 1 && (
-        <button
-          type="button"
-          onClick={(e) => handleNext(e)}
-          title={`Rotate to ${nextItem.name}`}
-          className="group/ghost hidden md:flex flex-col absolute -right-6 lg:-right-12 xl:-right-16 z-10 w-44 lg:w-48 xl:w-52 rounded-2xl border border-white/20 bg-gradient-to-b from-white/10 to-white/5 p-3 shadow-xl backdrop-blur-md cursor-pointer transition-all duration-500 ease-out transform translate-x-1/6 scale-[0.84] opacity-40 hover:opacity-85 hover:scale-[0.88] hover:border-[#16c4df]/50"
-        >
-          <div className="flex items-center justify-between text-[10px] text-white/70 mb-2 w-full">
-            <span className="font-bold uppercase tracking-wider truncate max-w-[80px]">
-              {nextItem.brand || "Surplus"}
-            </span>
-            <span className="flex items-center gap-1 font-bold text-[#16c4df]">
-              Next <ChevronRight className="h-3.5 w-3.5" />
-            </span>
-          </div>
-
-          <div className="relative h-24 lg:h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
-            <Thumb
-              url={nextItem.photos?.[0]?.url}
-              alt={nextItem.name}
-              className="h-full w-full object-contain opacity-75 group-hover/ghost:opacity-100 transition duration-300"
-            />
-          </div>
-
-          <div className="mt-2 text-right w-full">
-            <div className="truncate text-xs font-bold text-white group-hover/ghost:text-[#16c4df] transition">
-              {nextItem.name}
-            </div>
-            <div className="mt-0.5 text-[11px] font-extrabold text-[#16c4df]">
-              {nextItem.listedPrice ? fmtMoney(nextItem.listedPrice) : "—"}
-            </div>
-          </div>
-        </button>
-      )}
-    </div>
-  );
+export interface ProductItem {
+  id: string | number;
+  name: string;
+  condition?: string | null;
+  listedPrice?: number | null;
+  originalPrice?: number | null;
+  photos?: Photo[] | null;
+  brand?: string | null;
 }
 
-export function FeaturedProductsGrid({
-  items,
-  categories,
-}: {
-  items: DbItem[];
-  categories: { id: number; slug: string; name: string; parentId: number | null }[];
-}) {
-  const { addToCart } = useCart();
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [addedMap, setAddedMap] = useState<Record<number, boolean>>({});
+interface HeroSpotlightCardProps {
+  items: ProductItem[];
+}
 
-  const rootCategories = categories.filter((c) => c.parentId == null);
+export function HeroSpotlightCard({ items }: HeroSpotlightCardProps) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
-  // Filter items based on active root category
-  const filtered = items.filter((item) => {
-    if (activeCategory === "all") return true;
-    const cat = categories.find((c) => c.id === item.categoryId);
-    if (!cat) return false;
-    if (cat.slug === activeCategory) return true;
-    if (cat.parentId != null) {
-      const parent = categories.find((c) => c.id === cat.parentId);
-      return parent?.slug === activeCategory;
-    }
-    return false;
-  });
+  const AUTO_PLAY_INTERVAL = 6000;
+  const total = items.length;
 
-  const handleAdd = (item: DbItem, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!item.listedPrice) return;
-    addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.listedPrice,
-      photo: item.photos?.[0]?.url,
-      brand: item.brand,
-      model: item.model,
-      grade: item.grade,
-      color: item.color,
-      sku: item.sku,
-    });
-    setAddedMap((prev) => ({ ...prev, [item.id]: true }));
-    setTimeout(() => {
-      setAddedMap((prev) => ({ ...prev, [item.id]: false }));
-    }, 1800);
+  const handleNext = useCallback(() => {
+    setActiveIndex((prev) => (prev + 1) % total);
+  }, [total]);
+
+  const handlePrev = useCallback(() => {
+    setActiveIndex((prev) => (prev - 1 + total) % total);
+  }, [total]);
+
+  // Auto-play
+  useEffect(() => {
+    if (isHovered || total <= 1) return;
+    const timer = setInterval(handleNext, AUTO_PLAY_INTERVAL);
+    return () => clearInterval(timer);
+  }, [isHovered, total, handleNext]);
+
+  // Touch handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    const diff = touchStartX.current - touchEndX.current;
+    if (diff > 50) handleNext();
+    else if (diff < -50) handlePrev();
+    touchStartX.current = null;
+    touchEndX.current = null;
   };
 
-  const handleToggleFav = (item: DbItem, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!item.listedPrice) return;
-    toggleFavorite({
-      id: item.id,
-      name: item.name,
-      price: item.listedPrice,
-      photo: item.photos?.[0]?.url,
-      brand: item.brand,
-      model: item.model,
-      grade: item.grade,
-      color: item.color,
-      sku: item.sku,
-    });
-  };
+  if (!items || total === 0) return null;
+
+  const activeItem = items[activeIndex];
+  const price = activeItem.listedPrice ?? 0;
+  const hasSavings = !!(activeItem.originalPrice && activeItem.originalPrice > price);
+  const savingsPercent = hasSavings && activeItem.originalPrice
+    ? Math.round(((activeItem.originalPrice - price) / activeItem.originalPrice) * 100)
+    : 0;
 
   return (
-    <div>
-      {/* Category Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-4">
-        <div className="flex flex-wrap gap-2">
+    <div
+      className="relative w-full select-none"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[#16c4df] animate-pulse" />
+          <span className="text-xs font-black uppercase tracking-[0.2em] text-[#a9c8da]">
+            Featured Gallery
+          </span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
+            {activeIndex + 1} / {total}
+          </span>
+        </div>
+
+        {/* Navigation arrows */}
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setActiveCategory("all")}
-            className={`rounded-full px-4 py-2 text-xs font-bold transition ${
-              activeCategory === "all"
-                ? "bg-[#1D5D8B] text-white shadow-sm"
-                : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-            }`}
+            onClick={handlePrev}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/80 transition hover:bg-[#16c4df] hover:text-[#071c2e] hover:border-[#16c4df] active:scale-95 shadow-md"
+            aria-label="Previous"
+            title="Previous"
           >
-            All Featured ({items.length})
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
-          {rootCategories.map((c) => (
-            <button
-              key={c.slug}
-              type="button"
-              onClick={() => setActiveCategory(c.slug)}
-              className={`rounded-full px-4 py-2 text-xs font-bold transition ${
-                activeCategory === c.slug
-                  ? "bg-[#1D5D8B] text-white shadow-sm"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-              }`}
-            >
-              {c.name}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={handleNext}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/80 transition hover:bg-[#16c4df] hover:text-[#071c2e] hover:border-[#16c4df] active:scale-95 shadow-md"
+            aria-label="Next"
+            title="Next"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
         </div>
-
-        <Link
-          href="/shop/catalog"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1D5D8B] hover:underline"
-        >
-          View Full Catalog ({items.length}+ in stock) <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
       </div>
 
-      {/* Grid of Items */}
-      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filtered.slice(0, 8).map((item) => {
-          const fav = isFavorite(item.id);
-          const isAdded = !!addedMap[item.id];
-          const photoUrl = item.photos?.[0]?.url;
-          const discountPct = item.benchmarkPrice && item.listedPrice
-            ? Math.round(((item.benchmarkPrice - item.listedPrice) / item.benchmarkPrice) * 100)
-            : null;
+      {/* Single Item Showcase Stage with Smooth Cross-Fade */}
+      <div className="relative w-full py-2 h-[300px] sm:h-[340px] flex items-center justify-center overflow-hidden">
+        {items.map((item, idx) => {
+          const isActive = idx === activeIndex;
+          const itemPrice = item.listedPrice ?? 0;
+          const itemSavings = !!(item.originalPrice && item.originalPrice > itemPrice);
+          const itemPercent = itemSavings && item.originalPrice
+            ? Math.round(((item.originalPrice - itemPrice) / item.originalPrice) * 100)
+            : 0;
 
           return (
-            <article
+            <div
               key={item.id}
-              className="group relative flex flex-col justify-between overflow-hidden border border-stone-200/90 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#16c4df] hover:shadow-xl"
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out ${
+                isActive
+                  ? "opacity-100 pointer-events-auto z-10 scale-100"
+                  : "opacity-0 pointer-events-none z-0 scale-95"
+              }`}
+              aria-hidden={!isActive}
             >
-              {/* Top Bar: Grade Badge + Favorite Button */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  {item.grade ? (
-                    <span
-                      className={`px-2 py-0.5 text-[10px] font-black tracking-wide ${
-                        item.grade === "A"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : item.grade === "B"
-                          ? "bg-sky-50 text-sky-700 border border-sky-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      Grade {item.grade} · {item.grade === "A" ? "Like New" : item.grade === "B" ? "Good" : "Fair"}
-                    </span>
-                  ) : (
-                    <span className="bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">
-                      Inspected
-                    </span>
-                  )}
-                  {discountPct && discountPct > 0 && (
-                    <span className="bg-[#ff4a68] px-1.5 py-0.5 text-[9.5px] font-bold uppercase text-white shadow-sm">
-                      -{discountPct}%
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => handleToggleFav(item, e)}
-                  aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-                  className="flex h-7 w-7 items-center justify-center bg-stone-100 text-stone-400 transition hover:bg-white hover:text-[#ff4a68] hover:shadow-sm"
-                >
-                  <Heart className={`h-4 w-4 ${fav ? "fill-[#ff4a68] text-[#ff4a68]" : ""}`} />
-                </button>
-              </div>
-
-              {/* Product Image Link with Hover to Setup View */}
-              <Link href={`/shop/${item.id}`} className="mt-3 block group/img">
-                <div className="relative flex h-48 w-full items-center justify-center bg-[#f7f9fa] p-3 transition group-hover/img:bg-[#edf4f7]">
-                  <ProductHoverThumb
-                    photos={item.photos}
-                    alt={item.name}
-                    className="h-40 w-full"
-                  />
-                </div>
-              </Link>
-
-              {/* Content info */}
-              <div className="mt-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-                    {item.brand ?? "Designer Workstation"}
-                  </div>
+              <div className="relative w-full max-w-[480px] h-full flex items-center justify-center p-2 sm:p-4">
+                {item.photos?.[0]?.url ? (
                   <Link
                     href={`/shop/${item.id}`}
-                    className="mt-0.5 line-clamp-1 font-display text-[15px] font-bold text-stone-900 transition group-hover:text-[#1D5D8B]"
+                    className="relative w-full h-full flex items-center justify-center group/img"
+                    aria-label={`View details for ${item.name}`}
                   >
-                    {item.name}
+                    <Image
+                      src={item.photos[0].url}
+                      alt={item.name}
+                      fill
+                      sizes="(max-width: 768px) 90vw, 550px"
+                      priority={isActive}
+                      className="object-contain w-full h-full drop-shadow-[0_16px_36px_rgba(0,0,0,0.65)] transition-transform duration-500 ease-out group-hover/img:scale-105"
+                    />
                   </Link>
-                  {item.material && (
-                    <p className="mt-0.5 line-clamp-1 text-[11px] text-stone-500">
-                      {item.material}
-                    </p>
-                  )}
-                </div>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-white/5 text-white/30 text-sm rounded-2xl">
+                    No Photo
+                  </div>
+                )}
 
-                {/* Pricing & Add Button */}
-                <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-3">
-                  <div>
-                    <div className="font-bold text-stone-900 text-base">
-                      {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
-                    </div>
-                    {item.benchmarkPrice && (
-                      <div className="text-[10.5px] text-stone-400 line-through">
-                        Orig. {fmtMoney(item.benchmarkPrice)}
-                      </div>
+                {/* Active Item Badges */}
+                {isActive && (
+                  <div className="absolute top-2 inset-x-4 flex items-center justify-between gap-1.5 pointer-events-none z-10">
+                    {item.condition ? (
+                      <span className="rounded-full bg-[#071c2e]/90 border border-sky-400/30 px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-sky-200 backdrop-blur-md shadow-md">
+                        {item.condition}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {itemSavings && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#16c4df] to-[#0ea5e9] px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-[#071c2e] shadow-[0_0_12px_rgba(22,196,223,0.4)]">
+                        <BadgePercent className="h-2.5 w-2.5" /> Save {itemPercent}%
+                      </span>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => handleAdd(item, e)}
-                    className="flex h-8 items-center gap-1.5 bg-[#1D5D8B] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#16486B] active:scale-95"
-                  >
-                    {isAdded ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" /> Added
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingBag className="h-3.5 w-3.5" /> Add
-                      </>
-                    )}
-                  </button>
-                </div>
+                )}
               </div>
-            </article>
+            </div>
           );
         })}
       </div>
+
+      {/* Standalone Borderless Info Deck (Constant Sized with min-h and reserved title space) */}
+      <div key={activeItem.id} className="mt-4 pt-3 border-t border-white/10 animate-fade-slide-up min-h-[175px] flex flex-col justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="h-4 min-h-[16px] flex items-center mb-1">
+              {activeItem.brand ? (
+                <div className="text-[10.5px] font-black uppercase tracking-[0.2em] text-[#16c4df]">
+                  {activeItem.brand}
+                </div>
+              ) : (
+                <div className="text-[10.5px] font-black uppercase tracking-[0.2em] text-[#16c4df]/70">
+                  Curated Collection
+                </div>
+              )}
+            </div>
+            <div className="h-14 sm:h-16 flex items-start">
+              <h3 className="font-display text-lg sm:text-xl font-black text-white leading-tight tracking-tight line-clamp-2">
+                {activeItem.name}
+              </h3>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#a9c8da]">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-[#16c4df] shrink-0" />
+                <span>Tested & Inspected Condition</span>
+              </div>
+              <span className="text-white/20">•</span>
+              <div>Ready for courier dispatch</div>
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0 sm:justify-end shrink-0 pt-0.5">
+            <span className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
+              ₱{price.toLocaleString()}
+            </span>
+            {hasSavings && activeItem.originalPrice ? (
+              <span className="text-sm text-white/50 line-through sm:mt-1">
+                ₱{activeItem.originalPrice.toLocaleString()}
+              </span>
+            ) : (
+              <span className="h-4 sm:mt-1 hidden sm:block" />
+            )}
+          </div>
+        </div>
+
+        {/* Action Button: Check details (redirects to the item's info page) */}
+        <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
+          <Link
+            href={`/shop/${activeItem.id}`}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#16c4df] px-7 py-3 text-xs font-black uppercase tracking-widest text-[#071c2e] shadow-[0_8px_25px_rgba(22,196,223,0.3)] transition duration-300 hover:bg-white hover:-translate-y-0.5 active:scale-95 group/btn"
+          >
+            Check details
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-1" />
+          </Link>
+
+          <span className="text-[11px] font-bold text-white/40 italic">
+            * 1 verified unit in stock
+          </span>
+        </div>
+      </div>
+
+      {/* Progress Dots */}
+      {total > 1 && (
+        <div className="mt-5 flex items-center gap-2 justify-center">
+          {items.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveIndex(idx)}
+              className="group relative h-1.5 rounded-full overflow-hidden transition-all duration-500"
+              style={{
+                width: idx === activeIndex ? "36px" : "8px",
+                backgroundColor:
+                  idx === activeIndex
+                    ? "rgba(255,255,255,0.15)"
+                    : "rgba(255,255,255,0.2)",
+              }}
+              aria-label={`Go to slide ${idx + 1}`}
+            >
+              {idx === activeIndex && (
+                <span
+                  key={`progress-${activeIndex}-${isHovered}`}
+                  className={`absolute inset-y-0 left-0 bg-[#16c4df] rounded-full ${
+                    isHovered ? "w-full" : "w-0 animate-spotlight-progress"
+                  }`}
+                  style={{ animationDuration: `${AUTO_PLAY_INTERVAL}ms` }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
