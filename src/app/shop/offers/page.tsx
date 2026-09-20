@@ -8,7 +8,7 @@ import { ProductHoverThumb } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import type { DbItem, Grade } from "@/db/schema";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Special Deals & Curations — ETJOAIGI Collection",
@@ -55,18 +55,20 @@ function getColorDots(item: DbItem): string[] {
 export default async function ShopOffersPage() {
   const { items: forSale } = await getShopCatalogData();
 
-  // 1. Featured items (where isFeatured is true; if none exist, fall back to top grade pieces)
-  let featured = forSale.filter((item) => item.isFeatured === true);
+  // 1. Featured items (up to 4 items)
+  let featured = forSale.filter((item) => item.isFeatured === true).slice(0, 4);
   if (featured.length === 0) {
     featured = forSale.slice(0, 4);
   }
+  const featuredIds = new Set(featured.map((i) => i.id));
 
-  // 2. Below Retail Value (Sales / Big discounts compared to benchmark price)
-  const belowRetail = forSale
+  // 2. Below Retail Value (Sales / Big discounts, excluding already featured)
+  const belowRetailCandidates = forSale
     .filter(
       (item) =>
-        (item.benchmarkPrice != null && item.listedPrice! < item.benchmarkPrice) ||
-        (item.valueHigh != null && item.listedPrice! < item.valueHigh * 0.7)
+        !featuredIds.has(item.id) &&
+        ((item.benchmarkPrice != null && item.listedPrice! < item.benchmarkPrice) ||
+         (item.valueHigh != null && item.listedPrice! < item.valueHigh * 0.7))
     )
     .sort((a, b) => {
       const saveA = (a.benchmarkPrice ?? 0) - (a.listedPrice ?? 0);
@@ -74,8 +76,16 @@ export default async function ShopOffersPage() {
       return saveB - saveA;
     });
 
-  // 3. Latest Arrivals (New drops sorted by listedAt desc)
-  const latestArrivals = [...forSale]
+  const belowRetail = belowRetailCandidates.length > 0
+    ? belowRetailCandidates.slice(0, 8)
+    : forSale.filter((item) => !featuredIds.has(item.id)).slice(0, 8);
+  const belowRetailIds = new Set(belowRetail.map((i) => i.id));
+
+  // 3. Latest Arrivals (New drops, excluding featured and belowRetail items)
+  const remainingForLatest = forSale.filter(
+    (item) => !featuredIds.has(item.id) && !belowRetailIds.has(item.id)
+  );
+  const latestArrivals = (remainingForLatest.length > 0 ? remainingForLatest : forSale)
     .sort(
       (a, b) =>
         new Date(b.listedAt ?? b.createdAt).getTime() -

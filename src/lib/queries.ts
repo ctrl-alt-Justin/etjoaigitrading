@@ -197,41 +197,47 @@ async function fetchShopCatalogData() {
       const rawItems = camelizeRows<DbItem>(itemRows.data);
       const categories = camelizeRows<DbCategory>(catRows.data);
 
-      const items = rawItems.map((i) => ({
-        id: i.id,
-        sku: i.sku,
-        name: i.name,
-        brand: i.brand,
-        model: i.model,
-        categoryId: i.categoryId,
-        color: i.color,
-        material: i.material,
-        dimensions: i.dimensions,
-        grade: i.grade,
-        // Keep all photos so catalog cards have both primary (front) and hover preview (setup)
-        photos: Array.isArray(i.photos) ? i.photos : [],
-        conditionNotes: i.conditionNotes,
-        listedPrice: i.listedPrice,
-        benchmarkPrice: i.benchmarkPrice,
-        valueLow: i.valueLow,
-        valueHigh: i.valueHigh,
-        isFeatured: i.isFeatured,
-        status: i.status,
-        createdAt: i.createdAt,
-        listedAt: i.listedAt,
-        checklist: null,
-        acquisitionCost: 0,
-        refurbCost: 0,
-        floorPrice: i.listedPrice,
-        soldPrice: null,
-        soldChannel: null,
-        supplierId: null,
-        location: null,
-        intakeAt: i.intakeAt,
-        soldAt: null,
-        updatedAt: i.updatedAt,
-        attributes: i.attributes ?? {},
-      })) as DbItem[];
+      const items = rawItems.map((i) => {
+        const allPhotos = Array.isArray(i.photos) ? i.photos : [];
+        const front = allPhotos.find((p) => p.slot === "front" && p.url) ?? allPhotos[0];
+        const setup = allPhotos.find((p) => (p.slot === "setup" || p.slot === "preview") && p.url && p !== front);
+        const photos = [front, setup].filter(Boolean);
+
+        return {
+          id: i.id,
+          sku: i.sku,
+          name: i.name,
+          brand: i.brand,
+          model: i.model,
+          categoryId: i.categoryId,
+          color: i.color,
+          material: i.material,
+          dimensions: i.dimensions,
+          grade: i.grade,
+          photos,
+          conditionNotes: i.conditionNotes,
+          listedPrice: i.listedPrice,
+          benchmarkPrice: i.benchmarkPrice,
+          valueLow: i.valueLow,
+          valueHigh: i.valueHigh,
+          isFeatured: i.isFeatured,
+          status: i.status,
+          createdAt: i.createdAt,
+          listedAt: i.listedAt,
+          checklist: null,
+          acquisitionCost: 0,
+          refurbCost: 0,
+          floorPrice: i.listedPrice,
+          soldPrice: null,
+          soldChannel: null,
+          supplierId: null,
+          location: null,
+          intakeAt: i.intakeAt,
+          soldAt: null,
+          updatedAt: i.updatedAt,
+          attributes: i.attributes ?? {},
+        };
+      }) as DbItem[];
 
       const data = { items, categories };
       shopMemoryCache = { data, expires: Date.now() + 500 };
