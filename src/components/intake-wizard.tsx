@@ -54,7 +54,7 @@ import {
 } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { compressImageFile } from "@/lib/image-compress";
-import { GradeChip, Thumb } from "./ui";
+import { Thumb } from "./ui";
 
 export type SoldRef = {
   id: number;
@@ -604,10 +604,9 @@ export function IntakeWizard({
     if (!leafId) missing.push({ step: 2, field: "category", label: "Category" });
     if (!name.trim() || name === "Information required") missing.push({ step: 2, field: "name", label: "Item Name / Model" });
     if (!dimensions.trim()) missing.push({ step: 2, field: "dimensions", label: "Dimensions" });
-    if (!effectiveGrade) missing.push({ step: 3, field: "grade", label: "Condition Grade" });
     if (Object.keys(checks).length === 0) missing.push({ step: 3, field: "checklist", label: "Inspection Checklist" });
     return missing;
-  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, effectiveGrade, checks]);
+  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, checks]);
 
   const stepValidation = useMemo(() => {
     const missingDetails: Record<number, string[]> = {
@@ -623,7 +622,6 @@ export function IntakeWizard({
         ...(!dimensions.trim() ? ["Dimensions"] : []),
       ],
       3: [
-        ...(!effectiveGrade ? ["Condition grade"] : []),
         ...(Object.keys(checks).length === 0 ? ["Checklist answers"] : []),
       ],
       4: [
@@ -640,7 +638,7 @@ export function IntakeWizard({
       missingStepIndices,
       totalMissingSteps: missingStepIndices.size,
     };
-  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, effectiveGrade, checks, editing, listMode, priceNum, floor]);
+  }, [photos, defectPhotos, hasAnyMedia, acqNum, leafId, name, dimensions, checks, editing, listMode, priceNum, floor]);
 
   const history = useMemo(() => {
     const same = soldRefs
@@ -2055,51 +2053,7 @@ export function IntakeWizard({
                   </div>
                 </div>
 
-                {/* 2. Condition Grade & Valuation */}
-                <div className="card p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-display text-xl font-semibold text-stone-900">Condition Grade & Valuation</h3>
-                    </div>
-                    {gradeOverridden && (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
-                        Manually overridden
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                    {GRADE_ORDER.map((g) => {
-                      const meta = GRADE_META[g];
-                      const theme = GRADE_CARD_THEMES[g];
-                      const active = effectiveGrade === g;
-                      return (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() => handleSelectGrade(g)}
-                          className={cn(
-                            "rounded-2xl border p-3.5 text-left transition relative",
-                            active
-                              ? theme.activeCard
-                              : "border-[var(--line)] bg-white hover:border-stone-300"
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={cn("chip shadow-sm", theme.chip)}>{g}</span>
-                            {active && <CheckCircle2 className={cn("h-4 w-4", theme.checkColor)} />}
-                          </div>
-                          <div className="mt-2 text-[13.5px] font-bold text-stone-900">{meta.tagline}</div>
-                          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wide text-stone-400">
-                            resells at {Math.round(meta.band[0] * 100)}–{Math.round(meta.band[1] * 100)}% of new
-                          </div>
-                          <p className="mt-1.5 text-[11.5px] leading-snug text-stone-500">{meta.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3. Condition Notes */}
+                {/* 2. Condition Notes */}
                 <div className="card p-5">
                   <label className="label font-display text-base font-semibold text-stone-900">Condition Notes</label>
                   <textarea
@@ -2122,11 +2076,11 @@ export function IntakeWizard({
                       <div>
                         <h3 className="font-display text-xl font-bold text-stone-900">Pricing Formula</h3>
                         <p className="text-xs text-stone-500 mt-0.5">
-                          Enforced retail gap ceilings, grade factors, and item intake costs.
+                          Enforced retail gap ceilings, target profit margins, and item intake costs.
                         </p>
                       </div>
-                      <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-800">
-                        Grade {effectiveGrade} · {formulaResult.recommendedGradeRow?.gradeFactor.toFixed(2)}×
+                      <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                        Retail Cap · {Math.round(formulaConfig.retailGapPct * 100)}% Gap
                       </span>
                     </div>
 
@@ -2408,7 +2362,6 @@ export function IntakeWizard({
                         <div className="truncate font-semibold text-stone-900">{name || "Unnamed item"}</div>
                         <div className="mt-0.5 truncate text-stone-500">{leaf ? pathOfLeaf(leaf) : "—"}</div>
                         <div className="mt-1 flex items-center gap-1.5">
-                          <GradeChip grade={effectiveGrade} />
                           {photos.front ? (
                             <span className="text-[11px] font-medium text-emerald-700">• Front photo ready</span>
                           ) : hasAnyMedia ? (

@@ -73,6 +73,14 @@ export function startOfWeekMonday(d: Date) {
   return x;
 }
 
+export function startOfWeekSunday(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay(); // sunday = 0
+  x.setDate(x.getDate() - day);
+  return x;
+}
+
 export function monthStart(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }

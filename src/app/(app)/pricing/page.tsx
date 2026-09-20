@@ -89,7 +89,7 @@ export default async function PricingPage() {
             Pricing & Valuation Desk
           </h1>
           <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
-            Enforced retail gap ceilings, condition grade multipliers, cost target hurdles and aging markdowns.
+            Enforced retail gap ceilings, target profit margins, cost hurdles and aging markdowns.
           </p>
         </div>
       </Reveal>

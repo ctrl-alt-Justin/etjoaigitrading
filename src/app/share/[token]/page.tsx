@@ -9,10 +9,9 @@ import {
   getShareByToken,
   pathOf,
 } from "@/lib/queries";
-import { GRADE_META, type Grade } from "@/lib/valuation";
 import { fmtDateFull, fmtMoney } from "@/lib/format";
 import { Logo } from "@/components/shell";
-import { GradeChip, Thumb } from "@/components/ui";
+import { Thumb } from "@/components/ui";
 import { ShareGallery } from "@/components/share-gallery";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +54,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (data.kind !== "ok") return { title: "Etjoaigi Trading" };
   return {
     title: `${data.item.name} — Etjoaigi Trading`,
-    description: `Pre-owned ${data.item.name}, inspected and graded by Etjoaigi Trading.`,
+    description: `Pre-owned ${data.item.name}, inspected and verified by Etjoaigi Trading.`,
   };
 }
 
@@ -72,7 +71,6 @@ export default async function SharePage({ params }: PageProps) {
   const { categories } = await getAllData();
   const { byId } = buildCategoryIndexes(categories);
   const categoryPath = pathOf(item.categoryId, byId);
-  const grade = item.grade as Grade | null;
 
   const sold = item.status === "sold";
   const price = share.offerPrice ?? item.listedPrice ?? null;
@@ -124,12 +122,9 @@ export default async function SharePage({ params }: PageProps) {
             </h1>
 
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <GradeChip grade={grade} />
-              {grade && (
-                <span className="text-[12.5px] text-stone-500">
-                  {GRADE_META[grade].tagline} — {GRADE_META[grade].description}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                <BadgeCheck className="h-3.5 w-3.5" /> Verified Good Condition
+              </span>
             </div>
 
             {/* price */}
@@ -142,7 +137,7 @@ export default async function SharePage({ params }: PageProps) {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-stone-500">
                 <span className="flex items-center gap-1.5">
-                  <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" /> Inspected & graded in-house
+                  <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" /> Inspected & verified in-house
                 </span>
                 <span>Ref <span className="font-semibold text-stone-700">{item.sku ?? "—"}</span></span>
                 <span>Listed {fmtDateFull(item.listedAt ?? item.intakeAt)}</span>
@@ -191,7 +186,7 @@ export default async function SharePage({ params }: PageProps) {
 
         <footer className="mt-16 flex items-center justify-center gap-2 border-t border-stone-200/70 pt-6 text-[11.5px] text-stone-400">
           <Building2 className="h-3.5 w-3.5" />
-          Etjoaigi Trading · Muntinlupa — pre-owned office furniture, graded and fairly priced.
+          Etjoaigi Trading · Muntinlupa — pre-owned office furniture, inspected, verified, and fairly priced.
         </footer>
       </main>
     </div>

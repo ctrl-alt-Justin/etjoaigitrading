@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Fuse from "fuse.js";
-import { ArrowUpRight, PackageSearch, Search } from "lucide-react";
+import { ArrowDownUp, ArrowUpRight, Filter, MapPin, PackageSearch, Search } from "lucide-react";
 import type { EnrichedItem } from "@/lib/queries";
-import { AgingChip, EmptyState, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
-import { cn, fmtInt, fmtMoney, relTime } from "@/lib/format";
+import { AgingChip, EmptyState, MarginPill, StatusChip, Thumb } from "./ui";
+import { cn, fmtDateFull, fmtInt, fmtMoney } from "@/lib/format";
 
 const STATUS_TABS: { key: string; label: string; match: (i: EnrichedItem) => boolean }[] = [
   { key: "active", label: "Active", match: (i) => ["draft", "intake", "for_cleaning", "for_refurb", "for_refurbishing", "in_stock", "listed", "reserved"].includes(i.status) },
@@ -31,8 +31,6 @@ const SORTS: { key: string; label: string; fn: (a: EnrichedItem, b: EnrichedItem
   { key: "aged", label: "Longest listed", fn: (a, b) => (b.daysListed ?? -1) - (a.daysListed ?? -1) },
 ];
 
-const GRADES = ["All", "A", "B", "C", "D"] as const;
-
 export function InventoryTable({
   items,
   roots,
@@ -43,7 +41,6 @@ export function InventoryTable({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("active");
-  const [grade, setGrade] = useState<(typeof GRADES)[number]>("All");
   const [root, setRoot] = useState("all");
   const [sort, setSort] = useState("newest");
 
@@ -55,6 +52,7 @@ export function InventoryTable({
           { name: "brand", weight: 0.2 },
           { name: "model", weight: 0.2 },
           { name: "sku", weight: 0.2 },
+          { name: "location", weight: 0.2 },
           { name: "categoryPath", weight: 0.15 },
         ],
         threshold: 0.34,
@@ -67,11 +65,10 @@ export function InventoryTable({
     let rows = query.trim() ? fuse.search(query.trim()).map((r) => r.item) : items;
     const tabDef = STATUS_TABS.find((t) => t.key === tab) ?? STATUS_TABS[0];
     rows = rows.filter(tabDef.match);
-    if (grade !== "All") rows = rows.filter((i) => i.grade === grade);
     if (root !== "all") rows = rows.filter((i) => i.rootSlug === root);
     const sortDef = SORTS.find((s) => s.key === sort) ?? SORTS[0];
     return [...rows].sort(sortDef.fn);
-  }, [items, fuse, query, tab, grade, root, sort]);
+  }, [items, fuse, query, tab, root, sort]);
 
   const listedSum = filtered.reduce((a, b) => a + (b.listedPrice ?? 0), 0);
   const costSum = filtered.reduce((a, b) => a + b.effectiveCost, 0);
@@ -84,36 +81,60 @@ export function InventoryTable({
 
   return (
     <div className="space-y-4">
-      {/* filter bar */}
-      <div className="card p-3.5">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-center">
-          <div className="relative w-full">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Fuzzy search — try “aern b grde” or a SKU…"
-              className="input w-full pl-10"
-            />
+      {/* filter and sort bar */}
+      <div className="card p-3.5 space-y-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Filters Group */}
+          <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-500 shrink-0">
+              <Filter className="h-3.5 w-3.5 text-stone-400" />
+              <span>Filter:</span>
+            </div>
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, brand, model, SKU, or rack..."
+                className="input w-full pl-10"
+              />
+            </div>
+            <div className="w-full sm:w-48 shrink-0">
+              <select 
+                value={root} 
+                onChange={(e) => setRoot(e.target.value)} 
+                className="input h-10 w-full text-xs font-medium"
+                aria-label="Filter by family"
+              >
+                <option value="all">All families</option>
+                {roots.map((r) => (
+                  <option key={r.slug} value={r.slug}>{r.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <select value={grade} onChange={(e) => setGrade(e.target.value as typeof grade)} className="input h-10 w-full">
-            {GRADES.map((g) => (
-              <option key={g} value={g}>{g === "All" ? "All grades" : `Grade ${g}`}</option>
-            ))}
-          </select>
-          <select value={root} onChange={(e) => setRoot(e.target.value)} className="input h-10 w-full">
-            <option value="all">All families</option>
-            {roots.map((r) => (
-              <option key={r.slug} value={r.slug}>{r.name}</option>
-            ))}
-          </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value)} className="input h-10 w-full">
-            {SORTS.map((s) => (
-              <option key={s.key} value={s.key}>{s.label}</option>
-            ))}
-          </select>
+
+          {/* Sort Group */}
+          <div className="flex items-center gap-2 shrink-0 border-t lg:border-t-0 pt-2 lg:pt-0 border-stone-200/60">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-500 shrink-0">
+              <ArrowDownUp className="h-3.5 w-3.5 text-stone-400" />
+              <span>Sort:</span>
+            </div>
+            <select 
+              value={sort} 
+              onChange={(e) => setSort(e.target.value)} 
+              className="input h-10 w-44 text-xs font-medium"
+              aria-label="Sort inventory"
+            >
+              {SORTS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5">
+
+        {/* Status Tabs */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 border-t border-stone-100 pt-2.5">
           {STATUS_TABS.map((t) => (
             <button
               key={t.key}
@@ -153,18 +174,18 @@ export function InventoryTable({
             <EmptyState
               icon={PackageSearch}
               title="Nothing matches"
-              body="Loosen the filters or try a different search — fuzzy matching covers typos in names, brands, models and SKUs."
+              body="Loosen the filters or try a different search across names, brands, models, SKUs, and warehouse locations."
             />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px] border-collapse text-sm">
+            <table className="w-full min-w-[880px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-[0.08em] text-stone-400">
                   <th className="py-2.5 pl-3.5 pr-2">Item</th>
                   <th className="px-2">Category</th>
-                  <th className="px-2">Grade</th>
                   <th className="px-2">Acquired</th>
+                  <th className="px-2">Location</th>
                   <th className="px-2 text-right">Cost</th>
                   <th className="px-2 text-right">Ask</th>
                   <th className="px-2 text-center">Margin</th>
@@ -196,16 +217,17 @@ export function InventoryTable({
                       </div>
                     </td>
                     <td className="max-w-[130px] truncate px-2 text-[12px] text-stone-500">{i.categoryPath}</td>
-                    <td className="px-2 whitespace-nowrap"><GradeChip grade={i.grade} /></td>
-                    <td className="px-2 whitespace-nowrap text-[12px] text-stone-500">
-                      {i.daysInStock <= 0 ? (
-                        <span className="font-medium text-stone-700">Today</span>
+                    <td className="px-2 whitespace-nowrap text-[12px] font-medium text-stone-700">
+                      {fmtDateFull(i.intakeAt)}
+                    </td>
+                    <td className="px-2 whitespace-nowrap text-[12px]">
+                      {i.location ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-stone-700 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200/60 text-[11.5px]">
+                          <MapPin className="h-3 w-3 text-stone-400 shrink-0" />
+                          {i.location}
+                        </span>
                       ) : (
-                        <>
-                          {relTime(i.intakeAt)}
-                          <span className="ml-1 text-stone-300">·</span>
-                          <span className="text-stone-400 tabular-nums">{i.daysInStock}d</span>
-                        </>
+                        <span className="text-stone-300">—</span>
                       )}
                     </td>
                     <td className="px-2 text-right tabular-nums whitespace-nowrap text-[12px] text-stone-600">{fmtMoney(i.effectiveCost)}</td>

@@ -15,7 +15,7 @@ import { useCart } from "@/components/cart-provider";
 import { ShopHeader } from "@/components/shop-header";
 import { ShopFooter } from "@/components/shop-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
-import { Thumb, GradeChip } from "@/components/ui";
+import { Thumb } from "@/components/ui";
 import { fmtMoney, relTime } from "@/lib/format";
 import type { Grade } from "@/db/schema";
 import { useState } from "react";
@@ -135,7 +135,6 @@ export default function ShopFavoritesPage() {
                             {item.brand}
                           </span>
                         )}
-                        <GradeChip grade={item.grade as Grade | null} />
                       </div>
                       <span className="text-[10px] text-stone-400">
                         {relTime(item.addedAt)}

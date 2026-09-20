@@ -11,7 +11,8 @@ import {
   Eye, 
   ShieldCheck, 
   Award,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft
 } from "lucide-react";
 import { useCart } from "@/components/cart-provider";
 import { useFavorites } from "@/components/favorites-provider";
@@ -26,15 +27,59 @@ interface Props {
   categories: { id: number; slug: string; name: string; parentId: number | null }[];
 }
 
-export function HeroSpotlightCard({ item }: { item: DbItem }) {
+export function HeroSpotlightCard({ 
+  item: singleItem, 
+  items: multipleItems 
+}: { 
+  item?: DbItem | null; 
+  items?: DbItem[];
+}) {
+  const allItems = multipleItems && multipleItems.length > 0 ? multipleItems : singleItem ? [singleItem] : [];
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Safe item fallback
+  const item = allItems[currentIdx] || singleItem;
+
+  const prevIdx = (currentIdx - 1 + allItems.length) % allItems.length;
+  const nextIdx = (currentIdx + 1) % allItems.length;
+  const prevItem = allItems.length > 1 ? allItems[prevIdx] : null;
+  const nextItem = allItems.length > 1 ? allItems[nextIdx] : null;
+
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [added, setAdded] = useState(false);
   const [selectedPhotoIdx, setSelectedPhotoIdx] = useState(0);
 
+  if (!item) return null;
+
   const fav = isFavorite(item.id);
   const photos = item.photos && item.photos.length > 0 ? item.photos : [];
   const currentPhotoUrl = photos[selectedPhotoIdx]?.url || photos[0]?.url;
+
+  const [slideDirection, setSlideDirection] = useState<"right" | "left" | null>(null);
+  const [slideKey, setSlideKey] = useState(0);
+
+  const handlePrev = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSlideDirection("left");
+    setSlideKey((k) => k + 1);
+    setCurrentIdx((prev) => (prev > 0 ? prev - 1 : allItems.length - 1));
+    setSelectedPhotoIdx(0);
+  };
+
+  const handleNext = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSlideDirection("right");
+    setSlideKey((k) => k + 1);
+    setCurrentIdx((prev) => (prev < allItems.length - 1 ? prev + 1 : 0));
+    setSelectedPhotoIdx(0);
+  };
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -81,162 +126,274 @@ export function HeroSpotlightCard({ item }: { item: DbItem }) {
     : null;
 
   return (
-    <div className="relative group overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-3.5 sm:p-4 xl:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur-xl transition duration-500 hover:border-white/35 hover:shadow-[0_20px_60px_rgba(22,196,223,0.15)]">
-      {/* Decorative ambient top glow */}
-      <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#16c4df]/20 blur-2xl pointer-events-none transition group-hover:bg-[#16c4df]/30" />
-
-      {/* Top Header Row: Badges & Favorite */}
-      <div className="relative z-10 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
-            <Sparkles className="h-3 w-3" /> Featured Spotlight
-          </span>
-          {item.grade && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
-              <ShieldCheck className="h-3 w-3 text-[#16c4df]" />
-              Grade {item.grade} · {item.grade === "A" ? "Like New" : item.grade === "B" ? "Good" : "Inspected"}
-            </span>
-          )}
-        </div>
-
+    <div className="relative w-full flex items-center justify-center py-2 sm:py-4 select-none">
+      {/* Left Ghost Card Preview (Click to rotate to previous item) */}
+      {prevItem && allItems.length > 1 && (
         <button
           type="button"
-          onClick={handleFav}
-          aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur transition hover:scale-110 hover:border-white/50 hover:bg-white hover:text-[#17364b]"
+          onClick={(e) => handlePrev(e)}
+          title={`Rotate to ${prevItem.name}`}
+          className="group/ghost hidden md:flex flex-col absolute -left-6 lg:-left-12 xl:-left-16 z-10 w-44 lg:w-48 xl:w-52 rounded-2xl border border-white/20 bg-gradient-to-b from-white/10 to-white/5 p-3 shadow-xl backdrop-blur-md cursor-pointer transition-all duration-500 ease-out transform -translate-x-1/6 scale-[0.84] opacity-40 hover:opacity-85 hover:scale-[0.88] hover:border-[#16c4df]/50"
         >
-          <Heart className={`h-3.5 w-3.5 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
-        </button>
-      </div>
-
-      {/* Primary Image Viewport */}
-      <Link
-        href={`/shop/${item.id}`}
-        className="relative mt-2.5 sm:mt-3 block h-36 sm:h-44 md:h-48 lg:h-44 xl:h-52 2xl:h-60 w-full overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 sm:p-4 transition duration-300 group-hover:bg-white/[0.16]"
-      >
-        <Thumb
-          url={currentPhotoUrl}
-          alt={item.name}
-          className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition duration-500 group-hover:scale-105"
-        />
-
-        {discountPct && discountPct > 0 && (
-          <div className="absolute top-2.5 left-2.5 z-10 rounded-md bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-md">
-            Save {discountPct}%
+          <div className="flex items-center justify-between text-[10px] text-white/70 mb-2 w-full">
+            <span className="flex items-center gap-1 font-bold text-[#16c4df]">
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </span>
+            <span className="font-bold uppercase tracking-wider truncate max-w-[80px]">
+              {prevItem.brand || "Surplus"}
+            </span>
           </div>
-        )}
 
-        <div className="absolute bottom-2.5 right-2.5 z-10 rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
-          Inspected & Tested
-        </div>
-      </Link>
+          <div className="relative h-24 lg:h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
+            <Thumb
+              url={prevItem.photos?.[0]?.url}
+              alt={prevItem.name}
+              className="h-full w-full object-contain opacity-75 group-hover/ghost:opacity-100 transition duration-300"
+            />
+          </div>
 
-      {/* Multi-Photo Thumbnail Bar if multiple photos exist */}
-      {photos.length > 1 && (
-        <div className="mt-2 flex items-center justify-center gap-1.5">
-          {photos.slice(0, 5).map((p, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setSelectedPhotoIdx(idx);
-              }}
-              className={`relative h-7 w-9 overflow-hidden rounded border p-0.5 transition ${
-                selectedPhotoIdx === idx
-                  ? "border-[#16c4df] ring-1 ring-[#16c4df]/50 bg-white/20"
-                  : "border-white/20 bg-white/5 opacity-70 hover:opacity-100"
-              }`}
-            >
-              <Thumb url={p.url} alt={`View ${idx + 1}`} className="h-full w-full object-contain" />
-            </button>
-          ))}
-        </div>
+          <div className="mt-2 text-left w-full">
+            <div className="truncate text-xs font-bold text-white group-hover/ghost:text-[#16c4df] transition">
+              {prevItem.name}
+            </div>
+            <div className="mt-0.5 text-[11px] font-extrabold text-[#16c4df]">
+              {prevItem.listedPrice ? fmtMoney(prevItem.listedPrice) : "—"}
+            </div>
+          </div>
+        </button>
       )}
 
-      {/* Item Metadata */}
-      <div className="relative z-10 mt-2.5 sm:mt-3">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="font-bold uppercase tracking-widest text-[#a9e4f1]">
-            {item.brand ?? "Designer Workspace"}
-          </span>
-          {item.model && (
-            <span className="text-[10.5px] font-medium text-[#dbeaf2]/70">
-              {item.model}
-            </span>
-          )}
-        </div>
+      {/* Main Spotlight Center Active Card */}
+      <div className="relative group z-20 w-full max-w-[420px] sm:max-w-[460px] xl:max-w-[500px] overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-b from-white/20 via-white/10 to-white/5 p-3.5 sm:p-4 xl:p-5 shadow-[0_25px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all duration-500 ease-out hover:border-white/40 hover:shadow-[0_25px_65px_rgba(22,196,223,0.18)]">
+        {/* Decorative ambient top glow */}
+        <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#16c4df]/25 blur-2xl pointer-events-none transition group-hover:bg-[#16c4df]/35" />
 
-        <Link
-          href={`/shop/${item.id}`}
-          className="mt-0.5 block font-display text-base sm:text-lg xl:text-xl font-black text-white transition hover:text-[#16c4df] truncate"
-        >
-          {item.name}
-        </Link>
-
-        {/* Spec tags */}
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-[#dbeaf2]">
-          {item.color && (
-            <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium">
-              {item.color}
+        {/* Top Header Row: Badges & Carousel Controls & Favorite */}
+        <div className="relative z-10 flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#16c4df] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#17364b] shadow-sm">
+              <Sparkles className="h-3 w-3" /> Featured Spotlight
             </span>
-          )}
-          {item.material && (
-            <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium truncate max-w-[160px]">
-              {item.material}
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur">
+              <ShieldCheck className="h-3 w-3 text-[#16c4df]" />
+              Verified Good Condition
             </span>
-          )}
-          <span className="inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 font-semibold text-emerald-300">
-            Ready to dispatch
-          </span>
-        </div>
-
-        {/* Pricing + Action Bar */}
-        <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-2.5">
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-lg sm:text-xl xl:text-2xl font-black text-white">
-                {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
-              </span>
-              {item.benchmarkPrice && (
-                <span className="text-[11px] text-[#dbeaf2]/60 line-through">
-                  Retail {fmtMoney(item.benchmarkPrice)}
-                </span>
-              )}
-            </div>
-            {savingsAmount && savingsAmount > 0 && (
-              <div className="text-[10.5px] font-bold text-[#16c4df]">
-                You save {fmtMoney(savingsAmount)} vs retail
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href={`/shop/${item.id}`}
-              className="inline-flex h-8 sm:h-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 hover:border-white/40"
-            >
-              View Piece
-            </Link>
+            {/* Carousel navigation buttons */}
+            {allItems.length > 1 && (
+              <div className="flex items-center gap-1 rounded-full border border-white/20 bg-black/25 px-2 py-0.5 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  aria-label="Previous spotlight piece"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white transition"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <span className="px-1 text-[10px] font-bold tracking-wider text-[#16c4df] tabular-nums">
+                  {currentIdx + 1}/{allItems.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  aria-label="Next spotlight piece"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white transition"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={handleAdd}
-              className="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-[#16c4df] px-3.5 text-xs font-black text-[#17364b] shadow-[0_4px_15px_rgba(22,196,223,0.3)] transition hover:bg-[#68e0ee] hover:scale-105 active:scale-95"
+              onClick={handleFav}
+              aria-label={fav ? "Remove from favorites" : "Add to favorites"}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur transition hover:scale-110 hover:border-white/50 hover:bg-white hover:text-[#17364b]"
             >
-              {added ? (
-                <>
-                  <Check className="h-3.5 w-3.5 stroke-[3]" /> Added
-                </>
-              ) : (
-                <>
-                  <ShoppingBag className="h-3.5 w-3.5" /> Add to Cart
-                </>
-              )}
+              <Heart className={`h-3.5 w-3.5 ${fav ? "fill-[#16c4df] text-[#16c4df]" : "text-white"}`} />
             </button>
           </div>
         </div>
+
+        {/* Sliding card interior viewport */}
+        <div
+          key={slideKey}
+          className={`transition-all duration-300 ${
+            slideDirection === "right"
+              ? "animate-slide-in-right"
+              : slideDirection === "left"
+              ? "animate-slide-in-left"
+              : ""
+          }`}
+        >
+          {/* Primary Image Viewport */}
+          <Link
+            href={`/shop/${item.id}`}
+            className="relative mt-2.5 sm:mt-3 block h-36 sm:h-44 md:h-48 lg:h-44 xl:h-52 2xl:h-60 w-full overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 sm:p-4 transition duration-300 group-hover:bg-white/[0.16]"
+          >
+          <Thumb
+            url={currentPhotoUrl}
+            alt={item.name}
+            className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition duration-500 group-hover:scale-105"
+          />
+
+          {discountPct && discountPct > 0 && (
+            <div className="absolute top-2.5 left-2.5 z-10 rounded-md bg-[#ff4a68] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow-md">
+              Save {discountPct}%
+            </div>
+          )}
+
+          <div className="absolute bottom-2.5 right-2.5 z-10 rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-md">
+            Inspected & Tested
+          </div>
+        </Link>
+
+        {/* Multi-Photo Thumbnail Bar if multiple photos exist */}
+        {photos.length > 1 && (
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            {photos.slice(0, 5).map((p, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedPhotoIdx(idx);
+                }}
+                className={`relative h-7 w-9 overflow-hidden rounded border p-0.5 transition ${
+                  selectedPhotoIdx === idx
+                    ? "border-[#16c4df] ring-1 ring-[#16c4df]/50 bg-white/20"
+                    : "border-white/20 bg-white/5 opacity-70 hover:opacity-100"
+                }`}
+              >
+                <Thumb url={p.url} alt={`View ${idx + 1}`} className="h-full w-full object-contain" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Item Metadata */}
+        <div className="relative z-10 mt-2.5 sm:mt-3">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-bold uppercase tracking-widest text-[#a9e4f1]">
+              {item.brand ?? "Designer Workspace"}
+            </span>
+            {item.model && (
+              <span className="text-[10.5px] font-medium text-[#dbeaf2]/70">
+                {item.model}
+              </span>
+            )}
+          </div>
+
+          <Link
+            href={`/shop/${item.id}`}
+            className="mt-0.5 block font-display text-base sm:text-lg xl:text-xl font-black text-white transition hover:text-[#16c4df] truncate"
+          >
+            {item.name}
+          </Link>
+
+          {/* Spec tags */}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-[#dbeaf2]">
+            {item.color && (
+              <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium">
+                {item.color}
+              </span>
+            )}
+            {item.material && (
+              <span className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 font-medium truncate max-w-[160px]">
+                {item.material}
+              </span>
+            )}
+            <span className="inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 font-semibold text-emerald-300">
+              Ready to dispatch
+            </span>
+          </div>
+
+          {/* Pricing + Action Bar */}
+          <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-2.5">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-lg sm:text-xl xl:text-2xl font-black text-white">
+                  {item.listedPrice ? fmtMoney(item.listedPrice) : "—"}
+                </span>
+                {item.benchmarkPrice && (
+                  <span className="text-[11px] text-[#dbeaf2]/60 line-through">
+                    Retail {fmtMoney(item.benchmarkPrice)}
+                  </span>
+                )}
+              </div>
+              {savingsAmount && savingsAmount > 0 && (
+                <div className="text-[10.5px] font-bold text-[#16c4df]">
+                  You save {fmtMoney(savingsAmount)} vs retail
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/shop/${item.id}`}
+                className="inline-flex h-8 sm:h-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 hover:border-white/40"
+              >
+                View Piece
+              </Link>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-[#16c4df] px-3.5 text-xs font-black text-[#17364b] shadow-[0_4px_15px_rgba(22,196,223,0.3)] transition hover:bg-[#68e0ee] hover:scale-105 active:scale-95"
+              >
+                {added ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 stroke-[3]" /> Added
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="h-3.5 w-3.5" /> Add to Cart
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+      </div>
+
+      {/* Right Ghost Card Preview (Click to rotate to next item) */}
+      {nextItem && allItems.length > 1 && (
+        <button
+          type="button"
+          onClick={(e) => handleNext(e)}
+          title={`Rotate to ${nextItem.name}`}
+          className="group/ghost hidden md:flex flex-col absolute -right-6 lg:-right-12 xl:-right-16 z-10 w-44 lg:w-48 xl:w-52 rounded-2xl border border-white/20 bg-gradient-to-b from-white/10 to-white/5 p-3 shadow-xl backdrop-blur-md cursor-pointer transition-all duration-500 ease-out transform translate-x-1/6 scale-[0.84] opacity-40 hover:opacity-85 hover:scale-[0.88] hover:border-[#16c4df]/50"
+        >
+          <div className="flex items-center justify-between text-[10px] text-white/70 mb-2 w-full">
+            <span className="font-bold uppercase tracking-wider truncate max-w-[80px]">
+              {nextItem.brand || "Surplus"}
+            </span>
+            <span className="flex items-center gap-1 font-bold text-[#16c4df]">
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </span>
+          </div>
+
+          <div className="relative h-24 lg:h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
+            <Thumb
+              url={nextItem.photos?.[0]?.url}
+              alt={nextItem.name}
+              className="h-full w-full object-contain opacity-75 group-hover/ghost:opacity-100 transition duration-300"
+            />
+          </div>
+
+          <div className="mt-2 text-right w-full">
+            <div className="truncate text-xs font-bold text-white group-hover/ghost:text-[#16c4df] transition">
+              {nextItem.name}
+            </div>
+            <div className="mt-0.5 text-[11px] font-extrabold text-[#16c4df]">
+              {nextItem.listedPrice ? fmtMoney(nextItem.listedPrice) : "—"}
+            </div>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

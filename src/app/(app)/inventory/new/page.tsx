@@ -80,7 +80,7 @@ export default async function NewIntakePage({ searchParams }: { searchParams: Pr
                 Log a New Unit
               </h1>
               <p className="mt-2 max-w-2xl text-[13.5px] text-stone-500">
-                Structured intake replaces mental checklists: fixed taxonomy, graded inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone.
+                Structured intake replaces mental checklists: fixed taxonomy, quality inspection, required photo angles, and an ask calculated from the valuation engine — the same process for everyone.
               </p>
             </div>
           )}

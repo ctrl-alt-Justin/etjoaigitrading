@@ -32,7 +32,7 @@ import { agingMarkdown, computeFloor, calculatePricingFormula, DEFAULT_PRICING_C
 import { PHOTO_SLOTS, refPhotoFor, REAL_SETUP_PHOTO, SOLD_CHANNELS } from "@/lib/taxonomy-data";
 import { cn, fmtMoney, fmtDateFull, normalizeDimensions, relTime, type DimensionUnit } from "@/lib/format";
 import { compressImageFile } from "@/lib/image-compress";
-import { Field, GradeChip, MarginPill, StatusChip, Thumb } from "./ui";
+import { Field, MarginPill, StatusChip, Thumb } from "./ui";
 import { ShareModal, type ShareInfo } from "./share-modal";
 
 /* ------------------------------------------------------------------ */
@@ -56,7 +56,7 @@ function PriceSpectrum({
           <div
             className="absolute top-[42px] h-[14px] rounded-md border border-amber-300 bg-amber-100/90"
             style={{ left: x(low), width: `${Math.max(1.5, ((high - low) / max) * 100)}%` }}
-            title={`Graded value range ${fmtMoney(low)} – ${fmtMoney(high)}`}
+            title={`Target value range ${fmtMoney(low)} – ${fmtMoney(high)}`}
           />
         )}
         {floor != null && floor > 0 && (
@@ -93,7 +93,7 @@ function PriceSpectrum({
         )}
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] font-medium text-stone-400">
-        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm border border-amber-300 bg-amber-100" /> graded range</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm border border-amber-300 bg-amber-100" /> target range</span>
         <span className="flex items-center gap-1"><span className="h-0.5 w-2.5 bg-rose-400" /> floor</span>
         <span className="flex items-center gap-1"><span className="h-3 w-0 border-l-2 border-dashed border-indigo-400" /> benchmark</span>
       </div>
@@ -737,9 +737,6 @@ function EditItemModal({
     if (!dimL.trim() || !dimW.trim() || !dimH.trim()) {
       list.push({ key: "dimensions", label: "Dimensions", desc: "L × W × H measurements" });
     }
-    if (!form.grade) {
-      list.push({ key: "grade", label: "Condition Grade", desc: "Grade A, B, or C" });
-    }
     if (!Number(form.acquisitionCost) || Number(form.acquisitionCost) <= 0) {
       list.push({ key: "cost", label: "Acquisition Cost", desc: "Cost paid to buy unit" });
     }
@@ -1036,37 +1033,6 @@ function EditItemModal({
               <option value="reserved">Reserved</option>
             </select>
           </label>
-
-          {/* Condition grade */}
-          <div className="sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <span className="label">Condition grade</span>
-              {isMissing("grade") && <span className="text-[10.5px] font-bold text-rose-600">Required — Missing</span>}
-            </div>
-            <div className={cn("grid grid-cols-4 gap-2 rounded-xl p-1", isMissing("grade") && "border border-dashed border-rose-300 bg-rose-50/20")}>
-              {GRADE_ORDER.map((grade) => {
-                const active = form.grade === grade;
-                const meta = GRADE_META[grade];
-                return (
-                  <button
-                    key={grade}
-                    type="button"
-                    onClick={() => update("grade", active ? "" : grade)}
-                    className={cn(
-                      "rounded-xl border px-2 py-2 text-left transition",
-                      active
-                        ? "border-amber-500 bg-amber-50 ring-2 ring-amber-500/30"
-                        : "border-[var(--line)] bg-white hover:border-amber-300"
-                    )}
-                  >
-                    <span className={cn("chip", meta.chip)}>{grade}</span>
-                    <span className="mt-1 block truncate text-[10px] font-semibold text-stone-600">{meta.tagline}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[11px] text-stone-400">Select a grade to update the inspection record, or click the selected grade again to clear it.</p>
-          </div>
 
           {/* Acquisition cost */}
           <label>
@@ -1490,7 +1456,6 @@ export function ItemDetail({
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="chip border-stone-200 bg-white font-bold text-stone-700">{item.sku ?? "no sku"}</span>
-              <GradeChip grade={item.grade} />
               <StatusChip status={item.status} />
               <span className="text-[12px] text-stone-400">{item.categoryPath}</span>
             </div>
@@ -1767,7 +1732,7 @@ export function ItemDetail({
                 <span className="font-bold tabular-nums text-rose-600">{fmtMoney(item.floorPrice)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-stone-500">Graded value range</span>
+                <span className="text-stone-500">Target value range</span>
                 <span className="font-semibold tabular-nums text-stone-800">
                   {item.valueLow != null ? `${fmtMoney(item.valueLow)} – ${fmtMoney(item.valueHigh)}` : "—"}
                 </span>

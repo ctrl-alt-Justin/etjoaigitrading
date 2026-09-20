@@ -85,7 +85,21 @@ export function VolumeChart({
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
-        <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} interval={1} />
+        <XAxis 
+          dataKey="label" 
+          tick={AXIS} 
+          axisLine={false} 
+          tickLine={false} 
+          interval={0}
+          tickFormatter={(label) => {
+            if (!label) return "";
+            const s = String(label);
+            if (s.includes("Week") || s.startsWith("Q") || s.includes("Ago")) return s;
+            const match = s.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*/i);
+            if (match) return match[0];
+            return s.replace(/\s*\d+.*$/, "");
+          }}
+        />
         <YAxis yAxisId="left" tick={AXIS} axisLine={false} tickLine={false} allowDecimals={false} />
         <YAxis
           yAxisId="right"

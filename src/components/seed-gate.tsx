@@ -32,7 +32,7 @@ export function SeedGate() {
         Your trading floor is empty
       </h2>
       <p className="mt-2 max-w-md text-sm leading-relaxed text-stone-500">
-        Load the sample workspace — taxonomy, suppliers and a trading book of graded
+        Load the sample workspace — taxonomy, suppliers and a trading book of authenticated
         inventory — to explore every workflow. Replace it with live intake whenever
         you&apos;re ready.
       </p>

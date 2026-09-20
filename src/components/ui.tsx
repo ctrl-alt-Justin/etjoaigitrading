@@ -273,6 +273,7 @@ export function KpiCard({
   tone = "stone",
   spark,
   alert,
+  className,
 }: {
   label: string;
   value: string;
@@ -281,6 +282,7 @@ export function KpiCard({
   tone?: "stone" | "amber" | "emerald" | "rose";
   spark?: ReactNode;
   alert?: boolean;
+  className?: string;
 }) {
   const tones = {
     stone: "bg-stone-100 text-stone-600",
@@ -289,7 +291,7 @@ export function KpiCard({
     rose: "bg-rose-100/80 text-rose-700",
   };
   return (
-    <div className="card relative overflow-hidden p-4">
+    <div className={cn("card relative overflow-hidden p-4 h-full flex flex-col justify-between", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-stone-400">

@@ -20,7 +20,6 @@ import {
 import type { DbItem, DbReview, Grade } from "@/db/schema";
 import { fmtMoney, fmtDateFull, relTime } from "@/lib/format";
 import { GRADE_META } from "@/lib/valuation";
-import { GradeChip } from "@/components/ui";
 import { useCart } from "@/components/cart-provider";
 
 interface Props {
@@ -143,13 +142,9 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
             {ratingCount === 0 ? "No reviews yet" : `${ratingCount} ${ratingCount === 1 ? "review" : "reviews"}`}
           </span>
         </div>
-
-        <GradeChip grade={grade} />
-        {grade && (
-          <span className="text-xs font-semibold text-[#3f6175]">
-            {GRADE_META[grade].tagline}
-          </span>
-        )}
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 border border-emerald-200 text-xs font-bold text-emerald-800">
+          Verified Good Condition
+        </span>
       </div>
 
       {/* Asking price section */}
@@ -518,8 +513,10 @@ export function ProductDetailInteractive({ item, initialReviews, categoryPath, s
           </div>
         </div>
         <a
-          href={`mailto:hello@etjoaigi.com?subject=Furniture%20Inquiry%3A%20${encodeURIComponent(item.name)}%20(${item.sku ?? "Item"})`}
-          className="mt-4 inline-flex h-9 items-center gap-2 bg-[#FCFDF8] px-4 text-xs font-bold text-[#1D5D8B] transition hover:bg-white"
+          href="https://www.facebook.com/etjoaigitrading"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex h-9 items-center gap-2 bg-[#FCFDF8] px-4 text-xs font-bold text-[#1D5D8B] transition hover:bg-white shadow-sm"
         >
           <Mail className="h-3.5 w-3.5" /> Contact ETJOAIGI
         </a>

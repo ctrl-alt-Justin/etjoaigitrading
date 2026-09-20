@@ -36,7 +36,7 @@ export default async function InventoryPage() {
               The book
             </h1>
             <p className="mt-2 text-[13.5px] text-stone-500">
-              Every unit, graded and priced by the same rules. Fuzzy search covers typos and partial SKUs.
+              Every unit priced by standardized valuation rules. Search covers items, brands, models, and SKUs.
             </p>
           </div>
           <Link href="/inventory/new" className="btn-accent">

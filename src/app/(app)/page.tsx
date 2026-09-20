@@ -14,9 +14,12 @@ import { computeDashboard, enrichItems, getAllData } from "@/lib/queries";
 import { fmtInt, fmtMoney, fmtMoneyCompact, relTime } from "@/lib/format";
 import { SeedGate } from "@/components/seed-gate";
 import { Reveal } from "@/components/reveal";
-import { GradeChip, KpiCard, SectionHead, StatusChip, Thumb } from "@/components/ui";
+import { KpiCard, SectionHead, StatusChip, Thumb } from "@/components/ui";
 import { AgeDistributionChart, Spark, TriadChart, VolumeChart } from "@/components/charts";
 import { DashboardRealtimeClock } from "@/components/dashboard-realtime-clock";
+import { DashboardFlowChart } from "@/components/dashboard-flow-chart";
+import { DashboardReservations } from "@/components/dashboard-reservations";
+import { DashboardStorefrontManager } from "@/components/dashboard-storefront-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -51,14 +54,12 @@ export default async function DashboardPage() {
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">
               Operations
             </div>
-            <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight text-stone-900">
-              The trading floor, at a glance
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[13.5px] text-stone-500">
+            <div className="flex flex-wrap items-center gap-2 text-[13.5px] text-stone-500">
               <DashboardRealtimeClock initialDate={today} />
             </div>
           </div>
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <DashboardReservations />
             <Link
               href="/shop"
               target="_blank"
@@ -68,6 +69,7 @@ export default async function DashboardPage() {
               <span>Visit Shop</span>
               <ArrowUpRight className="h-3.5 w-3.5 text-[#16c4df]" />
             </Link>
+            <DashboardStorefrontManager items={items} />
             <Link href="/inventory/new" className="btn-accent">
               <PackagePlus className="h-4 w-4" /> New intake
             </Link>
@@ -88,6 +90,7 @@ export default async function DashboardPage() {
             sub={`${k.intakeThisWeek} taken in this week`}
             icon={Boxes}
             tone="stone"
+            className="h-full"
           />
 
           {/* 2. Inventory Value */}
@@ -97,6 +100,7 @@ export default async function DashboardPage() {
             sub={`${fmtMoney(k.stockListedValue)} listed inventory value`}
             icon={Wallet}
             tone="amber"
+            className="h-full"
           />
 
           {/* 3. Items Sold This Month */}
@@ -107,6 +111,7 @@ export default async function DashboardPage() {
             icon={BadgeDollarSign}
             tone="emerald"
             spark={<Spark data={dash.spark} color="#0e9f6e" />}
+            className="h-full"
           />
 
           {/* 4. Total Profit */}
@@ -116,10 +121,11 @@ export default async function DashboardPage() {
             sub={`${fmtInt(dash.lifetimeSalesCount)} lifetime sales`}
             icon={BadgeDollarSign}
             tone="stone"
+            className="h-full"
           />
 
           {/* 5. Needs Attention */}
-          <Link href="/pricing" className="block transition hover:-translate-y-0.5">
+          <Link href="/pricing" className="block h-full transition hover:-translate-y-0.5">
             <KpiCard
               label="Needs Attention"
               value={fmtInt(dash.needsAttention.total)}
@@ -127,6 +133,7 @@ export default async function DashboardPage() {
               icon={AlarmClockCheck}
               tone={dash.needsAttention.total > 0 ? "rose" : "emerald"}
               alert={dash.needsAttention.total > 0}
+              className="h-full"
             />
           </Link>
         </div>
@@ -135,29 +142,8 @@ export default async function DashboardPage() {
       {/* Row 1: Intake vs sales AND age distribution (2-column layout) */}
       <Reveal delay={0.08}>
         <div className="grid gap-5 lg:grid-cols-12">
-          {/* Intake vs sales — last 12 weeks */}
-          <div className="card p-5 lg:col-span-7">
-            <SectionHead
-              kicker="Flow"
-              title="Intake vs sales — last 12 weeks"
-              right={
-                <div className="flex gap-3 text-[10.5px] font-semibold text-stone-400">
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-sm bg-[#D97706]" /> intake
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-sm bg-[#0e9f6e]" /> sold
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-[#292524]" /> revenue
-                  </span>
-                </div>
-              }
-            />
-            <div className="mt-4 h-[270px]">
-              <VolumeChart data={dash.weekly} />
-            </div>
-          </div>
+          {/* Intake vs sales with toggles for weekly, monthly, quarterly, and 3-week comparison */}
+          <DashboardFlowChart flowData={dash.flowData} />
 
           {/* Age Distribution (inventory age vs number of items in that age) */}
           <div className="card p-5 lg:col-span-5">
@@ -233,9 +219,6 @@ export default async function DashboardPage() {
                         {i.categoryPath && <span>· {i.categoryPath}</span>}
                       </div>
                     </div>
-                    <div className="shrink-0">
-                      <GradeChip grade={i.grade} />
-                    </div>
                     <div className="shrink-0 text-center px-1">
                       <span className="inline-block text-[10.5px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
                         {i.ageLabel}
@@ -272,7 +255,6 @@ export default async function DashboardPage() {
                   <thead>
                     <tr className="border-y border-[var(--line)] bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-stone-400">
                       <th className="py-2.5 pl-5 pr-3">Item</th>
-                      <th className="px-3 text-center">Grade</th>
                       <th className="px-3 text-center">Sold</th>
                       <th className="px-3 text-center">Avg. Time to Sell</th>
                       <th className="px-3 text-center">In Stock</th>
@@ -284,9 +266,6 @@ export default async function DashboardPage() {
                       <tr key={s.id} className="border-b border-stone-100 last:border-0 hover:bg-amber-50/40">
                         <td className="py-2.5 pl-5 pr-3 font-semibold text-stone-900 text-xs truncate max-w-[160px]">
                           {s.name}
-                        </td>
-                        <td className="px-3 text-center">
-                          <GradeChip grade={s.grade} />
                         </td>
                         <td className="px-3 text-center tabular-nums text-xs text-stone-700 font-bold">
                           {s.soldCount}
@@ -322,7 +301,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent Intake (Two-line stacked tags: Status first then Condition Grade) */}
+          {/* Recent Intake */}
           <div className="card p-5 lg:col-span-5 flex flex-col justify-between">
             <div>
               <SectionHead
@@ -347,10 +326,8 @@ export default async function DashboardPage() {
                       <div className="mt-0.5 text-[11px] text-stone-400">{i.sku} · {relTime(i.intakeAt)}</div>
                     </div>
 
-                    {/* Two-line organized tags: Status first, then Condition Grade */}
-                    <div className="flex flex-col items-end gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <StatusChip status={i.status} />
-                      {i.grade && <GradeChip grade={i.grade} />}
                     </div>
 
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-stone-300 transition group-hover:text-amber-600" />

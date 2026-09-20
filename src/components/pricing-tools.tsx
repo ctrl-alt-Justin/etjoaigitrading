@@ -21,6 +21,11 @@ import {
   Sliders,
   Sparkles,
   TrendingDown,
+  Search,
+  Clock,
+  ArrowRight,
+  Layers,
+  FolderTree,
 } from "lucide-react";
 import type { BenchmarkRow } from "@/lib/queries";
 import {
@@ -36,7 +41,7 @@ import {
   type PricingFormulaConfig,
 } from "@/lib/valuation";
 import { cn, fmtMoney } from "@/lib/format";
-import { GradeChip, Thumb } from "./ui";
+import { Thumb } from "./ui";
 
 export type AlertLite = {
   id: number;
@@ -103,7 +108,6 @@ function MarginCalculator({
 }) {
   const router = useRouter();
   const [selectedItemId, setSelectedItemId] = useState<number | "">("");
-  const [grade, setGrade] = useState<Grade>("B");
 
   // Costs are based strictly on what was inputted when intaking the item (no dummy defaults)
   const [acq, setAcq] = useState("");
@@ -140,7 +144,6 @@ function MarginCalculator({
       } else {
         setBrandNew("");
       }
-      if (item.grade) setGrade(item.grade);
       if (item.listedPrice) setPrice(String(item.listedPrice));
       else setPrice("");
     }
@@ -153,7 +156,7 @@ function MarginCalculator({
 
   const brandNewNum = Number(brandNew) || 0;
 
-  // Calculate official pricing formula result
+  // Calculate official pricing formula result (profit-based, condition grading removed)
   const formulaResult = useMemo(() => {
     return calculatePricingFormula(
       {
@@ -161,42 +164,40 @@ function MarginCalculator({
         refurbCost: refurbNum,
         cleaningCost: cleaningNum,
         brandNewPrice: brandNewNum,
-        selectedGrade: grade,
       },
       config
     );
-  }, [acqNum, refurbNum, cleaningNum, brandNewNum, grade, config]);
+  }, [acqNum, refurbNum, cleaningNum, brandNewNum, config]);
 
-  const activeGradeRow = formulaResult.recommendedGradeRow;
   const floor = computeFloor(acqNum, refurbNum + cleaningNum);
   const priceNum = Number(price) || 0;
 
   const margin = priceNum > 0 && totalCost > 0 ? priceNum / totalCost - 1 : null;
   const deltaVsCap =
-    priceNum > 0 && activeGradeRow?.maxAllowedCap ? priceNum / activeGradeRow.maxAllowedCap - 1 : null;
+    priceNum > 0 && formulaResult.maxAllowedCap ? priceNum / formulaResult.maxAllowedCap - 1 : null;
 
   const verdict = useMemo(() => {
-    if (priceNum <= 0) return { tone: "stone", text: "Enter an ask or select a grade cap to price this unit." };
+    if (priceNum <= 0) return { tone: "stone", text: "Enter an ask or use the formula price to list this unit." };
     if (floor > 0 && priceNum < floor) {
       return { tone: "rose", text: `Blocked — below minimum cost floor of ${fmtMoney(floor)}.` };
     }
-    if (activeGradeRow && priceNum > activeGradeRow.maxAllowedCap) {
+    if (formulaResult.maxAllowedCap > 0 && priceNum > formulaResult.maxAllowedCap) {
       return {
         tone: "amber",
-        text: `Above Grade ${grade} Retail Cap of ${fmtMoney(activeGradeRow.maxAllowedCap)} (${Math.round((deltaVsCap ?? 0) * 100)}% over) — risk of buyer choosing brand new.`,
+        text: `Above Retail Gap Cap of ${fmtMoney(formulaResult.maxAllowedCap)} (${Math.round((deltaVsCap ?? 0) * 100)}% over) — risk of buyer choosing brand new.`,
       };
     }
-    if (activeGradeRow && !activeGradeRow.isTargetMet) {
+    if (!formulaResult.isTargetMet) {
       return {
         tone: "amber",
-        text: `Margin Squeeze: Grade ${grade} Cap (${fmtMoney(activeGradeRow.maxAllowedCap)}) is below Cost + Profit Target (${fmtMoney(formulaResult.targetPrice)}).`,
+        text: `Margin Squeeze: Retail Cap (${fmtMoney(formulaResult.maxAllowedCap)}) is below Cost + Profit Target (${fmtMoney(formulaResult.targetPrice)}).`,
       };
     }
     if (margin != null && margin >= config.targetProfitMultiplier - 1) {
       return { tone: "emerald", text: `Meets company target profit of ${config.targetProfitMultiplier}× (+${Math.round(margin * 100)}% on cost). Green light.` };
     }
     return { tone: "emerald", text: "Healthy trading price within enforced retail ceiling." };
-  }, [priceNum, floor, activeGradeRow, deltaVsCap, grade, formulaResult.targetPrice, margin, config.targetProfitMultiplier]);
+  }, [priceNum, floor, deltaVsCap, formulaResult.maxAllowedCap, formulaResult.targetPrice, formulaResult.isTargetMet, margin, config.targetProfitMultiplier]);
 
   const verdictTone: Record<string, string> = {
     stone: "border-stone-200 bg-stone-50 text-stone-500",
@@ -239,7 +240,7 @@ function MarginCalculator({
             <h2 className="font-display text-xl font-bold text-stone-900">Pricing Formula Workstation</h2>
           </div>
           <p className="mt-0.5 text-xs sm:text-sm text-stone-500">
-            Enforced retail gap ceilings, condition grade factors, and intake-based costs.
+            Enforced retail gap ceilings, target profit margins, and intake-based costs.
           </p>
         </div>
 
@@ -256,7 +257,7 @@ function MarginCalculator({
             <option value="">— Select item from intake or test custom inputs —</option>
             {items.map((it) => (
               <option key={it.id} value={it.id}>
-                [{it.sku || "NO-SKU"}] {it.name} ({it.grade ? `Grade ${it.grade}` : "Ungraded"}) — Cost ₱{(it.acquisitionCost + it.refurbCost + it.cleaningCost).toLocaleString()}
+                [{it.sku || "NO-SKU"}] {it.name} — Cost ₱{(it.acquisitionCost + it.refurbCost + it.cleaningCost).toLocaleString()}
               </option>
             ))}
           </select>
@@ -319,51 +320,39 @@ function MarginCalculator({
               />
             </div>
             <p className="text-[11px] text-stone-500">
-              Sets Grade A ceiling: MaxA = Retail × (1 − {Math.round(config.retailGapPct * 100)}% Retail Gap).
+              Sets retail cap: Max Cap = Retail × (1 − {Math.round(config.retailGapPct * 100)}% Retail Gap).
             </p>
           </div>
 
-          {/* Condition Grade Selector — Outlined with Green Neon */}
-          <div className="rounded-2xl border-2 border-[#00e676] shadow-[0_0_14px_rgba(0,230,118,0.35)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-2 transition-all">
+          {/* Company Profit Target & Condition Policy */}
+          <div className="rounded-2xl border-2 border-[#00e676] shadow-[0_0_14px_rgba(0,230,118,0.35)] ring-2 ring-[#00e676]/20 bg-white p-4 space-y-2.5 transition-all">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-stone-800">
-                Condition Grade
+                Profit Hurdle & Policy
               </label>
               <span className="rounded-full bg-[#00e676]/15 border border-[#00e676]/40 px-2 py-0.5 text-[10.5px] font-extrabold text-emerald-800">
-                Active: Grade {grade} ({formulaResult.grades.find((r) => r.grade === grade)?.gradeFactor.toFixed(2)}×)
+                Verified Good Condition
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              {(["A", "B", "C", "D"] as const).map((g) => {
-                const isSelected = grade === g;
-                const factor = config.gradeFactors[g];
-                return (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => {
-                      setGrade(g);
-                      const row = formulaResult.grades.find((r) => r.grade === g);
-                      if (row) setPrice(String(row.finalListingPrice));
-                    }}
-                    className={cn(
-                      "flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border text-xs font-bold transition",
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-600 text-white shadow-md ring-2 ring-emerald-400"
-                        : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
-                    )}
-                  >
-                    <span>Grade {g}</span>
-                    <span className={cn("text-[10px] mt-0.5 tabular-nums font-semibold", isSelected ? "text-emerald-100" : "text-stone-400")}>
-                      {factor.toFixed(2)}×
-                    </span>
-                    <span className={cn("text-[9.5px]", isSelected ? "text-emerald-100" : "text-stone-400")}>
-                      {g === "A" ? "Like New" : g === "B" ? "Good" : g === "C" ? "Fair" : "Salvage"}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                <div className="text-[10px] font-bold uppercase text-stone-400">Target Profit Markup</div>
+                <div className="font-display text-base font-black text-emerald-700 mt-0.5 tabular-nums">
+                  {config.targetProfitMultiplier.toFixed(2)}× (+{Math.round((config.targetProfitMultiplier - 1) * 100)}%)
+                </div>
+                <div className="text-[10px] text-stone-500 mt-0.5">Target ask: {fmtMoney(formulaResult.targetPrice)}</div>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+                <div className="text-[10px] font-bold uppercase text-stone-400">Retail Benchmark Gap</div>
+                <div className="font-display text-base font-black text-stone-900 mt-0.5 tabular-nums">
+                  {Math.round(config.retailGapPct * 100)}% off retail
+                </div>
+                <div className="text-[10px] text-stone-500 mt-0.5">Cap: {fmtMoney(formulaResult.maxAllowedCap)}</div>
+              </div>
             </div>
+            <p className="text-[11px] text-stone-500">
+              All inventory is acquired in good condition. Standardized pricing ensures guaranteed margin without subjective condition grading penalties.
+            </p>
           </div>
 
           {/* Intake Costs (Acquisition, Refurb, Cleaning) */}
@@ -442,27 +431,25 @@ function MarginCalculator({
                 Official Formula Recommendation
               </span>
               <span className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-md">
-                Grade {grade} Cap ({activeGradeRow?.gradeFactor.toFixed(2)}×)
+                Retail Cap ({Math.round(config.retailGapPct * 100)}% Gap)
               </span>
             </div>
             <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
               <div>
                 <div className="font-display text-3xl sm:text-4xl font-black text-emerald-950 tabular-nums">
-                  {fmtMoney(activeGradeRow?.finalListingPrice ?? 0)}
+                  {fmtMoney(formulaResult.suggestedListingPrice)}
                 </div>
                 <p className="mt-1 text-xs text-emerald-700 font-medium">
-                  Formula: ₱{brandNewNum.toLocaleString()} (New) × (1 − {Math.round(config.retailGapPct * 100)}% Gap) × {activeGradeRow?.gradeFactor.toFixed(2)}
+                  Formula: ₱{brandNewNum.toLocaleString()} (New) × (1 − {Math.round(config.retailGapPct * 100)}% Gap)
                 </p>
               </div>
-              {activeGradeRow && (
-                <button
-                  type="button"
-                  onClick={() => handleApplyFinalPrice(activeGradeRow.finalListingPrice)}
-                  className="btn-accent h-10 shrink-0 px-4 text-xs sm:text-sm font-black shadow-sm"
-                >
-                  Use Formula Price
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => handleApplyFinalPrice(formulaResult.suggestedListingPrice)}
+                className="btn-accent h-10 shrink-0 px-4 text-xs sm:text-sm font-black shadow-sm"
+              >
+                Use Formula Price
+              </button>
             </div>
           </div>
 
@@ -484,7 +471,7 @@ function MarginCalculator({
                 className="input h-12 text-xl font-black tabular-nums border-2 border-[#00e676]/70 focus:border-[#00e676]"
                 type="number"
                 min={0}
-                placeholder={activeGradeRow ? String(activeGradeRow.finalListingPrice) : "0"}
+                placeholder={formulaResult.suggestedListingPrice ? String(formulaResult.suggestedListingPrice) : "0"}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
               />
@@ -553,129 +540,63 @@ function MarginCalculator({
       </div>
 
       {/* ================================================================= */}
-      {/* FULL-WIDTH CONDITION GRADE PRICING MATRIX TABLE                   */}
+      {/* FULL-WIDTH PROFIT & RETAIL GAP ECONOMICS BREAKDOWN                */}
       {/* ================================================================= */}
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm space-y-3.5">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
           <div>
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-black uppercase tracking-wider text-stone-900">
-                Condition Grade Pricing Matrix
+                Profit & Retail Gap Economics
               </h4>
               <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                Active Selection: Grade {grade}
+                Verified Good Condition
               </span>
             </div>
             <p className="text-xs text-stone-500 mt-0.5">
-              Live mathematical breakdown across all grades based on retail benchmark {brandNewNum > 0 ? fmtMoney(brandNewNum) : "₱0"} and total cost {fmtMoney(totalCost)}.
+              Live mathematical breakdown of intake costs, target profit hurdle, and retail gap ceiling.
             </p>
           </div>
-          <span className="text-[11px] font-semibold text-stone-500 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200 self-start sm:self-auto">
-            Click any row to select grade & apply price
-          </span>
+          <button
+            type="button"
+            onClick={() => handleApplyFinalPrice(formulaResult.suggestedListingPrice)}
+            className="btn-accent h-8.5 px-3.5 text-xs font-bold self-start sm:self-auto shadow-2xs"
+          >
+            Apply Suggested Ask {fmtMoney(formulaResult.suggestedListingPrice)}
+          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-stone-200 bg-stone-50/90 text-[10.5px] font-extrabold uppercase tracking-wider text-stone-500">
-                <th className="py-3 px-3.5">Condition Grade</th>
-                <th className="py-3 px-2.5 text-center">Multiplier</th>
-                <th className="py-3 px-3 text-right">Retail Ceiling (Cap)</th>
-                <th className="py-3 px-3 text-right">Cost Target Hurdle</th>
-                <th className="py-3 px-3 text-center">Feasibility</th>
-                <th className="py-3 px-3 text-right">Margin on Cost</th>
-                <th className="py-3 px-4 text-right">Formula Ask Price</th>
-                <th className="py-3 pr-3.5 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {formulaResult.grades.map((row) => {
-                const isSelected = grade === row.grade;
-                const rowMargin = totalCost > 0 ? (row.finalListingPrice / totalCost) - 1 : null;
-                return (
-                  <tr
-                    key={row.grade}
-                    onClick={() => {
-                      setGrade(row.grade);
-                      setPrice(String(row.finalListingPrice));
-                    }}
-                    className={cn(
-                      "cursor-pointer transition-all hover:bg-emerald-50/50",
-                      isSelected ? "bg-emerald-50/80 font-semibold" : ""
-                    )}
-                  >
-                    <td className="py-3 px-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "flex h-6 w-6 items-center justify-center rounded-lg text-xs font-black shadow-2xs",
-                          isSelected ? "bg-emerald-600 text-white" : "bg-stone-100 text-stone-700"
-                        )}>
-                          {row.grade}
-                        </span>
-                        <div>
-                          <div className="text-xs font-bold text-stone-900">Grade {row.grade}</div>
-                          <div className="text-[10.5px] text-stone-500">
-                            {row.grade === "A" ? "Like New · Pristine" : row.grade === "B" ? "Good · Minor Wear" : row.grade === "C" ? "Fair · Visible Scuffs" : "Salvage · Parts"}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-2.5 text-center tabular-nums text-stone-700 font-bold">
-                      {row.gradeFactor.toFixed(2)}×
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-stone-700 font-semibold">
-                      {fmtMoney(row.maxAllowedCap)}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-stone-500">
-                      {fmtMoney(row.targetPrice)}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {row.isTargetMet ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
-                          <Check className="h-3 w-3" /> Target Met
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold">
-                          <AlertTriangle className="h-3 w-3" /> Cap Constrained
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-bold">
-                      {rowMargin != null ? (
-                        <span className={rowMargin >= config.targetProfitMultiplier - 1 ? "text-emerald-700" : "text-amber-700"}>
-                          +{Math.round(rowMargin * 100)}%
-                        </span>
-                      ) : (
-                        <span className="text-stone-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right tabular-nums font-black text-sm text-emerald-950">
-                      {fmtMoney(row.finalListingPrice)}
-                    </td>
-                    <td className="py-3 pr-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setGrade(row.grade);
-                          handleApplyFinalPrice(row.finalListingPrice);
-                        }}
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs",
-                          isSelected
-                            ? "bg-emerald-600 text-white ring-2 ring-emerald-400"
-                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-                        )}
-                      >
-                        {isSelected ? "Active Grade" : "Apply to Ask"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3">
+            <span className="text-[10.5px] font-bold uppercase text-stone-400 block">Total Intake Cost</span>
+            <span className="font-display text-lg font-black text-stone-900 tabular-nums mt-0.5 block">
+              {fmtMoney(totalCost)}
+            </span>
+            <span className="text-[10.5px] text-stone-500 block mt-0.5">Acq ₱{acqNum.toLocaleString()} + Refurb ₱{refurbNum.toLocaleString()} + Clean ₱{cleaningNum.toLocaleString()}</span>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3">
+            <span className="text-[10.5px] font-bold uppercase text-stone-400 block">Target Profit Hurdle</span>
+            <span className="font-display text-lg font-black text-emerald-700 tabular-nums mt-0.5 block">
+              {fmtMoney(formulaResult.targetPrice)}
+            </span>
+            <span className="text-[10.5px] text-stone-500 block mt-0.5">{config.targetProfitMultiplier.toFixed(2)}× markup (+{Math.round((config.targetProfitMultiplier - 1) * 100)}% on cost)</span>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3">
+            <span className="text-[10.5px] font-bold uppercase text-stone-400 block">Retail Benchmark Cap</span>
+            <span className="font-display text-lg font-black text-stone-900 tabular-nums mt-0.5 block">
+              {fmtMoney(formulaResult.maxAllowedCap)}
+            </span>
+            <span className="text-[10.5px] text-stone-500 block mt-0.5">{Math.round(config.retailGapPct * 100)}% under brand new</span>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+            <span className="text-[10.5px] font-bold uppercase text-emerald-800 block">Suggested Listing Ask</span>
+            <span className="font-display text-lg font-black text-emerald-950 tabular-nums mt-0.5 block">
+              {fmtMoney(formulaResult.suggestedListingPrice)}
+            </span>
+            <span className="text-[10.5px] text-emerald-700 font-semibold block mt-0.5">
+              Net Profit: +{fmtMoney(formulaResult.profit)} ({Math.round(formulaResult.marginPct * 100)}%)
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -754,60 +675,656 @@ export function PricingTools({
   const visibleAlerts = alerts.filter((a) => !done.has(a.id));
   const visibleViolations = violations.filter((v) => !done.has(v.id));
 
+  const [activeTab, setActiveTab] = useState<"calculator" | "alerts" | "benchmarks" | "policy">("calculator");
+  const [alertSearch, setAlertSearch] = useState("");
+  const [alertTierFilter, setAlertTierFilter] = useState<"all" | "watch" | "action" | "critical">("all");
+  const [benchmarkSearch, setBenchmarkSearch] = useState("");
+  const [batchApplying, setBatchApplying] = useState(false);
+
+  const filteredAlerts = useMemo(() => {
+    return visibleAlerts.filter((a) => {
+      if (alertTierFilter !== "all" && a.tier !== alertTierFilter) return false;
+      if (alertSearch.trim()) {
+        const q = alertSearch.toLowerCase();
+        return a.name.toLowerCase().includes(q) || (a.sku && a.sku.toLowerCase().includes(q));
+      }
+      return true;
+    });
+  }, [visibleAlerts, alertTierFilter, alertSearch]);
+
+  const filteredBenchmarks = useMemo(() => {
+    if (!benchmarkSearch.trim()) return benchmarks;
+    const q = benchmarkSearch.toLowerCase();
+    return benchmarks.filter((b) => b.rootName.toLowerCase().includes(q) || b.rootSlug.toLowerCase().includes(q));
+  }, [benchmarks, benchmarkSearch]);
+
+  const applyAllMarkdowns = async () => {
+    if (!confirm(`Apply suggested markdowns to ${filteredAlerts.length} items?`)) return;
+    setBatchApplying(true);
+    try {
+      for (const a of filteredAlerts) {
+        if (a.suggested != null) {
+          await fetch(`/api/items/${a.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "price", price: a.suggested }),
+          });
+          setDone((s) => new Set(s).add(a.id));
+        }
+      }
+      router.refresh();
+    } catch (err) {
+      console.error("Batch apply failed:", err);
+    } finally {
+      setBatchApplying(false);
+    }
+  };
+
+  const fixAllViolations = async () => {
+    setBatchApplying(true);
+    try {
+      for (const v of visibleViolations) {
+        await fetch(`/api/items/${v.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "price", price: round50(v.floor) }),
+        });
+        setDone((s) => new Set(s).add(v.id));
+      }
+      router.refresh();
+    } catch (err) {
+      console.error("Fix violations failed:", err);
+    } finally {
+      setBatchApplying(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ================================================================= */}
-      {/* 1. HOUSE PRICING POLICY STRIP WITH TUNING TOGGLE                   */}
+      {/* 1. EXECUTIVE KPI SUMMARY HUD                                      */}
       {/* ================================================================= */}
-      <div className="card flex flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-5 py-3.5 text-xs text-stone-500 bg-white border border-stone-200 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
-          <span className="flex items-center gap-1.5 font-bold text-stone-900">
-            <Scale className="h-4 w-4 text-amber-600" /> House Pricing Policy
-          </span>
-          <span>
-            Target Profit: <strong className="text-stone-800">{config.targetProfitMultiplier}×</strong>
-          </span>
-          <span>
-            Retail Gap: <strong className="text-stone-800">{Math.round(config.retailGapPct * 100)}%</strong>
-          </span>
-          <span>
-            Grade Multipliers:{" "}
-            <strong className="text-stone-800">
-              A: {config.gradeFactors.A} · B: {config.gradeFactors.B} · C: {config.gradeFactors.C} · D: {config.gradeFactors.D}
-            </strong>
-          </span>
-          <span className="hidden sm:inline-flex items-center gap-1 text-emerald-700">
-            <ShieldCheck className="h-3.5 w-3.5" /> Floor = Cost × 1.18
-          </span>
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-5">
+        {/* Target Profit Hurdle */}
+        <div className="card p-3.5 border border-amber-200/90 bg-amber-50/50 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-900">
+            <span>Target Profit Hurdle</span>
+            <Scale className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="mt-2 font-display text-2xl font-bold text-amber-950 tabular-nums">
+            {config.targetProfitMultiplier}×
+          </div>
+          <p className="mt-1 text-[11px] text-amber-800/80">
+            +{Math.round((config.targetProfitMultiplier - 1) * 100)}% markup on cost
+          </p>
         </div>
 
+        {/* Retail Gap Ceiling */}
+        <div className="card p-3.5 border border-sky-200/90 bg-sky-50/50 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#1D5D8B]">
+            <span>Retail Gap Ceiling</span>
+            <TrendingDown className="h-4 w-4 text-[#16c4df]" />
+          </div>
+          <div className="mt-2 font-display text-2xl font-bold text-[#17364b] tabular-nums">
+            {Math.round(config.retailGapPct * 100)}%
+          </div>
+          <p className="mt-1 text-[11px] text-[#3e6074]">
+            Discount vs brand-new retail
+          </p>
+        </div>
+
+        {/* Minimum Cost Floor */}
+        <div className="card p-3.5 border border-stone-200/90 bg-stone-50/60 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-stone-700">
+            <span>Floor Protection</span>
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          </div>
+          <div className="mt-2 font-display text-2xl font-bold text-stone-900 tabular-nums">
+            1.18×
+          </div>
+          <p className="mt-1 text-[11px] text-stone-500">
+            Guaranteed cost recovery threshold
+          </p>
+        </div>
+
+        {/* Aging Inventory Alerts */}
         <button
           type="button"
-          onClick={() => setShowConfigPanel((prev) => !prev)}
+          onClick={() => setActiveTab("alerts")}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition shadow-sm",
-            showConfigPanel
-              ? "border-amber-400 bg-amber-50 text-amber-900"
-              : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
+            "card p-3.5 text-left border shadow-sm transition hover:shadow",
+            visibleAlerts.length > 0
+              ? "border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-400"
+              : "border-stone-200 bg-white"
           )}
         >
-          <Sliders className="h-3.5 w-3.5 text-amber-600" />
-          <span>{showConfigPanel ? "Close Multiplier Tuning" : "Tune Multipliers & Policy"}</span>
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-900">
+            <span>Aging Alerts</span>
+            <Clock className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="mt-2 font-display text-2xl font-bold text-amber-950 tabular-nums">
+            {visibleAlerts.length}
+          </div>
+          <p className="mt-1 text-[11px] text-amber-800">
+            {visibleAlerts.length > 0 ? "Units needing markdown →" : "All listed inventory clear"}
+          </p>
+        </button>
+
+        {/* Floor Violations */}
+        <button
+          type="button"
+          onClick={() => setActiveTab("alerts")}
+          className={cn(
+            "card p-3.5 text-left border shadow-sm transition hover:shadow",
+            visibleViolations.length > 0
+              ? "border-rose-300 bg-gradient-to-br from-rose-50 to-red-50 hover:border-rose-400"
+              : "border-stone-200 bg-white"
+          )}
+        >
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-rose-900">
+            <span>Floor Breaches</span>
+            <ShieldAlert className="h-4 w-4 text-rose-600" />
+          </div>
+          <div className="mt-2 font-display text-2xl font-bold text-rose-950 tabular-nums">
+            {visibleViolations.length}
+          </div>
+          <p className="mt-1 text-[11px] text-rose-800">
+            {visibleViolations.length > 0 ? "Items priced below floor →" : "Zero floor breaches"}
+          </p>
         </button>
       </div>
 
-      {/* ================================================================= */}
-      {/* 2. FULL-WIDTH MULTIPLIER & POLICY TUNING PANEL                    */}
-      {/* ================================================================= */}
-      {showConfigPanel && (
-        <div className="card p-5 rounded-2xl border-2 border-amber-300 bg-amber-50/40 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
+      {/* Floor Violations Urgent Banner */}
+      {visibleViolations.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
             <div>
-              <h3 className="font-display text-base font-bold text-amber-950">
-                Company Pricing Multipliers & Strategy Thresholds
+              <div className="font-bold text-sm text-rose-950">
+                {visibleViolations.length} item{visibleViolations.length > 1 ? "s" : ""} listed below company cost floor
+              </div>
+              <div className="text-xs text-rose-800">
+                Current ask prices do not meet the minimum cost hurdle of 1.18×. Fix them to protect gross margin.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={fixAllViolations}
+              disabled={batchApplying}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+            >
+              {batchApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Auto-Fix All Violations
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 2. MODERN WORKSPACE TABS                                          */}
+      {/* ================================================================= */}
+      <div className="card p-2 bg-white border border-stone-200 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab("calculator")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition",
+                activeTab === "calculator"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-600 hover:bg-stone-100"
+              )}
+            >
+              <Calculator className="h-3.5 w-3.5 text-[#16c4df]" />
+              <span>Valuation Calculator</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("alerts")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition",
+                activeTab === "alerts"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-600 hover:bg-stone-100"
+              )}
+            >
+              <Clock className="h-3.5 w-3.5 text-amber-500" />
+              <span>Aging Markdowns Queue</span>
+              {visibleAlerts.length > 0 && (
+                <span className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-black",
+                  activeTab === "alerts" ? "bg-amber-400 text-stone-950" : "bg-amber-100 text-amber-900"
+                )}>
+                  {visibleAlerts.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("benchmarks")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition",
+                activeTab === "benchmarks"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-600 hover:bg-stone-100"
+              )}
+            >
+              <FolderTree className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Market Benchmarks</span>
+              <span className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                activeTab === "benchmarks" ? "bg-stone-700 text-stone-200" : "bg-stone-100 text-stone-500"
+              )}>
+                {benchmarks.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("policy")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition",
+                activeTab === "policy"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-600 hover:bg-stone-100"
+              )}
+            >
+              <Sliders className="h-3.5 w-3.5 text-amber-600" />
+              <span>Strategy Multipliers & Policy</span>
+            </button>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-3 text-xs text-stone-500 pr-2">
+            <span>Target: <strong className="text-stone-900">{config.targetProfitMultiplier}×</strong></span>
+            <span>·</span>
+            <span>Retail Gap: <strong className="text-stone-900">{Math.round(config.retailGapPct * 100)}%</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* 3. TAB CONTENT: VALUATION CALCULATOR                              */}
+      {/* ================================================================= */}
+      {activeTab === "calculator" && (
+        <div className="space-y-6">
+          <MarginCalculator
+            baseOptions={baseOptions}
+            brands={brands}
+            items={items}
+            config={config}
+            setConfig={setConfig}
+          />
+
+          {/* Bottom Quick-Glance Dual Panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Quick Aging Panel */}
+            <div className="lg:col-span-6 card p-4 bg-white border border-stone-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <h4 className="font-display text-sm font-bold text-stone-900">
+                    Price-Aging Alerts
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("alerts")}
+                  className="text-xs font-bold text-[#1D5D8B] hover:underline"
+                >
+                  Open Full Queue ({visibleAlerts.length}) →
+                </button>
+              </div>
+
+              {visibleAlerts.length === 0 ? (
+                <p className="text-xs text-stone-400 py-3 text-center">
+                  All listed inventory is rotating within standard markdown windows.
+                </p>
+              ) : (
+                <div className="divide-y divide-stone-100">
+                  {visibleAlerts.slice(0, 3).map((a) => (
+                    <div key={a.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                      <div className="min-w-0 flex-1 truncate font-semibold text-stone-800">
+                        {a.name}
+                        <span className="ml-1.5 text-[10.5px] text-stone-400 font-normal">
+                          {a.days}d in stock
+                        </span>
+                      </div>
+                      <div className="text-right tabular-nums shrink-0">
+                        <span className="text-stone-400 line-through mr-1.5">{fmtMoney(a.ask)}</span>
+                        <span className="font-bold text-amber-700">{fmtMoney(a.suggested)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => apply(a)}
+                        disabled={busy === a.id || a.suggested == null}
+                        className="btn-accent h-7 px-2 text-[10.5px] font-bold shrink-0"
+                      >
+                        {busy === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Benchmark Panel */}
+            <div className="lg:col-span-6 card p-4 bg-white border border-stone-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FolderTree className="h-4 w-4 text-indigo-600" />
+                  <h4 className="font-display text-sm font-bold text-stone-900">
+                    Category Benchmarks
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("benchmarks")}
+                  className="text-xs font-bold text-[#1D5D8B] hover:underline"
+                >
+                  View All ({benchmarks.length}) Categories →
+                </button>
+              </div>
+
+              <div className="divide-y divide-stone-100 text-xs">
+                {benchmarks.slice(0, 3).map((b, idx) => (
+                  <div key={`${b.rootSlug}-${idx}`} className="flex items-center justify-between gap-3 py-2">
+                    <span className="font-semibold text-stone-800 truncate">{b.rootName}</span>
+                    <span className="text-stone-400">{b.stockCount} in stock</span>
+                    <span className="tabular-nums font-semibold text-indigo-700">
+                      Mkt: {fmtMoney(b.avgBenchmark)}
+                    </span>
+                    <span className="tabular-nums font-bold text-stone-900">
+                      Ask: {fmtMoney(b.avgListed)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 4. TAB CONTENT: FULL AGING MARKDOWNS QUEUE                        */}
+      {/* ================================================================= */}
+      {activeTab === "alerts" && (
+        <div className="card p-5 bg-white border border-stone-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+            <div>
+              <h3 className="font-display text-lg font-bold text-stone-900">
+                Price-Aging Markdown Queue
               </h3>
-              <p className="text-xs text-amber-800/80">
-                Adjusting these parameters updates the Pricing Desk formula and matrix calculations in real time.
+              <p className="text-xs text-stone-500">
+                Standard markdown cycles automatically trigger based on days in showroom to maintain inventory velocity.
+              </p>
+            </div>
+
+            {filteredAlerts.length > 0 && (
+              <button
+                type="button"
+                onClick={applyAllMarkdowns}
+                disabled={batchApplying}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50 shrink-0"
+              >
+                {batchApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                Apply All {filteredAlerts.length} Markdowns
+              </button>
+            )}
+          </div>
+
+          {/* Tier Filters & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setAlertTierFilter("all")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  alertTierFilter === "all"
+                    ? "bg-stone-900 text-white"
+                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                )}
+              >
+                All ({visibleAlerts.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertTierFilter("watch")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  alertTierFilter === "watch"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 text-amber-800 hover:bg-amber-100"
+                )}
+              >
+                Watch (30–59d · −6%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertTierFilter("action")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  alertTierFilter === "action"
+                    ? "bg-orange-600 text-white"
+                    : "bg-orange-50 text-orange-800 hover:bg-orange-100"
+                )}
+              >
+                Action (60–89d · −12%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertTierFilter("critical")}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  alertTierFilter === "critical"
+                    ? "bg-rose-600 text-white"
+                    : "bg-rose-50 text-rose-800 hover:bg-rose-100"
+                )}
+              >
+                Critical (90d+ · −20%)
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-60">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                value={alertSearch}
+                onChange={(e) => setAlertSearch(e.target.value)}
+                placeholder="Search unit by name or SKU..."
+                className="input h-9 w-full pl-9 text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Table */}
+          {filteredAlerts.length === 0 ? (
+            <div className="py-12 text-center text-xs text-stone-400 rounded-xl border border-dashed border-stone-200 bg-stone-50/50">
+              No inventory units currently meet markdown criteria for this filter.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-stone-100 bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-wider text-stone-400">
+                    <th className="py-2.5 px-3">Inventory Unit</th>
+                    <th className="px-3">Days Listed</th>
+                    <th className="px-3">Aging Tier</th>
+                    <th className="px-3 text-right">Current Ask</th>
+                    <th className="px-3 text-right">Markdown Ask</th>
+                    <th className="px-3 text-right">Margin After</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredAlerts.map((a) => {
+                    const t = TIER_STYLE[a.tier];
+                    return (
+                      <tr key={a.id} className="hover:bg-stone-50/60 transition">
+                        <td className="py-3 px-3">
+                          <Link href={`/inventory/${a.id}`} className="flex items-center gap-2.5 group">
+                            <Thumb url={a.photo} className="h-9 w-11 shrink-0 rounded border border-stone-200 object-contain p-0.5 bg-white" />
+                            <div className="min-w-0">
+                              <span className="block font-bold text-stone-900 group-hover:text-[#1D5D8B] truncate max-w-[240px]">
+                                {a.name}
+                              </span>
+                              <span className="text-[11px] text-stone-400">
+                                {a.sku ? `SKU: ${a.sku}` : "No SKU"}
+                              </span>
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="px-3 font-semibold text-stone-700">
+                          {a.days} days
+                        </td>
+                        <td className="px-3">
+                          <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10.5px] font-bold", t.box)}>
+                            {t.label}
+                          </span>
+                        </td>
+                        <td className="px-3 text-right font-semibold text-stone-400 line-through tabular-nums">
+                          {fmtMoney(a.ask)}
+                        </td>
+                        <td className="px-3 text-right font-bold text-amber-700 tabular-nums text-sm">
+                          {fmtMoney(a.suggested)}
+                        </td>
+                        <td className="px-3 text-right tabular-nums font-semibold text-emerald-700">
+                          {a.marginAfter != null ? `+${Math.round(a.marginAfter * 100)}%` : "—"}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => apply(a)}
+                            disabled={busy === a.id || a.suggested == null}
+                            className="btn-accent h-8 px-3 text-[11px] font-bold"
+                          >
+                            {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            Apply Markdown
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 5. TAB CONTENT: MARKET BENCHMARK REFERENCE DICTIONARY             */}
+      {/* ================================================================= */}
+      {activeTab === "benchmarks" && (
+        <div className="card p-5 bg-white border border-stone-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+            <div>
+              <h3 className="font-display text-lg font-bold text-stone-900">
+                Market Benchmark Reference Matrix
+              </h3>
+              <p className="text-xs text-stone-500">
+                Category baseline values calculated from catalog research, prevailing secondhand averages, and historical sales.
+              </p>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                value={benchmarkSearch}
+                onChange={(e) => setBenchmarkSearch(e.target.value)}
+                placeholder="Search category family..."
+                className="input h-9 w-full pl-9 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-stone-100 bg-stone-50/70 text-left text-[10.5px] font-bold uppercase tracking-wider text-stone-400">
+                  <th className="py-3 px-3">Category Family</th>
+                  <th className="px-3 text-center">Active In Stock</th>
+                  <th className="px-3 text-right">Market Benchmark</th>
+                  <th className="px-3 text-right">Average Listed Ask</th>
+                  <th className="px-3 text-right">Average Realized</th>
+                  <th className="py-3 px-4 text-center">Market Position</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredBenchmarks.map((b, idx) => {
+                  const max = Math.max(b.avgBenchmark ?? 0, b.avgListed ?? 0, b.avgSold ?? 0) * 1.25 || 1;
+                  const x = (v?: number | null) => (v ? `${Math.min(97, (v / max) * 100)}%` : undefined);
+                  return (
+                    <tr key={`${b.rootSlug}-${idx}`} className="hover:bg-stone-50/60 transition">
+                      <td className="py-3 px-3 font-semibold text-stone-900 text-[13px]">
+                        {b.rootName}
+                      </td>
+                      <td className="px-3 text-center tabular-nums font-semibold text-stone-600">
+                        {b.stockCount} units
+                      </td>
+                      <td className="px-3 text-right tabular-nums font-bold text-indigo-700">
+                        {fmtMoney(b.avgBenchmark)}
+                      </td>
+                      <td className="px-3 text-right tabular-nums font-bold text-stone-900">
+                        {fmtMoney(b.avgListed)}
+                      </td>
+                      <td className="px-3 text-right tabular-nums font-semibold text-emerald-700">
+                        {b.avgSold ? fmtMoney(b.avgSold) : "—"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="mx-auto relative h-2 w-32 sm:w-40 rounded-full bg-stone-100">
+                          {x(b.avgBenchmark) && (
+                            <span
+                              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-indigo-500 shadow-sm"
+                              style={{ left: x(b.avgBenchmark) }}
+                              title={`Benchmark: ${fmtMoney(b.avgBenchmark)}`}
+                            />
+                          )}
+                          {x(b.avgListed) && (
+                            <span
+                              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-stone-900 shadow-sm"
+                              style={{ left: x(b.avgListed) }}
+                              title={`Ask: ${fmtMoney(b.avgListed)}`}
+                            />
+                          )}
+                          {x(b.avgSold) && (
+                            <span
+                              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 shadow-sm"
+                              style={{ left: x(b.avgSold) }}
+                              title={`Realized: ${fmtMoney(b.avgSold)}`}
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* 6. TAB CONTENT: STRATEGY MULTIPLIERS & POLICY TUNING             */}
+      {/* ================================================================= */}
+      {activeTab === "policy" && (
+        <div className="card p-6 bg-white border border-stone-200 shadow-sm space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 pb-4">
+            <div>
+              <h3 className="font-display text-lg font-bold text-stone-950">
+                Company Pricing Multipliers & Strategy Tuning
+              </h3>
+              <p className="text-xs text-stone-500">
+                Calibrate markup hurdles, retail discount minimums, and automated floor rules across all pricing desks.
               </p>
             </div>
             <button
@@ -824,16 +1341,16 @@ export function PricingTools({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Target Profit Multiplier Card */}
-            <div className="rounded-xl border border-amber-200 bg-white p-4">
-              <label className="text-xs font-bold text-stone-800 block">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Target Profit Multiplier */}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-5 space-y-2">
+              <label className="text-xs font-bold text-stone-900 block uppercase tracking-wider">
                 Target Profit Multiplier
               </label>
-              <p className="text-[11px] text-stone-500 mt-0.5">Markup hurdle over total acquisition & refurb costs</p>
-              <div className="mt-2.5 flex items-center gap-2">
+              <p className="text-xs text-stone-500">Markup hurdle over total acquisition, refurb, and cleaning costs</p>
+              <div className="pt-2 flex items-center gap-2">
                 <input
-                  className="input h-10 text-sm font-black tabular-nums w-24"
+                  className="input h-11 text-base font-black tabular-nums w-28 bg-white"
                   type="number"
                   step="0.05"
                   min="1.0"
@@ -850,20 +1367,20 @@ export function PricingTools({
                 />
                 <span className="text-xs font-bold text-stone-600">× Total Cost</span>
               </div>
-              <span className="mt-1.5 block text-[10.5px] text-amber-700 font-semibold">
-                Default: 1.40 (40% profit markup)
+              <span className="block text-[11px] text-amber-700 font-semibold pt-1">
+                Default: 1.40 (enforces +40% profit markup)
               </span>
             </div>
 
-            {/* Retail Gap Discount Card */}
-            <div className="rounded-xl border border-amber-200 bg-white p-4">
-              <label className="text-xs font-bold text-stone-800 block">
-                Retail Gap (% vs Brand New)
+            {/* Retail Gap Discount */}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-5 space-y-2">
+              <label className="text-xs font-bold text-stone-900 block uppercase tracking-wider">
+                Retail Gap Discount Ceiling
               </label>
-              <p className="text-[11px] text-stone-500 mt-0.5">Discount threshold ensuring secondhand appeal</p>
-              <div className="mt-2.5 flex items-center gap-2">
+              <p className="text-xs text-stone-500">Minimum required savings percentage vs brand new retail price</p>
+              <div className="pt-2 flex items-center gap-2">
                 <input
-                  className="input h-10 text-sm font-black tabular-nums w-24"
+                  className="input h-11 text-base font-black tabular-nums w-28 bg-white"
                   type="number"
                   step="1"
                   min="5"
@@ -880,195 +1397,30 @@ export function PricingTools({
                 />
                 <span className="text-xs font-bold text-stone-600">% off retail</span>
               </div>
-              <span className="mt-1.5 block text-[10.5px] text-amber-700 font-semibold">
+              <span className="block text-[11px] text-amber-700 font-semibold pt-1">
                 Default: 35% discount threshold
               </span>
             </div>
 
-            {/* Condition Grade Multipliers Card */}
-            <div className="rounded-xl border border-amber-200 bg-white p-4">
-              <label className="text-xs font-bold text-stone-800 block">
-                Condition Grade Multipliers
+            {/* Price Floor Rule */}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-5 space-y-2">
+              <label className="text-xs font-bold text-stone-900 block uppercase tracking-wider">
+                Price Floor Protection Rule
               </label>
-              <p className="text-[11px] text-stone-500 mt-0.5">Ceiling factor relative to Grade A MaxA</p>
-              <div className="mt-2 grid grid-cols-4 gap-1.5">
-                {(["A", "B", "C", "D"] as const).map((g) => (
-                  <div key={g} className="text-center">
-                    <span className="text-[10.5px] font-bold text-stone-600 block mb-0.5">Gr {g}</span>
-                    <input
-                      className="input h-8 px-1 text-center text-xs font-bold tabular-nums w-full"
-                      type="number"
-                      step="0.05"
-                      min="0.1"
-                      max="1.5"
-                      value={config.gradeFactors[g]}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0.1;
-                        const next = {
-                          ...config,
-                          gradeFactors: { ...config.gradeFactors, [g]: val },
-                        };
-                        setConfig(next);
-                        try {
-                          localStorage.setItem(PRICING_CONFIG_STORAGE_KEY, JSON.stringify(next));
-                        } catch {}
-                      }}
-                    />
-                  </div>
-                ))}
+              <p className="text-xs text-stone-500">Hard stop pricing barrier to protect against selling at or below cost</p>
+              <div className="pt-2 flex items-center gap-2">
+                <div className="h-11 flex items-center px-4 rounded-xl border border-stone-200 bg-white text-base font-black text-emerald-800">
+                  1.18×
+                </div>
+                <span className="text-xs font-bold text-stone-600">× (Acq + Refurb + Cleaning)</span>
               </div>
-              <span className="mt-1.5 block text-[10.5px] text-amber-700 font-semibold">
-                Defaults: A: 1.00 · B: 0.85 · C: 0.70 · D: 0.50
+              <span className="block text-[11px] text-emerald-700 font-semibold pt-1">
+                Strict loss prevention (enforced on intake & markdowns)
               </span>
             </div>
           </div>
         </div>
       )}
-
-      {/* ================================================================= */}
-      {/* 3. CORE WORKSTATION: PRICING FORMULA DESK (FULL-WIDTH 2-COLUMN)   */}
-      {/* ================================================================= */}
-      <MarginCalculator
-        baseOptions={baseOptions}
-        brands={brands}
-        items={items}
-        config={config}
-        setConfig={setConfig}
-      />
-
-      {/* ================================================================= */}
-      {/* 4. BALANCED LOWER DECK: ALERTS & BENCHMARK REFERENCE              */}
-      {/* ================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Side (5 Cols): Price-Aging Alerts & Violations */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="card p-5 border border-stone-200/90 shadow-sm bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-base font-bold text-stone-900">Price-Aging Alerts</h3>
-              <span className={cn("chip", visibleAlerts.length ? "border-rose-200 bg-rose-50 text-rose-600" : "border-emerald-200 bg-emerald-50 text-emerald-600")}>
-                {visibleAlerts.length ? `${visibleAlerts.length} need markdown` : "all clear"}
-              </span>
-            </div>
-
-            {/* Violations below floor */}
-            {visibleViolations.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {visibleViolations.map((v) => (
-                  <div key={v.id} className="flex flex-wrap items-center gap-2.5 rounded-xl border border-rose-300 bg-rose-50 p-2.5">
-                    <ShieldAlert className="h-4 w-4 shrink-0 text-rose-500" />
-                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-rose-800">
-                      {v.name} ({v.sku}) is below floor
-                    </span>
-                    <button
-                      onClick={() => fixViolation(v)}
-                      disabled={busy === v.id}
-                      className="inline-flex h-7 items-center gap-1 rounded bg-rose-600 px-2.5 text-[11px] font-bold text-white transition hover:bg-rose-500 disabled:opacity-50"
-                    >
-                      {busy === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                      Fix Floor
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Alerts List */}
-            {visibleAlerts.length === 0 ? (
-              <p className="mt-4 rounded-xl border border-dashed border-stone-200 bg-stone-50/60 px-4 py-8 text-center text-xs text-stone-400">
-                All listed inventory is rotating within standard markdown windows.
-              </p>
-            ) : (
-              <div className="mt-3 divide-y divide-stone-100 max-h-[360px] overflow-y-auto">
-                {visibleAlerts.map((a) => {
-                  const t = TIER_STYLE[a.tier];
-                  return (
-                    <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <Link href={`/inventory/${a.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <Thumb url={a.photo} className="h-10 w-12 shrink-0 rounded-lg border border-stone-100 object-cover" />
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-bold text-stone-900">{a.name}</span>
-                          <span className="text-[11px] text-stone-400">
-                            {a.days}d · {a.grade ? `Grade ${a.grade}` : "Ungraded"}
-                          </span>
-                        </span>
-                      </Link>
-                      <div className="text-right text-xs tabular-nums shrink-0">
-                        <span className="text-stone-400 line-through mr-1.5">{fmtMoney(a.ask)}</span>
-                        <span className="font-bold text-amber-700">{fmtMoney(a.suggested)}</span>
-                      </div>
-                      <button
-                        onClick={() => apply(a)}
-                        disabled={busy === a.id || a.suggested == null}
-                        className="btn-accent h-8 px-2.5 text-[11px] font-bold shrink-0"
-                      >
-                        {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                        Apply
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Side (7 Cols): Market Benchmark Reference */}
-        <div className="lg:col-span-7">
-          <div className="card overflow-hidden border border-stone-200/90 shadow-sm bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-3 border-b border-stone-100">
-              <div>
-                <h3 className="font-display text-base font-bold text-stone-900">Market Benchmark Reference</h3>
-                <p className="text-xs text-stone-500">
-                  Where your asks sit against the market midpoint and realized sales.
-                </p>
-              </div>
-              <div className="flex gap-2.5 text-[10px] font-bold text-stone-400">
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-400" /> benchmark</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-stone-900" /> ask</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> realized</span>
-              </div>
-            </div>
-            <div className="overflow-x-auto max-h-[360px]">
-              <table className="w-full min-w-[500px] border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-stone-100 bg-stone-50/70 text-left text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                    <th className="py-2 px-3">Family</th>
-                    <th className="px-2">Grade</th>
-                    <th className="px-2 text-center">In Stock</th>
-                    <th className="px-2 text-right">Benchmark</th>
-                    <th className="px-2 text-right">Avg Ask</th>
-                    <th className="px-3 pr-4">Position</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {benchmarks.map((b) => {
-                    const max = Math.max(b.avgBenchmark ?? 0, b.avgListed ?? 0, b.avgSold ?? 0) * 1.25 || 1;
-                    const x = (v?: number | null) => (v ? `${Math.min(97, (v / max) * 100)}%` : undefined);
-                    return (
-                      <tr key={`${b.rootSlug}-${b.grade}`} className="hover:bg-stone-50/60">
-                        <td className="py-2.5 px-3 font-semibold text-stone-800 truncate max-w-[120px]">{b.rootName}</td>
-                        <td className="px-2"><GradeChip grade={b.grade} /></td>
-                        <td className="px-2 text-center tabular-nums text-stone-500">{b.stockCount}</td>
-                        <td className="px-2 text-right tabular-nums font-semibold text-indigo-700">{fmtMoney(b.avgBenchmark)}</td>
-                        <td className="px-2 text-right tabular-nums font-bold text-stone-900">{fmtMoney(b.avgListed)}</td>
-                        <td className="px-3 pr-4">
-                          <div className="relative h-1.5 w-24 sm:w-28 rounded-full bg-stone-100">
-                            {x(b.avgBenchmark) && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-indigo-400" style={{ left: x(b.avgBenchmark) }} title={`benchmark ${fmtMoney(b.avgBenchmark)}`} />}
-                            {x(b.avgListed) && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-stone-900" style={{ left: x(b.avgListed) }} title={`ask ${fmtMoney(b.avgListed)}`} />}
-                            {x(b.avgSold) && <span className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-emerald-500" style={{ left: x(b.avgSold) }} title={`realized ${fmtMoney(b.avgSold)}`} />}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>
     </div>
   );
 }

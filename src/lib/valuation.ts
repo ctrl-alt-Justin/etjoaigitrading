@@ -99,14 +99,15 @@ export interface Valuation {
   band: [number, number] | null;
 }
 
-/** Grade/category/brand driven value range — independent of purchase cost. */
+/** Category/brand driven value range — items are always acquired in good condition. */
 export function valuate(opts: {
   baseValue: number | null | undefined;
   brand?: string | null;
-  grade: Grade | null | undefined;
+  grade?: Grade | null | undefined;
 }): Valuation {
   const tier = brandTier(opts.brand);
-  const band = opts.grade ? GRADE_META[opts.grade].band : null;
+  // Default to standard resale band [0.45, 0.60] since company acquires items in good condition
+  const band: [number, number] = opts.grade ? GRADE_META[opts.grade].band : [0.45, 0.60];
   const effective =
     opts.baseValue && opts.baseValue > 0 ? opts.baseValue * tier.multiplier : null;
 
@@ -168,17 +169,17 @@ export const SUPPLIER_CHANNELS = [
 ] as const;
 
 /* ------------------------------------------------------------------ */
-/* Company Retail Gap & Condition Grade Pricing Formula Engine         */
+/* Company Profit & Retail Gap Pricing Formula Engine (No Grading)   */
 /* ------------------------------------------------------------------ */
 
 export interface PricingFormulaConfig {
-  targetProfitMultiplier: number; // default: 1.40
-  retailGapPct: number; // default: 0.35 (35%)
-  gradeFactors: {
-    A: number; // default: 1.00
-    B: number; // default: 0.85
-    C: number; // default: 0.70
-    D: number; // default: 0.50
+  targetProfitMultiplier: number; // default: 1.40 (40% profit markup)
+  retailGapPct: number; // default: 0.35 (35% below retail benchmark)
+  gradeFactors?: {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
   };
 }
 
@@ -198,9 +199,9 @@ export const PRICING_CONFIG_STORAGE_KEY = "etjoaigi_pricing_desk_config";
 export interface PricingFormulaGradeRow {
   grade: Grade;
   gradeFactor: number;
-  maxAllowedCap: number; // MaxA * gradeFactor
+  maxAllowedCap: number; // Retail Cap
   targetPrice: number; // Total Cost * targetProfitMultiplier
-  finalListingPrice: number; // Max Allowed Cap
+  finalListingPrice: number; // Enforced Formula Listing Price
   isTargetMet: boolean; // finalListingPrice >= targetPrice
   profit: number; // finalListingPrice - totalCost
   marginPct: number; // (finalListingPrice - totalCost) / totalCost
@@ -212,18 +213,22 @@ export interface PricingFormulaResult {
   targetPrice: number; // totalCost * targetProfitMultiplier
   brandNewPrice: number;
   retailGapPct: number;
-  maxA: number; // brandNewPrice * (1 - retailGapPct)
+  maxA: number; // retail gap cap
+  maxAllowedCap: number; // retail cap
+  suggestedListingPrice: number;
+  profit: number;
+  marginPct: number;
+  isTargetMet: boolean;
   grades: PricingFormulaGradeRow[];
   recommendedGradeRow: PricingFormulaGradeRow | null;
 }
 
 /**
- * Enforces company pricing formula:
+ * Enforces company pricing formula (all items assumed in good condition):
  * 1. Total Cost = Acquisition + Refurb + Cleaning
  * 2. Target Price = Total Cost × Target Profit Multiplier (default 1.40)
- * 3. MaxA (Grade A Ceiling) = Brand New Price × (1 - Retail Gap) (default 35%)
- * 4. Max Allowed Cap (per Grade) = MaxA × Grade Factor (A: 1.00, B: 0.85, C: 0.70)
- * 5. Final Listing Price = Max Allowed Cap (evaluated against Cost + Profit Target)
+ * 3. Max Allowed Cap = Brand New Price × (1 - Retail Gap) (default 35% gap)
+ * 4. Recommended Listing Price = Max Allowed Cap (evaluated against Cost + Profit Target)
  */
 export function calculatePricingFormula(
   input: {
@@ -242,34 +247,37 @@ export function calculatePricingFormula(
   const brandNewPrice = input.brandNewPrice || 0;
   const retailGapPct =
     config.retailGapPct >= 0 && config.retailGapPct < 1 ? config.retailGapPct : DEFAULT_PRICING_CONFIG.retailGapPct;
-  const maxA = round50(brandNewPrice * (1 - retailGapPct));
+  const maxAllowedCap = round50(brandNewPrice * (1 - retailGapPct));
+  const maxA = maxAllowedCap;
+
+  // Since items are acquired in good condition, listing price targets retail cap while ensuring cost profit
+  const suggestedListingPrice = maxAllowedCap > 0 ? maxAllowedCap : targetPrice;
+  const isTargetMet = totalCost > 0 ? suggestedListingPrice >= targetPrice : true;
+  const profit = totalCost > 0 ? suggestedListingPrice - totalCost : 0;
+  const marginPct = totalCost > 0 ? profit / totalCost : 0;
+
+  const standardRow: PricingFormulaGradeRow = {
+    grade: "A",
+    gradeFactor: 1.0,
+    maxAllowedCap,
+    targetPrice,
+    finalListingPrice: suggestedListingPrice,
+    isTargetMet,
+    profit,
+    marginPct,
+  };
 
   const grades: Grade[] = ["A", "B", "C", "D"];
-
-  const rows: PricingFormulaGradeRow[] = grades.map((g) => {
-    const factor =
-      config.gradeFactors[g] ??
-      DEFAULT_PRICING_CONFIG.gradeFactors[g] ??
-      (g === "A" ? 1.00 : g === "B" ? 0.85 : g === "C" ? 0.70 : 0.50);
-    const maxAllowedCap = round50(maxA * factor);
-    const finalListingPrice = maxAllowedCap;
-    const isTargetMet = totalCost > 0 ? finalListingPrice >= targetPrice : true;
-    const profit = totalCost > 0 ? finalListingPrice - totalCost : 0;
-    const marginPct = totalCost > 0 ? (finalListingPrice - totalCost) / totalCost : 0;
-
-    return {
-      grade: g,
-      gradeFactor: factor,
-      maxAllowedCap,
-      targetPrice,
-      finalListingPrice,
-      isTargetMet,
-      profit,
-      marginPct,
-    };
-  });
-
-  const selected = rows.find((r) => r.grade === input.selectedGrade) || rows[0] || null;
+  const rows: PricingFormulaGradeRow[] = grades.map((g) => ({
+    grade: g,
+    gradeFactor: 1.0,
+    maxAllowedCap,
+    targetPrice,
+    finalListingPrice: suggestedListingPrice,
+    isTargetMet,
+    profit,
+    marginPct,
+  }));
 
   return {
     totalCost,
@@ -278,8 +286,13 @@ export function calculatePricingFormula(
     brandNewPrice,
     retailGapPct,
     maxA,
+    maxAllowedCap,
+    suggestedListingPrice,
+    profit,
+    marginPct,
+    isTargetMet,
     grades: rows,
-    recommendedGradeRow: selected,
+    recommendedGradeRow: standardRow,
   };
 }
 

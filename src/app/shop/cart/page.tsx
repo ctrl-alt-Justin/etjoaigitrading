@@ -21,10 +21,9 @@ import {
 import { useCart } from "@/components/cart-provider";
 import { ShopHeader } from "@/components/shop-header";
 import { ShopFooter } from "@/components/shop-footer";
-import { ScrollToTop } from "@/components/scroll-to-top";
 import { fmtMoney } from "@/lib/format";
-import { Thumb, GradeChip } from "@/components/ui";
-import type { Grade } from "@/db/schema";
+import { Thumb } from "@/components/ui";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function ShopCartPage() {
   const { items, updateQuantity, removeFromCart, clearCart } = useCart();
@@ -75,8 +74,34 @@ export default function ShopCartPage() {
     [selectedItems]
   );
 
-  const handleInquirySubmit = (e: React.FormEvent) => {
+  const handleInquirySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: selectedItems.map((i) => ({
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            photo: i.photo,
+            sku: i.sku,
+          })),
+          customerName,
+          customerContact,
+          notes: `Cart reservation for ${selectedCount} pieces. Total: ${fmtMoney(selectedSubtotal)}`,
+        }),
+      });
+
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("etjoaigi_reservations");
+        bc.postMessage({ type: "new_reservation" });
+        bc.close();
+      }
+    } catch (err) {
+      console.error("Failed to post reservation:", err);
+    }
     setInquirySent(true);
   };
 
@@ -202,7 +227,6 @@ export default function ShopCartPage() {
                               {item.brand}
                             </span>
                           )}
-                          <GradeChip grade={item.grade as Grade | null} />
                         </div>
                         <Link href={`/shop/${item.id}`}>
                           <h3 className="mt-1 font-display text-base font-bold text-[#17364b] hover:text-[#1D5D8B] transition">
@@ -305,10 +329,10 @@ export default function ShopCartPage() {
 
                 <div className="mt-6 bg-[#FCFDF8] p-4 border border-[#e4f4f4] space-y-2 text-[11px] text-[#3f6175]">
                   <div className="flex items-center gap-2 font-bold text-[#1D5D8B]">
-                    <ShieldCheck className="h-4 w-4 text-[#16c4df]" /> Transparent Inspection
+                    <ShieldCheck className="h-4 w-4 text-[#16c4df]" /> Verified Quality
                   </div>
                   <p>
-                    Every piece is condition-graded with detailed wear reports. Pay upon personal inspection or bank transfer before delivery.
+                    Every piece is thoroughly inspected and verified in good working condition. Pay upon personal inspection or bank transfer before delivery.
                   </p>
                 </div>
               </div>

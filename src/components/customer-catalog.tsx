@@ -17,7 +17,9 @@ import {
   X,
   RotateCcw,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import type { DbCategory, DbItem, Grade } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
@@ -66,22 +68,6 @@ function getColorDots(item: DbItem): string[] {
   return dots.slice(0, 2);
 }
 
-// Grade badge colors matching mockup
-function getGradeBadge(grade: Grade | null | undefined) {
-  switch (grade) {
-    case "A":
-      return { letter: "A", bg: "bg-[#f0d900] text-[#17364b]" };
-    case "B":
-      return { letter: "B", bg: "bg-[#16a34a] text-white" };
-    case "C":
-      return { letter: "C", bg: "bg-[#2563eb] text-white" };
-    case "D":
-      return { letter: "D", bg: "bg-[#dc2626] text-white" };
-    default:
-      return { letter: "A", bg: "bg-[#f0d900] text-[#17364b]" };
-  }
-}
-
 // Pseudo-rating for realistic product display
 function getItemRating(item: DbItem): string {
   const score = 2.5 + ((item.id * 17) % 25) / 10;
@@ -99,13 +85,6 @@ function getItemBadge(item: DbItem, index: number): { label: string; isDiscount:
   }
   return null;
 }
-
-// Condition filter mapping - letter is already displayed in the square chip icon
-const CONDITION_FILTER_OPTIONS = [
-  { id: "A", label: "(Good)", grade: "A" as Grade },
-  { id: "B", label: "(Fair)", grade: "B" as Grade },
-  { id: "C", label: "(Poor)", grade: "C" as Grade },
-];
 
 function getControlledAttributesSummary(item: DbItem): string {
   if (item.attributes && typeof item.attributes === "object") {
@@ -146,7 +125,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
   const [selectedColors, setSelectedColors] = useState<Set<string>>(new Set());
   const [minPrice, setMinPrice] = useState<number | "">("");
   const [maxPrice, setMaxPrice] = useState<number | "">("");
-  const [minStock, setMinStock] = useState<number | "">("");
   const [maxStock, setMaxStock] = useState<number | "">("");
   const [sort, setSort] = useState<string>("relevance");
   const [searchQuery, setSearchQuery] = useState(urlQuery);
@@ -184,6 +162,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     name: string;
     action: "added" | "removed";
   } | null>(null);
+
 
   useEffect(() => {
     if (!favToast) return;
@@ -322,12 +301,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             return false;
           }
         }
-        // Condition (A (Good), B (Fair), C (Poor), D (Salvage)) filter
-        if (selectedConditions.size > 0) {
-          if (!item.grade || !selectedConditions.has(item.grade)) {
-            return false;
-          }
-        }
         // Color filter (functional)
         if (selectedColors.size > 0) {
           const itemColor = (item.color ?? "").toLowerCase();
@@ -343,11 +316,8 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
         if (maxPrice !== "" && item.listedPrice != null && item.listedPrice > Number(maxPrice)) {
           return false;
         }
-        // Stock Range filter (functional)
+        // Max quantity available filter (no range)
         const stock = getItemStock(item);
-        if (minStock !== "" && stock < Number(minStock)) {
-          return false;
-        }
         if (maxStock !== "" && stock > Number(maxStock)) {
           return false;
         }
@@ -383,7 +353,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
         }
         return 0; // relevance
       });
-  }, [items, activeCategoryIds, selectedConditions, selectedColors, minPrice, maxPrice, minStock, maxStock, searchQuery, sort, categoryNames]);
+  }, [items, activeCategoryIds, selectedConditions, selectedColors, minPrice, maxPrice, maxStock, searchQuery, sort, categoryNames]);
 
   // Current category name for breadcrumb title
   const currentCategoryTitle = useMemo(() => {
@@ -401,8 +371,7 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     setMaxPrice(max);
   };
 
-  const handleStockPreset = (min: number | "", max: number | "") => {
-    setMinStock(min);
+  const handleStockPreset = (max: number | "") => {
     setMaxStock(max);
   };
 
@@ -412,7 +381,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     setSelectedColors(new Set());
     setMinPrice("");
     setMaxPrice("");
-    setMinStock("");
     setMaxStock("");
     setSearchQuery("");
   };
@@ -423,7 +391,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
     selectedColors.size > 0 ||
     minPrice !== "" ||
     maxPrice !== "" ||
-    minStock !== "" ||
     maxStock !== "" ||
     searchQuery !== "";
 
@@ -603,56 +570,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
               )}
             </div>
 
-            {/* CONDITION (Good, Fair, Poor) Accordion */}
-            <div className="border-b border-stone-200/80 pb-4">
-              <button
-                type="button"
-                onClick={() => setGradeOpen(!gradeOpen)}
-                className="flex w-full items-center justify-between font-black uppercase tracking-wider text-[#17364b]"
-              >
-                <span>Condition {selectedConditions.size > 0 && `(${selectedConditions.size})`}</span>
-                <span className="text-sm font-bold text-stone-500">
-                  {gradeOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                </span>
-              </button>
-
-              {gradeOpen && (
-                <div className="mt-3 space-y-2">
-                  {CONDITION_FILTER_OPTIONS.map((opt) => {
-                    const isChecked = selectedConditions.has(opt.id);
-                    const gradeMeta = getGradeBadge(opt.grade);
-                    const count = conditionCounts[opt.id] ?? 0;
-                    return (
-                      <label
-                        key={opt.id}
-                        className="flex cursor-pointer items-center justify-between text-stone-600 hover:text-[#17364b]"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`flex h-4 w-4 items-center justify-center text-[9px] font-normal ${gradeMeta.bg}`}
-                          >
-                            {opt.grade}
-                          </span>
-                          <span className={`text-xs font-normal ${isChecked ? "font-bold text-[#1D5D8B]" : ""}`}>
-                            {opt.label}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-stone-400">{count}</span>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleCondition(opt.id)}
-                            className="accent-[#1D5D8B]"
-                          />
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             {/* FUNCTIONAL COLOR FILTER Accordion */}
             <div className="border-b border-stone-200/80 pb-4">
               <button
@@ -804,73 +721,57 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                 onClick={() => setStockRangeOpen(!stockRangeOpen)}
                 className="flex w-full items-center justify-between font-black uppercase tracking-wider text-[#17364b]"
               >
-                <span>Stock Range {(minStock !== "" || maxStock !== "") && `(${minStock || 0}-${maxStock || "∞"})`}</span>
+                <span>Stock Available {maxStock !== "" && `(≤ ${maxStock} units)`}</span>
                 <span className="text-sm font-bold text-stone-500">
                   {stockRangeOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 </span>
               </button>
               {stockRangeOpen && (
                 <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-semibold text-stone-500">Min Units</label>
-                      <input
-                        type="number"
-                        placeholder="0"
-                        min={0}
-                        value={minStock}
-                        onChange={(e) => setMinStock(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="input mt-0.5 w-full !py-1 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-stone-500">Max Units</label>
-                      <input
-                        type="number"
-                        placeholder="Max"
-                        min={0}
-                        value={maxStock}
-                        onChange={(e) => setMaxStock(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="input mt-0.5 w-full !py-1 text-xs"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-stone-500">Max Quantity Available</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 5 units max"
+                      min={1}
+                      value={maxStock}
+                      onChange={(e) => setMaxStock(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="input mt-0.5 w-full !py-1 text-xs"
+                    />
                   </div>
 
-                  {/* Preset quick buttons */}
+                  {/* Preset quick buttons for Max Quantity */}
                   <div className="flex flex-wrap gap-1.5 text-[10px]">
                     <button
                       type="button"
-                      onClick={() => handleStockPreset(1, "")}
-                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      onClick={() => handleStockPreset(1)}
+                      className={`px-2 py-1 font-semibold transition ${maxStock === 1 ? 'bg-[#1D5D8B] text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}
                     >
-                      1+ units
+                      Max 1 unit
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStockPreset(3, "")}
-                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      onClick={() => handleStockPreset(3)}
+                      className={`px-2 py-1 font-semibold transition ${maxStock === 3 ? 'bg-[#1D5D8B] text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}
                     >
-                      3+ units
+                      Max 3 units
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStockPreset(5, "")}
-                      className="bg-stone-100 px-2 py-1 font-semibold text-stone-700 hover:bg-stone-200"
+                      onClick={() => handleStockPreset(5)}
+                      className={`px-2 py-1 font-semibold transition ${maxStock === 5 ? 'bg-[#1D5D8B] text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}
                     >
-                      5+ units
+                      Max 5 units
                     </button>
                   </div>
 
-                  {(minStock !== "" || maxStock !== "") && (
+                  {maxStock !== "" && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setMinStock("");
-                        setMaxStock("");
-                      }}
+                      onClick={() => setMaxStock("")}
                       className="text-[11px] font-semibold text-[#1D5D8B] hover:underline"
                     >
-                      Reset stock
+                      Clear quantity filter
                     </button>
                   )}
                 </div>
@@ -904,7 +805,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             <div className={`grid grid-cols-1 gap-0 sm:grid-cols-2 border-t-[2pt] border-l border-[#A4A4A2] ${filtersCollapsed ? 'lg:grid-cols-4 xl:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-3'}`}>
               {visible.map((item, index) => {
                 const badge = getItemBadge(item, index);
-                const gradeBadge = getGradeBadge(item.grade as Grade | null);
                 const isFav = isFavorite(item.id);
                 const colorDots = getColorDots(item);
 
@@ -952,11 +852,9 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                           ))}
                         </div>
 
-                        {/* Grade Tag (increased font size text-xs, font-normal) */}
-                        <span
-                          className={`inline-flex h-5 min-w-5 items-center justify-center px-2 text-xs font-normal ${gradeBadge.bg}`}
-                        >
-                          {gradeBadge.letter}
+                        {/* Quantity Tag */}
+                        <span className="inline-flex items-center gap-1 rounded bg-stone-100 px-2 py-0.5 text-[11px] font-bold text-stone-700 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                          Qty: {getItemStock(item)}
                         </span>
                       </div>
 
@@ -1003,7 +901,6 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
             <div className="divide-y divide-[#d8e2e7] border border-[#d8e2e7] bg-white overflow-hidden shadow-sm">
               {visible.map((item, index) => {
                 const badge = getItemBadge(item, index);
-                const gradeBadge = getGradeBadge(item.grade as Grade | null);
                 const colorDots = getColorDots(item);
                 const rating = getItemRating(item);
                 const isFav = isFavorite(item.id);
@@ -1037,10 +934,8 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                                 {badge.label}
                               </span>
                             )}
-                            <span
-                              className={`inline-flex h-5.5 min-w-5.5 items-center justify-center px-2 text-xs font-normal ${gradeBadge.bg}`}
-                            >
-                              {gradeBadge.letter}
+                            <span className="inline-flex items-center gap-1 rounded bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-700 group-hover/row:bg-white/20 group-hover/row:text-white transition-colors">
+                              Qty: {getItemStock(item)} in stock
                             </span>
                           </div>
 
@@ -1139,12 +1034,14 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
                           {fmtMoney(item.listedPrice)}
                         </div>
 
-                        <Link
-                          href={`/shop/${item.id}`}
-                          className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-[#1D5D8B] bg-white transition hover:bg-[#16c4df] hover:text-[#17364b]"
-                        >
-                          View Details →
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/shop/${item.id}`}
+                            className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-[#1D5D8B] bg-stone-100 transition hover:bg-[#16c4df] hover:text-[#17364b]"
+                          >
+                            View Details →
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -1196,6 +1093,8 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
           </button>
         </div>
       )}
+
+
     </div>
   );
 }

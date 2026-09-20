@@ -11,6 +11,7 @@ import {
   Scale,
   ShoppingBag,
   ArrowUpRight,
+  CalendarClock,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/format";
@@ -74,12 +75,13 @@ const NAV: {
     group: "Operate",
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/reservations", label: "Reservations", icon: CalendarClock },
       { href: "/inventory/new", label: "Intake desk", icon: PackagePlus, accent: true },
       { href: "/inventory", label: "Inventory", icon: Boxes, key: "active" },
     ],
   },
   {
-    group: "Govern",
+    group: "Configuration",
     items: [
       { href: "/pricing", label: "Pricing desk", icon: Scale, key: "alerts" },
       { href: "/taxonomy", label: "Taxonomy", icon: FolderTree },

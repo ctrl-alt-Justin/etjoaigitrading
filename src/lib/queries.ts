@@ -21,6 +21,7 @@ import {
   fmtDate,
   monthStart,
   startOfWeekMonday,
+  startOfWeekSunday,
 } from "@/lib/format";
 
 export async function getShareByToken(token: string): Promise<DbItemShare | null> {
@@ -468,6 +469,12 @@ export interface DashboardData {
   sourcingOpportunities: SourcingOpportunity[];
   spark: { label: string; value: number }[];
   weekly: WeeklyBucket[];
+  flowData: {
+    threeWeeks: WeeklyBucket[];
+    weekly: WeeklyBucket[];
+    monthly: WeeklyBucket[];
+    quarterly: WeeklyBucket[];
+  };
   categoryValue: { name: string; slug: string; value: number; count: number }[];
   aging: { label: string; count: number; value: number; tone: string }[];
   soldByMonth: { label: string; cost: number; listed: number; sold: number }[];
@@ -550,22 +557,82 @@ export function computeDashboard(
   const margins = sold.map((i) => i.realizedMargin).filter((x): x is number => x != null);
   const dts = sold.map((i) => i.daysToSell).filter((x): x is number => x != null);
 
-  const week0 = startOfWeekMonday(now);
+  const week0 = startOfWeekSunday(now);
   const weekly: WeeklyBucket[] = Array.from({ length: 12 }, (_, ix) => {
     const start = new Date(week0);
     start.setDate(start.getDate() - (11 - ix) * 7);
-    return { label: fmtDate(start), intake: 0, sold: 0, revenue: 0 };
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return { label: `${fmtDate(start)} – ${fmtDate(end)}`, intake: 0, sold: 0, revenue: 0 };
   });
+
+  const threeWeeks: WeeklyBucket[] = Array.from({ length: 3 }, (_, ix) => {
+    const start = new Date(week0);
+    start.setDate(start.getDate() - (2 - ix) * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const label = ix === 2 ? `This Wk (${fmtDate(start)}–${fmtDate(end)})` : ix === 1 ? `Last Wk (${fmtDate(start)}–${fmtDate(end)})` : `2 Wks Ago (${fmtDate(start)}–${fmtDate(end)})`;
+    return { label, intake: 0, sold: 0, revenue: 0 };
+  });
+
+  const monthly: WeeklyBucket[] = Array.from({ length: 6 }, (_, ix) => {
+    const m = new Date(now.getFullYear(), now.getMonth() - (5 - ix), 1);
+    const label = m.toLocaleDateString("en-US", { month: "short" });
+    return { label, intake: 0, sold: 0, revenue: 0 };
+  });
+
+  const currentQuarter = Math.floor(now.getMonth() / 3);
+  const quarterly: WeeklyBucket[] = Array.from({ length: 4 }, (_, ix) => {
+    const qOffset = 3 - ix;
+    const qTotal = currentQuarter - qOffset;
+    const qYear = now.getFullYear() + Math.floor(qTotal / 4);
+    const qIndex = ((qTotal % 4) + 4) % 4;
+    return {
+      label: `Q${qIndex + 1} '${String(qYear).slice(2)}`,
+      intake: 0,
+      sold: 0,
+      revenue: 0,
+    };
+  });
+
   for (const i of enriched) {
-    const inStart = startOfWeekMonday(new Date(i.intakeAt));
+    const inDate = new Date(i.intakeAt);
+    const inStart = startOfWeekSunday(inDate);
     const ix = Math.round((week0.getTime() - inStart.getTime()) / (7 * 86_400_000));
     if (ix >= 0 && ix < 12) weekly[11 - ix].intake++;
+    if (ix >= 0 && ix < 3) threeWeeks[2 - ix].intake++;
+
+    const inDiffMonths = (now.getFullYear() - inDate.getFullYear()) * 12 + (now.getMonth() - inDate.getMonth());
+    if (inDiffMonths >= 0 && inDiffMonths < 6) monthly[5 - inDiffMonths].intake++;
+
+    const inQ = Math.floor(inDate.getMonth() / 3);
+    const inDiffQ = (now.getFullYear() - inDate.getFullYear()) * 4 + (currentQuarter - inQ);
+    if (inDiffQ >= 0 && inDiffQ < 4) quarterly[3 - inDiffQ].intake++;
+
     if (i.soldAt) {
-      const outStart = startOfWeekMonday(new Date(i.soldAt));
+      const soldDate = new Date(i.soldAt);
+      const outStart = startOfWeekSunday(soldDate);
       const ox = Math.round((week0.getTime() - outStart.getTime()) / (7 * 86_400_000));
       if (ox >= 0 && ox < 12) {
         weekly[11 - ox].sold++;
         weekly[11 - ox].revenue += i.soldPrice ?? 0;
+      }
+      if (ox >= 0 && ox < 3) {
+        threeWeeks[2 - ox].sold++;
+        threeWeeks[2 - ox].revenue += i.soldPrice ?? 0;
+      }
+
+      const soldDiffMonths = (now.getFullYear() - soldDate.getFullYear()) * 12 + (now.getMonth() - soldDate.getMonth());
+      if (soldDiffMonths >= 0 && soldDiffMonths < 6) {
+        monthly[5 - soldDiffMonths].sold++;
+        monthly[5 - soldDiffMonths].revenue += i.soldPrice ?? 0;
+      }
+
+      const soldQ = Math.floor(soldDate.getMonth() / 3);
+      const soldDiffQ = (now.getFullYear() - soldDate.getFullYear()) * 4 + (currentQuarter - soldQ);
+      if (soldDiffQ >= 0 && soldDiffQ < 4) {
+        quarterly[3 - soldDiffQ].sold++;
+        quarterly[3 - soldDiffQ].revenue += i.soldPrice ?? 0;
       }
     }
   }
@@ -614,7 +681,7 @@ export function computeDashboard(
 
   const alerts = agingAlerts(enriched);
 
-  const firstOfWeek = startOfWeekMonday(now).getTime();
+  const firstOfWeek = startOfWeekSunday(now).getTime();
   const intakeThisWeek = enriched.filter(
     (i) => new Date(i.intakeAt).getTime() >= firstOfWeek
   ).length;
@@ -745,6 +812,12 @@ export function computeDashboard(
     sourcingOpportunities,
     spark: weekly.map((w) => ({ label: w.label, value: w.revenue })),
     weekly,
+    flowData: {
+      threeWeeks,
+      weekly,
+      monthly,
+      quarterly,
+    },
     categoryValue,
     aging,
     soldByMonth,

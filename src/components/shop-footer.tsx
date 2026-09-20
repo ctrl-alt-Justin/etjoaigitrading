@@ -32,6 +32,7 @@ export function ShopFooter() {
             <p><Link href="/shop/offers" className="hover:text-[#1D5D8B] hover:underline">Special Offers & Deals</Link></p>
             <p><Link href="/shop/cart" className="hover:text-[#1D5D8B] hover:underline">Shopping Cart</Link></p>
             <p><Link href="/shop/favorites" className="hover:text-[#1D5D8B] hover:underline">Saved Favorites</Link></p>
+            <p><a href="https://www.facebook.com/etjoaigitrading" target="_blank" rel="noopener noreferrer" className="font-bold text-[#1D5D8B] hover:underline flex items-center gap-1">Contact ETJOAIGI ↗</a></p>
           </div>
         </div>
 
@@ -53,7 +54,7 @@ export function ShopFooter() {
           </div>
           <div className="mt-3 flex items-center gap-2">
             <a
-              href="https://facebook.com"
+              href="https://www.facebook.com/etjoaigitrading"
               target="_blank"
               rel="noopener noreferrer"
               className="flex h-7 w-7 items-center justify-center rounded border border-stone-800 text-xs font-bold text-stone-900 transition hover:bg-[#16c4df] hover:text-[#17364b] hover:border-[#16c4df]"
