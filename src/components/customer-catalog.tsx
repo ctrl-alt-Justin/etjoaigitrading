@@ -484,6 +484,15 @@ function CustomerCatalogInner({ items, categories, initialCategory = "all" }: Pr
         </div>
       </div>
 
+      {/* Mobile Filter Backdrop */}
+      {sidebarMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity md:hidden"
+          onClick={() => setSidebarMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Main Content Area (Sidebar + Product Grid/List) */}
       <div className={`mt-6 grid grid-cols-1 items-start gap-8 transition-all ${filtersCollapsed ? '' : 'md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr]'}`}>
         {/* Left Sidebar Filter (Sticky on desktop, collapsible drawer on mobile) */}

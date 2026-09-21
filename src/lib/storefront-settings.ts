@@ -10,17 +10,28 @@ export * from "./storefront-settings-types";
 
 const SETTINGS_FILE_PATH = path.join(process.cwd(), "data", "storefront-settings.json");
 
+let memoryCache: StorefrontSettings | null = null;
+
+export function invalidateStorefrontCache() {
+  memoryCache = null;
+}
+
 export async function getStorefrontSettings(): Promise<StorefrontSettings> {
+  if (memoryCache) {
+    return memoryCache;
+  }
   try {
     const data = await fs.readFile(SETTINGS_FILE_PATH, "utf-8");
     const parsed = JSON.parse(data);
-    return {
+    const settings: StorefrontSettings = {
       spotlightItemIds: Array.isArray(parsed.spotlightItemIds) ? parsed.spotlightItemIds : [],
       catalogBanner: {
         ...DEFAULT_STOREFRONT_SETTINGS.catalogBanner,
         ...(parsed.catalogBanner || {}),
       },
     };
+    memoryCache = settings;
+    return settings;
   } catch {
     return DEFAULT_STOREFRONT_SETTINGS;
   }
@@ -40,6 +51,8 @@ export async function saveStorefrontSettings(
     },
   };
 
+  memoryCache = next;
+
   try {
     const dir = path.dirname(SETTINGS_FILE_PATH);
     await fs.mkdir(dir, { recursive: true });
@@ -50,3 +63,4 @@ export async function saveStorefrontSettings(
 
   return next;
 }
+

@@ -160,15 +160,15 @@ export default async function ShopHomePage() {
     }
   }
 
-  // Backfill with other featured / listed items if needed
-  if (spotlightItems.length < 3) {
+  // Only if no spotlight items were configured (or none found in forSale), fall back to default items
+  if (spotlightItems.length === 0) {
     const featuredWithPhotos = forSale.filter(
-      (i) => i.isFeatured && i.photos?.[0]?.url && !spotlightItems.some((s) => s.id === i.id)
+      (i) => i.isFeatured && i.photos?.[0]?.url
     );
     const otherWithPhotos = forSale.filter(
-      (i) => !i.isFeatured && i.photos?.[0]?.url && !spotlightItems.some((s) => s.id === i.id)
+      (i) => !i.isFeatured && i.photos?.[0]?.url
     );
-    spotlightItems = [...spotlightItems, ...featuredWithPhotos, ...otherWithPhotos].slice(0, 8);
+    spotlightItems = [...featuredWithPhotos, ...otherWithPhotos].slice(0, 8);
   }
 
   const spotlightItem = spotlightItems[0] || null;

@@ -140,7 +140,7 @@ function ShopHeaderInner() {
 
           {/* Favorites Popup Dialog */}
           {favoritesOpen && (
-            <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-white p-4 text-[#17364b] shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white p-4 text-[#17364b] shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
                 <div className="flex items-center gap-2">
                   <Heart className="h-4 w-4 fill-[#16c4df] text-[#16c4df]" />

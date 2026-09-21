@@ -274,32 +274,60 @@ export function Sidebar({ counts }: { counts: ShellCounts }) {
           <Link href="/">
             <Logo light />
           </Link>
-          <Link
-            href="/shop"
-            target="_blank"
-            className="flex items-center gap-1.5 rounded-full border border-[#16c4df]/50 bg-[#16c4df]/15 px-3 py-1 text-xs font-bold text-[#16c4df] transition hover:bg-[#16c4df]/25"
-          >
-            <ShoppingBag className="h-3.5 w-3.5 text-[#16c4df]" />
-            <span>Storefront</span>
-            <ArrowUpRight className="h-3 w-3 text-[#16c4df]" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/shop"
+              target="_blank"
+              className="flex items-center gap-1.5 rounded-full border border-[#16c4df]/50 bg-[#16c4df]/15 px-3 py-1 text-xs font-bold text-[#16c4df] transition hover:bg-[#16c4df]/25"
+            >
+              <ShoppingBag className="h-3.5 w-3.5 text-[#16c4df]" />
+              <span>Storefront</span>
+              <ArrowUpRight className="h-3 w-3 text-[#16c4df]" />
+            </Link>
+            <button
+              type="button"
+              onClick={async () => {
+                await fetch("/api/auth", { method: "DELETE" });
+                window.location.href = "/";
+              }}
+              className="rounded-full border border-white/10 p-1.5 text-[#7ea1b7] transition hover:bg-white/10 hover:text-rose-300"
+              title="Sign Out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <nav className="flex gap-1.5 overflow-x-auto px-3 pb-2.5">
+        <nav className="flex gap-1.5 overflow-x-auto px-3 pb-2.5 scrollbar-none">
           {NAV.flatMap((s) => s.items).map((item) => {
             const active = isActive(pathname, item.href);
+            const badge = item.key != null ? counts[item.key] : undefined;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition",
+                  "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition active:scale-95",
                   active
                     ? "bg-[#16c4df]/20 text-[#16c4df] ring-1 ring-[#16c4df]/40 shadow-sm"
-                    : "bg-white/[0.06] text-[#9bb7c9] border border-white/10"
+                    : "bg-white/[0.06] text-[#9bb7c9] border border-white/10 hover:bg-white/10 hover:text-white"
                 )}
               >
                 <item.icon className="h-3.5 w-3.5" />
-                {item.label}
+                <span>{item.label}</span>
+                {badge != null && badge > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.2 text-[9.5px] font-bold tabular-nums",
+                      active
+                        ? "bg-[#16c4df] text-[#091b29]"
+                        : item.key === "alerts"
+                        ? "bg-rose-500/30 text-rose-300 animate-pulse"
+                        : "bg-white/15 text-white"
+                    )}
+                  >
+                    {badge}
+                  </span>
+                )}
               </Link>
             );
           })}
